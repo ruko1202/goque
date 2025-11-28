@@ -1,0 +1,101 @@
+name: Reusable coverage Logic
+on:
+  # Определяем рабочий процесс как вызываемый (reusable)
+  workflow_call:
+
+jobs:
+  report-coverage:
+    name: Report Coverage
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: 'go.mod'
+          cache: true
+
+      - name: Download PostgreSQL coverage
+        uses: actions/download-artifact@v6
+        with:
+          name: coverage-postgres
+          path: coverage-postgres
+
+      - name: Download MySQL coverage
+        uses: actions/download-artifact@v6
+        with:
+          name: coverage-mysql
+          path: coverage-mysql
+
+      - name: Merge coverage files
+        run: |
+          cat coverage-postgres/coverage.out > coverage.out
+          # Skip the first line (mode line) from MySQL coverage and append the rest
+          tail -n +2 coverage-mysql/coverage.out >> coverage.out
+
+      - name: Generate coverage report
+        run: |
+          go tool cover -func=coverage.out | sed 's|github.com/ruko1202/goque||' | sed -E 's/\t+/\t/g' | tee coverage.report
+
+      - name: Get coverage percentage
+        id: coverage
+        if: github.event_name == 'pull_request'
+        run: |
+          COVERAGE=$(tail -1 coverage.report | awk '{print $NF}' | sed 's/%//')
+          echo "coverage=$COVERAGE" >> $GITHUB_OUTPUT
+
+      - name: Get detailed coverage
+        id: coverage-details
+        if: github.event_name == 'pull_request'
+        run: |
+          echo "details<<EOF" >> $GITHUB_OUTPUT
+          cat coverage.report >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Comment PR with coverage
+        if: github.event_name == 'pull_request'
+        uses: marocchino/sticky-pull-request-comment@v2
+        with:
+          recreate: true
+          message: |
+            ## Test Coverage Report
+
+            **Total Coverage:** ${{ steps.coverage.outputs.coverage }}%
+
+            Coverage collected from integration tests running on Go 1.23 with PostgreSQL 17 and MySQL 8.0
+
+            <details>
+            <summary>Coverage by Package</summary>
+
+            ```
+            ${{ steps.coverage-details.outputs.details }}
+            ```
+            </details>
+
+      - name: Generate coverage badge
+        if: github.ref == 'refs/heads/main'
+        uses: tj-actions/coverage-badge-go@v3
+        with:
+          filename: coverage.report
+
+      - name: Verify changed files
+        if: github.ref == 'refs/heads/main'
+        uses: tj-actions/verify-changed-files@v20.0.4
+        id: verify-changed-files
+        with:
+          files: README.md
+
+      - name: Commit coverage badge
+        if: github.ref == 'refs/heads/main' && steps.verify-changed-files.outputs.files_changed == 'true'
+        run: |
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+          git add README.md
+          git commit -m "Update coverage badge [skip ci]"
+
+      - name: Push changes
+        if: github.ref == 'refs/heads/main' && steps.verify-changed-files.outputs.files_changed == 'true'
+        uses: ad-m/github-push-action@master
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          branch: ${{ github.ref }}

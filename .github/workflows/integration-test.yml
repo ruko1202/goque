@@ -1,0 +1,90 @@
+name: Reusable Test Logic
+
+on:
+  # Определяем рабочий процесс как вызываемый (reusable)
+  workflow_call:
+    inputs:
+      main_go_version:
+        required: true
+        type: string
+      db_driver:
+        required: true
+        type: string
+        description: 'Database driver: postgres or mysql'
+      db_dsn:
+        required: true
+        type: string
+        description: 'Database connection string'
+
+jobs:
+  run-db-tests:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: ${{ inputs.db_driver == 'postgres' && 'postgres:17' || '' }}
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+      mysql:
+        image: ${{ inputs.db_driver == 'mysql' && 'mysql:8.0' || '' }}
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: goque
+        options: >-
+          --health-cmd="mysqladmin ping"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+        ports:
+          - 3306:3306
+
+    strategy:
+      matrix:
+        go-version: ['1.23', '1.24']
+
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
+        with:
+          go-version: ${{ matrix.go-version }}
+          cache: true
+
+      - name: Install dependencies
+        run: go mod download
+
+      - name: Install binary dependencies
+        run: make bin-deps-db
+
+      - name: Set environment variables
+        run: |
+          echo "DB_DRIVER=${{ inputs.db_driver }}" >> $GITHUB_ENV
+          echo "DB_DSN=${{ inputs.db_dsn }}" >> $GITHUB_ENV
+
+      - name: Set up database schema
+        run: |
+          make db-info
+          make db-up
+
+      - name: Run integration tests
+        run: make test-cov
+        env:
+          DB_DRIVER: ${{ inputs.db_driver }}
+          DB_DSN: ${{ inputs.db_dsn }}
+
+      - name: Upload Coverage Artifact (Go ${{ matrix.go-version }} [${{ inputs.db_driver }}])
+        if: ${{ inputs.main_go_version == matrix.go-version }}
+        uses: actions/upload-artifact@v5
+        with:
+          name: coverage-${{ inputs.db_driver }}
+          path: coverage.out
+          retention-days: 7
