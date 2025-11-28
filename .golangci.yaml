@@ -9,7 +9,7 @@ run:
   timeout: 5m
 
   # Go version to target
-  go: '1.24'
+  go: '1.23'
 
   # Include test files in analysis
   tests: true
@@ -23,17 +23,20 @@ output:
     tab:
       path: stdout
 
-  # Print linter name at the end of issue text
-  print-linter-name: true
-
-  # Sorts results by: filepath, line and column
-  sort-results: true
-
   # Show statistics per linter
   show-stats: true
 
+formatters:
+  enable:
+    - gofmt      # Format code with gofmt
+    - goimports  # Organize imports
+  settings:
+    goimports:
+      # Put imports beginning with prefix after 3rd-party packages
+      local-prefixes:
+        - github.com/ruko1202/goque
+
 linters:
-  disable-all: true
   enable:
     # Core linters (enabled by default)
     - errcheck       # Check for unchecked errors
@@ -77,116 +80,139 @@ linters:
     - thelper        # Detect test helpers without t.Helper()
     - tparallel      # Detect inappropriate usage of t.Parallel()
 
-formatters:
-  enable:
-    - gofmt          # Format code with gofmt
-    - goimports      # Organize imports
   settings:
-    goimports:
-      # Put imports beginning with prefix after 3rd-party packages
-      local-prefixes:
-        - github.com/ruko1202/goque
+    errcheck:
+      check-type-assertions: true
+      check-blank: false
+      exclude-functions:
+        - io/ioutil.ReadFile
+        - io.Copy(*bytes.Buffer)
+        - io.Copy(os.Stdout)
 
-linters-settings:
-  errcheck:
-    check-type-assertions: true
-    check-blank: false
-    exclude-functions:
-      - io/ioutil.ReadFile
-      - io.Copy(*bytes.Buffer)
-      - io.Copy(os.Stdout)
+    govet:
+      enable-all: true
+      disable:
+        - fieldalignment  # Too strict for most projects
+        - shadow          # Can be noisy
 
-  govet:
-    enable-all: true
-    disable:
-      - fieldalignment  # Too strict for most projects
-      - shadow          # Can be noisy
+    staticcheck:
+      checks: ["all"]
 
-  staticcheck:
-    checks: ["all"]
+    misspell:
+      locale: US
 
-  misspell:
-    locale: US
+    revive:
+      confidence: 0.8
+      enable-all-rules: false
+      rules:
+        - name: blank-imports
+        - name: context-as-argument
+        - name: context-keys-type
+        - name: dot-imports
+        - name: error-return
+        - name: error-strings
+        - name: error-naming
+        - name: exported
+        - name: if-return
+        - name: increment-decrement
+        - name: var-naming
+        - name: var-declaration
+        - name: range
+        - name: receiver-naming
+        - name: time-naming
+        - name: unexported-return
+        - name: indent-error-flow
+        - name: errorf
+        - name: empty-block
+        - name: superfluous-else
+        - name: unused-parameter
+        - name: unreachable-code
+        - name: redefines-builtin-id
+        - name: package-comments
+          disabled: true
 
-  revive:
-    confidence: 0.8
-    enable-all-rules: false
+    gosec:
+      excludes:
+        - G104  # Audit errors not checked (covered by errcheck)
+        - G306  # Expect WriteFile permissions to be 0600 or less (too strict)
+
+    gocritic:
+      enabled-tags:
+        - diagnostic
+        - style
+        - performance
+      disabled-checks:
+        - commentFormatting
+        - whyNoLint
+        - hugeParam
+      settings:
+        captLocal:
+          paramsOnly: true
+        rangeValCopy:
+          sizeThreshold: 512
+
+    gocyclo:
+      min-complexity: 15
+
+    gocognit:
+      min-complexity: 20
+
+    funlen:
+      lines: 100
+      statements: 50
+
+    nestif:
+      min-complexity: 4
+
+    goconst:
+      min-len: 3
+      min-occurrences: 3
+
+    dupl:
+      threshold: 150
+
+    prealloc:
+      simple: true
+      range-loops: true
+      for-loops: false
+
+    unparam:
+      check-exported: false
+
+  exclusions:
     rules:
-      - name: blank-imports
-      - name: context-as-argument
-      - name: context-keys-type
-      - name: dot-imports
-      - name: error-return
-      - name: error-strings
-      - name: error-naming
-      - name: exported
-      - name: if-return
-      - name: increment-decrement
-      - name: var-naming
-      - name: var-declaration
-      - name: range
-      - name: receiver-naming
-      - name: time-naming
-      - name: unexported-return
-      - name: indent-error-flow
-      - name: errorf
-      - name: empty-block
-      - name: superfluous-else
-      - name: unused-parameter
-      - name: unreachable-code
-      - name: redefines-builtin-id
-      - name: package-comments
-        disabled: true
+      # Relax linting for test files
+      - path: _test\.go
+        linters:
+          - gocyclo
+          - gocognit
+          - errcheck
+          - dupl
+          - gosec
+          - funlen
+          - goconst
 
-  gosec:
-    tests: true
-    excludes:
-      - G104  # Audit errors not checked (covered by errcheck)
-      - G306  # Expect WriteFile permissions to be 0600 or less (too strict)
+      # Exclude linters for generated files
+      - path: ".*\\.pb\\.go"
+        linters:
+          - all
 
-  gocritic:
-    enabled-tags:
-      - diagnostic
-      - style
-      - performance
-    disabled-checks:
-      - commentFormatting
-      - whyNoLint
-      - hugeParam
-    settings:
-      captLocal:
-        paramsOnly: true
-      rangeValCopy:
-        sizeThreshold: 512
+      # Exclude specific rules for test files
+      - path: _test\.go
+        text: "don't use underscores"
+        linters:
+          - revive
 
-  gocyclo:
-    min-complexity: 15
+      # Allow weak random in tests
+      - path: _test\.go
+        text: "G404:"
+        linters:
+          - gosec
 
-  gocognit:
-    min-complexity: 20
-
-  funlen:
-    lines: 100
-    statements: 50
-
-  nestif:
-    min-complexity: 4
-
-  goconst:
-    min-len: 3
-    min-occurrences: 3
-    ignore-tests: true
-
-  dupl:
-    threshold: 150
-
-  prealloc:
-    simple: true
-    range-loops: true
-    for-loops: false
-
-  unparam:
-    check-exported: false
+      # Exclude package-comments rule from revive
+      - text: "package-comments"
+        linters:
+          - revive
 
 issues:
   # Maximum issues per linter (0 = unlimited)
@@ -200,47 +226,6 @@ issues:
 
   # Fix found issues if supported
   fix: false
-
-  # Exclude rules for specific paths
-  exclude-rules:
-    # Relax linting for test files
-    - path: _test\.go
-      linters:
-        - gocyclo
-        - gocognit
-        - errcheck
-        - dupl
-        - gosec
-        - funlen
-        - goconst
-
-    # Exclude linters for generated files
-    - path: ".*\\.pb\\.go"
-      linters:
-        - all
-
-    # Exclude specific rules for test files
-    - path: _test\.go
-      text: "don't use underscores"
-      linters:
-        - revive
-
-    # Allow weak random in tests
-    - path: _test\.go
-      text: "G404:"
-      linters:
-        - gosec
-
-    # Exclude package-comments rule from revive
-    - text: "package-comments"
-      linters:
-        - revive
-
-  # Don't use default excludes
-  exclude-use-default: false
-
-  # Case-sensitive exclude patterns
-  exclude-case-sensitive: false
 
 severity:
   # Default severity

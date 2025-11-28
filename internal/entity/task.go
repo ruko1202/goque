@@ -1,0 +1,59 @@
+// Package entity contains domain entities for the task queue system.
+package entity
+
+import (
+	"fmt"
+
+	"github.com/google/uuid"
+	"github.com/samber/lo"
+
+	"github.com/ruko1202/goque/internal/pkg/generated/postgres/public/model"
+)
+
+// TaskType represents the type of task to be executed.
+type TaskType = string
+
+// TaskStatus represents the current status of a task.
+type TaskStatus = string
+
+// Task status constants define the possible states of a task in the queue.
+const (
+	TaskStatusNew          = "new"
+	TaskStatusPending      = "pending"
+	TaskStatusProcessing   = "processing"
+	TaskStatusDone         = "done"
+	TaskStatusCanceled     = "canceled"
+	TaskStatusError        = "error"
+	TaskStatusAttemptsLeft = "attempts_left"
+)
+
+// Task represents a unit of work in the queue system.
+type Task model.Task
+
+// NewTask creates a new task with the specified type and payload.
+func NewTask(taskType TaskType, payload string) *Task {
+	task := &Task{
+		Type:       taskType,
+		ExternalID: "internal-" + uuid.NewString(),
+		Payload:    payload,
+		Status:     TaskStatusNew,
+	}
+
+	return task
+}
+
+// NewTaskWithExternalID creates a new task with a custom external ID.
+func NewTaskWithExternalID(taskType, payload, externalID string) *Task {
+	task := NewTask(taskType, payload)
+	task.ExternalID = externalID
+
+	return task
+}
+
+// AddError appends an error message to the task's error log.
+func (t *Task) AddError(err error) {
+	taskErr := lo.FromPtr(t.Errors)
+	//nolint:revive,staticcheck,errorlint
+	taskErr += fmt.Errorf("attempt %d: %v\n", t.Attempts, err).Error()
+	t.Errors = &taskErr
+}

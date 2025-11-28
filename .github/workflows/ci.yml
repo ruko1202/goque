@@ -18,46 +18,69 @@ jobs:
     name: Lint
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Set up Go
-        uses: actions/setup-go@v5
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
         with:
           go-version-file: 'go.mod'
           cache: true
-
       - name: Run golangci-lint
-        uses: golangci/golangci-lint-action@v4
+        uses: golangci/golangci-lint-action@v8
         with:
-          version: v1.61
+          version: v2.3.0
           args: --timeout=5m
 
   test:
-    name: Test
+    name: Integration Tests with PostgreSQL
     runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
     strategy:
       matrix:
-        go-version: ['1.21', '1.22', '1.23', '1.24']
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+        go-version: ['1.23', '1.24']
 
-      - name: Set up Go
-        uses: actions/setup-go@v5
+    env:
+      DB_DSN: postgres://postgres:postgres@localhost:5432/postgres?sslmode=disable
+      DB_DRIVER: postgres
+
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
         with:
           go-version: ${{ matrix.go-version }}
           cache: true
 
-      - name: Run tests
-        run: go test -v -race -coverprofile=coverage.out -covermode=atomic ./...
+      - name: Install dependencies
+        run: go mod download
+
+      - name: Install binary dependencies
+        run: make bin-deps-db
+
+      - name: Set up database schema
+        run: make db-up
+
+      - name: Run integration tests
+        run: make test-with-coverage
 
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v4
         if: matrix.go-version == '1.23'
         with:
           file: ./coverage.out
-          flags: unittests
+          flags: integration-tests
           fail_ci_if_error: false
         env:
           CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
