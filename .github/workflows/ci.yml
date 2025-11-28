@@ -31,7 +31,7 @@ jobs:
           args: --timeout=5m
 
   test:
-    name: Integration Tests with PostgreSQL
+    name: Integration tests[PostgreSQL]
     runs-on: ubuntu-latest
     permissions: # Job-level permissions configuration starts here
       contents: write           # 'write' access to repository contents
@@ -78,27 +78,26 @@ jobs:
         run: make db-up
 
       - name: Run integration tests
-        run: make test-with-coverage
+        run: make test-cov
 
       - name: Parse coverage
         id: coverage
-        if: matrix.go-version == '$MAIN_GO_VERSION'
+        if: matrix.go-version == env.MAIN_GO_VERSION
         run: |
-          COVERAGE=$(go tool cover -func=coverage.out | grep total | awk '{print $3}' | sed 's/%//')
+          COVERAGE=$(cat coverage.report | grep total | awk '{print $3}' | sed 's/%//')
           echo "coverage=$COVERAGE" >> $GITHUB_OUTPUT
           echo "Total coverage: $COVERAGE%"
 
       - name: Get detailed coverage
         id: coverage-details
-        if: matrix.go-version == '$MAIN_GO_VERSION' && github.event_name == 'pull_request'
+        if: matrix.go-version == env.MAIN_GO_VERSION && github.event_name == 'pull_request'
         run: |
-          DETAILS=$(go tool cover -func=coverage.out | grep -v "total")
           echo "details<<EOF" >> $GITHUB_OUTPUT
-          echo "$DETAILS" >> $GITHUB_OUTPUT
+          cat coverage.report >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
 
       - name: Comment PR with coverage
-        if: matrix.go-version == '$MAIN_GO_VERSION' && github.event_name == 'pull_request'
+        if: matrix.go-version == env.MAIN_GO_VERSION && github.event_name == 'pull_request'
         uses: marocchino/sticky-pull-request-comment@v2
         with:
           recreate: true
@@ -116,20 +115,20 @@ jobs:
             </details>
 
       - name: Generate coverage badge
-        if: matrix.go-version == '$MAIN_GO_VERSION' && github.ref == 'refs/heads/main'
+        if: matrix.go-version == env.MAIN_GO_VERSION && github.ref == 'refs/heads/main'
         uses: tj-actions/coverage-badge-go@v3
         with:
-          filename: coverage.out
+          filename: coverage.report
 
       - name: Verify changed files
-        if: matrix.go-version == '$MAIN_GO_VERSION' && github.ref == 'refs/heads/main'
+        if: matrix.go-version == env.MAIN_GO_VERSION && github.ref == 'refs/heads/main'
         uses: tj-actions/verify-changed-files@v18
         id: verify-changed-files
         with:
           files: README.md
 
       - name: Commit coverage badge
-        if: matrix.go-version == '$MAIN_GO_VERSION' && github.ref == 'refs/heads/main' && steps.verify-changed-files.outputs.files_changed == 'true'
+        if: matrix.go-version == env.MAIN_GO_VERSION && github.ref == 'refs/heads/main' && steps.verify-changed-files.outputs.files_changed == 'true'
         run: |
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
           git config --local user.name "github-actions[bot]"
@@ -137,7 +136,7 @@ jobs:
           git commit -m "Update coverage badge [skip ci]"
 
       - name: Push changes
-        if: matrix.go-version == '$MAIN_GO_VERSION' && github.ref == 'refs/heads/main' && steps.verify-changed-files.outputs.files_changed == 'true'
+        if: matrix.go-version == env.MAIN_GO_VERSION && github.ref == 'refs/heads/main' && steps.verify-changed-files.outputs.files_changed == 'true'
         uses: ad-m/github-push-action@master
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}

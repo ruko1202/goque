@@ -3,3 +3,7 @@
 bin/
 # Added by goreleaser init:
 dist/
+
+coverage.out
+coverage.report
+coverage.tmp

@@ -35,11 +35,11 @@ bin-deps: bin-deps-db
 tloc:
 	go test -p 2 -count 2 ./...
 
-.PHONY: test-with-coverage
-test-with-coverage:
+.PHONY: test-cov
+test-cov:
 	go test -race -p 2 -count 2 -coverprofile=coverage.tmp -covermode atomic --coverpkg=./internal/... ./...
 	@grep -v "mock" coverage.tmp > coverage.out
-	go tool cover -func=coverage.out
+	go tool cover -func=coverage.out | sed 's|github.com/ruko1202/goque||' | sed -E 's/\t+/\t/g' | tee coverage.report
 
 # -------------------------------------
 # Linter and formatter
