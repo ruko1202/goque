@@ -215,8 +215,10 @@ workflow:
   documentation_requirements:
     when_to_update: After ANY code change affecting behavior API or architecture
     separate_commit: Documentation must be separate commit immediately after code
-    files_to_update: README.md,agent/ docs,GoDoc comments,known-issues.md
-    known_issues: Review EVERY commit - remove resolved issues - no Past Issues section
+    files_to_update: README.md,agent/project_details/ docs,agent/quick_load/goque.toon,GoDoc comments,known-issues.md
+    update_both: Always update agent/project_details/ (detailed) AND agent/quick_load/goque.toon (summary) for critical changes
+    check_contradictions: Review for contradictions - keep broader interpretation - remove duplicates
+    known_issues: Review EVERY commit - remove ALL resolved issues - no Past Issues section - only current issues
 
   commit_squashing:
     rule: Squash commits with same purpose or affecting same module

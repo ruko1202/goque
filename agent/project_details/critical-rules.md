@@ -516,7 +516,8 @@ func NewGoque(storage TaskStorage) (*Goque, error) {
 
 **Documentation to update**:
 - `README.md` - If public API, features, or usage examples change
-- `agent/` documentation - If architecture, patterns, or conventions change
+- `agent/project_details/` - If architecture, patterns, conventions, or agreements change
+- `agent/quick_load/goque.toon` - If critical rules, principles, architecture, or workflows change
 - `agent/known-issues.md` - **CRITICAL: Review and update with EVERY commit**:
   - **Remove ALL resolved issues** - No "Past Issues (Resolved)" section allowed
   - Remove issues fixed in current commit
@@ -527,6 +528,11 @@ func NewGoque(storage TaskStorage) (*Goque, error) {
 - GoDoc comments - Always when changing public symbols
 - Migration guides - For breaking changes
 - Examples - If API usage changes
+
+**When architecture, agreements, or known issues change**:
+- Always update both `agent/project_details/` (detailed) AND `agent/quick_load/goque.toon` (summary)
+- Review for contradictions - if found, keep the broader interpretation
+- Remove duplicate or contradicting rules - consolidate into single clear rule
 
 ❌ **WRONG**:
 ```bash
@@ -567,11 +573,13 @@ git commit -m "docs: document priority queue feature
 
 **When to update**:
 - ✅ New feature added → Update README, examples
-- ✅ Public API changed → Update README, GoDoc, agent/conventions.md
-- ✅ Architecture changed → Update agent/architecture.md, agent/principles.md
-- ✅ New pattern introduced → Update agent/conventions.md
-- ✅ Critical rule added → Update agent/critical-rules.md
-- ✅ Known issue found/fixed → **Always review agent/known-issues.md**
+- ✅ Public API changed → Update README, GoDoc, agent/project_details/conventions.md, agent/quick_load/goque.toon
+- ✅ Architecture changed → Update agent/project_details/architecture.md, agent/project_details/principles.md, agent/quick_load/goque.toon
+- ✅ New pattern introduced → Update agent/project_details/conventions.md
+- ✅ Critical rule added/changed → Update agent/project_details/critical-rules.md AND agent/quick_load/goque.toon
+- ✅ Workflow changed → Update agent/project_details/workflow.md AND agent/quick_load/goque.toon
+- ✅ Agreement or convention changed → Update relevant files in agent/project_details/ AND agent/quick_load/goque.toon
+- ✅ Known issue found/fixed → **Always review agent/project_details/known-issues.md**
 - ✅ Bug fix with behavior change → Update README if user-facing
 
 **Special: agent/known-issues.md maintenance**:

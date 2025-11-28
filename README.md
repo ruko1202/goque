@@ -1,23 +1,31 @@
 # Goque
 [![pipeline](https://github.com/ruko1202/goque/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/ruko1202/goque/actions/workflows/ci.yml)
-![Coverage](https://img.shields.io/badge/Coverage-80.1%25-brightgreen)
+![Coverage](https://img.shields.io/badge/Coverage-80.8%25-brightgreen)
 
 A robust, database-backed task queue system for Go with built-in worker pools, retry logic, and graceful shutdown support. Supports PostgreSQL, MySQL, and SQLite.
 
 ## Features
 
-- **Multi-database support** - Works with PostgreSQL, MySQL, and SQLite
-- **Reliable persistence** - Task storage with ACID guarantees
-- **Worker pool management** - Configurable concurrent task processing using goroutine pools
-- **Automatic retry logic** - Configurable retry attempts with custom backoff strategies
-- **Task lifecycle management** - Track task status through multiple states (new, processing, done, error, etc.)
-- **Graceful shutdown** - Clean worker shutdown with in-flight task handling
-- **Task timeout handling** - Per-task timeout configuration with context cancellation
-- **Extensible hooks** - Before/after processing hooks for custom logic
-- **Type-safe queries** - PostgreSQL uses go-jet for type-safe SQL query generation
-- **External ID support** - Associate tasks with external identifiers for idempotency
-- **Built-in task healer** - Automatically marks stuck tasks as errored for reprocessing
-- **Multi-processor support** - Manage multiple task types with a single queue manager
+### Current Features
+- ✅ **Multi-database support** - Works with PostgreSQL, MySQL, and SQLite
+- ✅ **Reliable persistence** - Task storage with ACID guarantees
+- ✅ **Worker pool management** - Configurable concurrent task processing using goroutine pools
+- ✅ **Automatic retry logic** - Configurable retry attempts with custom backoff strategies
+- ✅ **Task lifecycle management** - Track task status through multiple states (new, processing, done, error, etc.)
+- ✅ **Graceful shutdown** - Clean worker shutdown with in-flight task handling
+- ✅ **Task timeout handling** - Per-task timeout configuration with context cancellation
+- ✅ **Extensible hooks** - Before/after processing hooks for custom logic (metrics, logging, tracing)
+- ✅ **Type-safe queries** - PostgreSQL/MySQL use go-jet for type-safe SQL query generation
+- ✅ **External ID support** - Associate tasks with external identifiers for idempotency
+- ✅ **Built-in task healer** - Automatically marks stuck tasks as errored for reprocessing
+- ✅ **Multi-processor support** - Manage multiple task types with a single queue manager
+- ✅ **Structured logging** - Built-in structured logging with `log/slog`
+
+### Planned Features
+- 📋 **Prometheus metrics** - Built-in Prometheus metrics for monitoring
+- 📋 **Zap logger support** - High-performance logging with uber-go/zap
+- 📋 **Context values in logs** - Automatic extraction of trace IDs, request IDs from context
+- 📋 **Example service** - Complete real-world example application
 
 ## Installation
 

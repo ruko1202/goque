@@ -92,7 +92,7 @@ tloc:
 .PHONY: test-cov
 test-cov:
 	go test -race -p 2 -count 2 -coverprofile=coverage.tmp -covermode atomic --coverpkg=./internal/... ./...
-	@grep -v "mock" coverage.tmp > coverage.out
+	@grep -vE "mock|internal/pkg/generated" coverage.tmp > coverage.out
 	go tool cover -func=coverage.out | sed 's|github.com/ruko1202/goque||' | sed -E 's/\t+/\t/g' | tee coverage.report
 
 # -------------------------------------

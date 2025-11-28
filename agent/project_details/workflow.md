@@ -240,15 +240,25 @@ Closes #123"
      - New feature added
      - Usage examples affected
    - **Always** add/update GoDoc comments for exported symbols
-   - **Always** update agent docs if:
-     - Architecture changed (agent/architecture.md)
-     - New pattern introduced (agent/conventions.md)
-     - New principle applied (agent/principles.md)
-     - Critical rule added (agent/critical-rules.md)
-   - **Always** update agent/known-issues.md:
-     - **Remove outdated/resolved issues** - keep only CURRENT issues
+   - **Always** update agent/project_details/ docs if:
+     - Architecture changed (architecture.md)
+     - New pattern introduced (conventions.md)
+     - New principle applied (principles.md)
+     - Critical rule added/changed (critical-rules.md)
+     - Workflow changed (workflow.md)
+     - Any agreement or convention changed
+   - **Always** update agent/quick_load/goque.toon if:
+     - Critical rules, principles, architecture, or workflows change
+     - Keep it synchronized with agent/project_details/
+   - **When architecture, agreements, or known issues change**:
+     - Review for contradictions between files
+     - If contradictions found, keep the broader interpretation
+     - Remove duplicate or contradicting rules
+   - **Always** update agent/project_details/known-issues.md:
+     - **Remove ALL resolved issues** - NO "Past Issues" section allowed
      - Add new issues found during development
-     - Move resolved issues to "Past Issues (Resolved)" section
+     - Keep only CURRENT active issues
+     - Resolved issues are tracked in git history
    - Add migration guide for breaking changes
    - Update examples if API changed
 
