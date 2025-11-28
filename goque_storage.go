@@ -7,11 +7,10 @@ import (
 
 	sqlitetask "github.com/ruko1202/goque/internal/storages/sqlite"
 
+	"github.com/ruko1202/goque/internal/storages"
 	mysqltask "github.com/ruko1202/goque/internal/storages/mysql/task"
 	pgtask "github.com/ruko1202/goque/internal/storages/pg/task"
 	"github.com/ruko1202/goque/pkg/goquestorage"
-
-	"github.com/ruko1202/goque/internal/storages"
 )
 
 // TaskStorage defines the interface for task persistence operations.

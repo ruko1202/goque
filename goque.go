@@ -4,8 +4,10 @@ package goque
 import (
 	"context"
 	"errors"
-	"log/slog"
 	"sync"
+
+	"github.com/ruko1202/xlog"
+	"go.uber.org/zap"
 
 	"github.com/ruko1202/goque/internal/processors/queueprocessor"
 )
@@ -51,7 +53,7 @@ func (g *Goque) Run(ctx context.Context) error {
 	for _, p := range g.processors {
 		err := p.Run(ctx)
 		if err != nil {
-			slog.ErrorContext(ctx, "failed to run processor", slog.Any("err", err))
+			xlog.Error(ctx, "failed to run processor", zap.Error(err))
 			runErr = errors.Join(runErr, err)
 		}
 	}

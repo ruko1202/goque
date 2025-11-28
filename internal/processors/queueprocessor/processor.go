@@ -5,17 +5,17 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log/slog"
 	"runtime/debug"
 	"time"
 
 	"github.com/panjf2000/ants/v2"
+	"github.com/ruko1202/xlog"
 	"github.com/samber/lo"
+	"go.uber.org/zap"
 
 	"github.com/ruko1202/goque/internal/entity"
-	"github.com/ruko1202/goque/internal/storages"
-
 	"github.com/ruko1202/goque/internal/processors/internalprocessors"
+	"github.com/ruko1202/goque/internal/storages"
 )
 
 type (
@@ -28,7 +28,7 @@ type (
 	taskProcessor struct {
 		taskProcessor         TaskProcessor
 		workers               int
-		workerPanicHandler    func(any)
+		workerPanicHandler    func(context.Context) func(any)
 		timeout               time.Duration
 		maxAttempts           int32
 		nextAttemptAtFunc     NextAttemptAtFunc
@@ -39,6 +39,7 @@ type (
 
 // GoqueProcessor manages task fetching, processing, and worker pool coordination.
 type GoqueProcessor struct {
+	globalCtx         context.Context
 	gracefulStoppedCh chan struct{}
 	gracefulCtxCancel context.CancelFunc
 
@@ -101,19 +102,22 @@ func (p *GoqueProcessor) Name() string {
 
 // Run starts the processor, fetching and processing tasks until the context is canceled.
 func (p *GoqueProcessor) Run(ctx context.Context) error {
-	p.queueCleaner.Run(ctx, p.Name())
-	p.queueHealer.Run(ctx, p.Name())
+	ctx = xlog.WithOperation(ctx, p.Name())
+	p.globalCtx = ctx
 
-	slog.InfoContext(ctx, "start processor", slog.String("processor", p.Name()))
+	xlog.Info(ctx, "start processor")
+
+	p.queueCleaner.Run(ctx)
+	p.queueHealer.Run(ctx)
 
 	ctx, p.gracefulCtxCancel = context.WithCancel(ctx)
 
 	workerPool, err := ants.NewPool(p.processor.workers,
-		ants.WithPanicHandler(p.processor.workerPanicHandler),
+		ants.WithPanicHandler(p.processor.workerPanicHandler(ctx)),
 	)
 
 	if err != nil {
-		slog.ErrorContext(ctx, "failed to create pool", slog.Any("err", err))
+		xlog.Error(ctx, "failed to create pool", zap.Error(err))
 		return err
 	}
 
@@ -124,10 +128,10 @@ func (p *GoqueProcessor) Run(ctx context.Context) error {
 
 // Stop gracefully shuts down the processor by canceling its context.
 func (p *GoqueProcessor) Stop() {
-	slog.Info("start graceful shutdown", slog.String("processor", p.Name()))
+	xlog.Info(p.globalCtx, "graceful shutdown")
 	p.gracefulCtxCancel()
 	<-p.gracefulStoppedCh
-	slog.Info("graceful shutdown successful finished", slog.String("processor", p.Name()))
+	xlog.Info(p.globalCtx, "graceful shutdown successful finished")
 
 	p.queueCleaner.Stop()
 	p.queueHealer.Stop()
@@ -144,17 +148,17 @@ func (p *GoqueProcessor) runWithWorkerPool(ctx context.Context, workerPool *ants
 		select {
 		case <-ctx.Done():
 			waitJobs := workerPool.Running() + workerPool.Waiting()
-			slog.InfoContext(ctx, "wait jobs before release worker pool", slog.Int("count", waitJobs), slog.String("processor", p.Name()))
+			xlog.Info(ctx, "wait jobs before release worker pool", zap.Int("workers count", waitJobs))
 
 			err := workerPool.ReleaseTimeout(time.Duration(waitJobs)*p.processor.timeout + time.Millisecond)
 			if err != nil {
-				slog.ErrorContext(ctx, "failed to release workers", slog.Any("err", err))
+				xlog.Error(ctx, "failed to release workers", zap.Error(err))
 			}
 			return
 		case <-ticker.C:
 			err := p.fetchAndProcess(ctx, workerPool)
 			if err != nil {
-				slog.ErrorContext(ctx, "failed to fetch and process tasks", slog.Any("err", err))
+				xlog.Error(ctx, "failed to fetch and process tasks", zap.Error(err))
 			}
 		}
 	}
@@ -162,6 +166,8 @@ func (p *GoqueProcessor) runWithWorkerPool(ctx context.Context, workerPool *ants
 
 func (p *GoqueProcessor) fetchAndProcess(ctx context.Context, workerPool *ants.Pool) error {
 	for _, task := range p.fetchTasks(ctx) {
+		ctx := xlog.WithFields(ctx, zap.String("taskID", task.ID.String()))
+
 		err := workerPool.Submit(func() {
 			select {
 			case <-ctx.Done():
@@ -170,18 +176,14 @@ func (p *GoqueProcessor) fetchAndProcess(ctx context.Context, workerPool *ants.P
 			default:
 			}
 
-			lo.ForEach(p.processor.hooksBeforeProcessing, func(item HookBeforeProcessing, _ int) {
-				item(ctx, task)
-			})
+			p.callHooksBefore(ctx, task)
 
 			taskErr := p.processTask(ctx, task)
 
-			lo.ForEach(p.processor.hooksAfterProcessing, func(item HookAfterProcessing, _ int) {
-				item(ctx, task, taskErr)
-			})
+			p.callHooksAfter(ctx, task, taskErr)
 		})
 		if err != nil {
-			slog.ErrorContext(ctx, "failed to submit task", slog.Any("err", err))
+			xlog.Error(ctx, "failed to submit task", zap.Error(err))
 			return err
 		}
 	}
@@ -189,19 +191,45 @@ func (p *GoqueProcessor) fetchAndProcess(ctx context.Context, workerPool *ants.P
 }
 
 func (p *GoqueProcessor) fetchTasks(ctx context.Context) []*entity.Task {
+	ctx = xlog.WithFields(ctx,
+		zap.String("processor.action", "fetchTasks"),
+		zap.Duration("timeout", p.fetcher.timeout),
+	)
+
 	ctx, cancel := context.WithTimeout(ctx, p.fetcher.timeout)
 	defer cancel()
 
 	tasks, err := p.taskStorage.GetTasksForProcessing(ctx, p.fetcher.taskType, p.fetcher.maxTasks)
 	if err != nil {
-		slog.ErrorContext(ctx, "failed to fetch tasks", slog.Any("err", err))
+		xlog.Error(ctx, "failed to fetch tasks", zap.Error(err))
 		return []*entity.Task{}
 	}
 
 	return tasks
 }
 
+func (p *GoqueProcessor) callHooksBefore(ctx context.Context, task *entity.Task) {
+	ctx = xlog.WithFields(ctx, zap.String("processor.action", "hooks before"))
+
+	lo.ForEach(p.processor.hooksBeforeProcessing, func(item HookBeforeProcessing, _ int) {
+		item(ctx, task)
+	})
+}
+
+func (p *GoqueProcessor) callHooksAfter(ctx context.Context, task *entity.Task, err error) {
+	ctx = xlog.WithFields(ctx, zap.String("processor.action", "hooks after"))
+
+	lo.ForEach(p.processor.hooksAfterProcessing, func(item HookAfterProcessing, _ int) {
+		item(ctx, task, err)
+	})
+}
+
 func (p *GoqueProcessor) processTask(ctx context.Context, task *entity.Task) error {
+	ctx = xlog.WithFields(ctx,
+		zap.String("processor.action", "processTask"),
+		zap.Duration("timeout", p.processor.timeout),
+	)
+
 	ctx, cancel := context.WithTimeout(ctx, p.processor.timeout)
 	defer cancel()
 
@@ -210,17 +238,18 @@ func (p *GoqueProcessor) processTask(ctx context.Context, task *entity.Task) err
 	case errors.Is(err, context.DeadlineExceeded):
 		return fmt.Errorf("%w: %s. %w", ErrTaskTimeout, p.processor.timeout, err)
 	case err != nil:
-		slog.ErrorContext(ctx, "failed to process task", slog.Any("err", err))
+		xlog.Error(ctx, "failed to process task", zap.Error(err))
 		return err
 	}
 
 	return nil
 }
 
-func (p *GoqueProcessor) workersPanicHandler(a any) {
-	slog.ErrorContext(context.Background(), "worker pool panic",
-		slog.Any("err", a),
-		slog.String("processor", p.Name()),
-		slog.String("stack", string(debug.Stack())),
-	)
+func (p *GoqueProcessor) workersPanicHandler(ctx context.Context) func(any) {
+	return func(a any) {
+		xlog.Error(ctx, "worker pool panic",
+			zap.Any("err", a),
+			zap.Binary("stack", debug.Stack()),
+		)
+	}
 }

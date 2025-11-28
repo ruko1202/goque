@@ -4,8 +4,10 @@ package internalprocessors
 import (
 	"context"
 	"fmt"
-	"log/slog"
 	"time"
+
+	"github.com/ruko1202/xlog"
+	"go.uber.org/zap"
 
 	"github.com/ruko1202/goque/internal/entity"
 )
@@ -55,26 +57,31 @@ func (q *QueueCleaner) SetUpdatedAtTimeAgo(updatedAtTimeAgo time.Duration) {
 
 // CleanTasksQueue removes old tasks with done, canceled, or attempts_left status from the queue.
 func (q *QueueCleaner) CleanTasksQueue(ctx context.Context) error {
+	ctx = xlog.WithFields(ctx,
+		zap.String("internal.processor.action", "CleanTasksQueue"),
+		zap.Duration("timeout", q.processTimeout),
+	)
+
 	tasks, err := q.taskStorage.DeleteTasks(ctx, q.taskType, []entity.TaskStatus{
 		entity.TaskStatusDone,
 		entity.TaskStatusCanceled,
 		entity.TaskStatusAttemptsLeft,
 	}, q.updatedAtTimeAgo)
 	if err != nil {
-		slog.ErrorContext(ctx, "failed to clean the queue", slog.Any("err", err))
+		xlog.Error(ctx, "failed to clean the queue", zap.Error(err))
 		return err
 	}
 
-	slog.InfoContext(ctx, fmt.Sprintf("cleaned the queue: %d tasks", len(tasks)))
+	xlog.Info(ctx, fmt.Sprintf("cleaned the queue: %d tasks", len(tasks)))
 	for _, task := range tasks {
-		slog.InfoContext(ctx, "removed task from queue",
-			slog.Any("taskID", task.ID),
-			slog.String("externalID", task.ExternalID),
-			slog.String("type", task.Type),
-			slog.String("status", task.Status),
-			slog.Any("errors", task.Errors),
-			slog.Time("createdAt", task.CreatedAt),
-			slog.Any("updatedAt", task.UpdatedAt),
+		xlog.Info(ctx, "removed task from queue",
+			zap.String("taskID", task.ID.String()),
+			zap.String("externalID", task.ExternalID),
+			zap.String("type", task.Type),
+			zap.String("status", task.Status),
+			zap.Any("errors", task.Errors),
+			zap.Time("createdAt", task.CreatedAt),
+			zap.Any("updatedAt", task.UpdatedAt),
 		)
 	}
 

@@ -3,11 +3,11 @@ package testutils
 import (
 	"context"
 	"fmt"
-	"log/slog"
-	"strings"
 
+	"github.com/ruko1202/xlog"
 	"github.com/samber/lo"
 	"github.com/spf13/viper"
+	"go.uber.org/zap"
 
 	"github.com/ruko1202/goque/internal/storages"
 	mysqltask "github.com/ruko1202/goque/internal/storages/mysql/task"
@@ -25,9 +25,7 @@ func SetupStorages(ctx context.Context) []storages.AdvancedTaskStorage {
 		return []storages.AdvancedTaskStorage{setupStorage(ctx, dbDriver)}
 	}
 
-	slog.InfoContext(ctx, fmt.Sprintf("DB_DRIVER doesn't define. Init storages for all DBs: %s",
-		strings.Join(lo.Keys(availableDBs), ","),
-	))
+	xlog.Info(ctx, "DB_DRIVER doesn't define. Init storages for all DBs", zap.Any("dbs", availableDBs))
 	return lo.MapToSlice(availableDBs, func(dbDriver string, _ struct{}) storages.AdvancedTaskStorage {
 		return setupStorage(ctx, dbDriver)
 	})

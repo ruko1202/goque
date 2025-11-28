@@ -6,9 +6,8 @@ import (
 
 	"go.uber.org/mock/gomock"
 
-	"github.com/ruko1202/goque/internal/pkg/generated/mocks/mock_storages"
-
 	"github.com/ruko1202/goque/internal/entity"
+	"github.com/ruko1202/goque/internal/pkg/generated/mocks/mock_storages"
 )
 
 func TestMain(m *testing.M) {

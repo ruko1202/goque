@@ -2,7 +2,9 @@ package goque
 
 import (
 	"context"
-	"log/slog"
+
+	"github.com/ruko1202/xlog"
+	"go.uber.org/zap"
 
 	"github.com/ruko1202/goque/internal/entity"
 )
@@ -31,11 +33,11 @@ func (q *TaskPusher) AsyncAddTaskToQueue(ctx context.Context, task *entity.Task)
 // AddTaskToQueue adds a task to the queue and returns an error if the operation fails.
 func (q *TaskPusher) AddTaskToQueue(ctx context.Context, task *entity.Task) error {
 	if len(task.Payload) > bigPayload {
-		slog.WarnContext(ctx, "big payload size. may be potential performance problems: slow insert, fetch, etc")
+		xlog.Warn(ctx, "big payload size. may be potential performance problems: slow insert, fetch, etc")
 	}
 	err := q.taskStorage.AddTask(ctx, task)
 	if err != nil {
-		slog.ErrorContext(ctx, "failed to add task to queue", slog.Any("err", err))
+		xlog.Error(ctx, "failed to add task to queue", zap.Error(err))
 		return err
 	}
 

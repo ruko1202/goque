@@ -8,16 +8,16 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/ruko1202/xlog"
 	"github.com/samber/lo"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
-
-	"github.com/ruko1202/goque/test/testutils"
+	"go.uber.org/zap/zaptest"
 
 	"github.com/ruko1202/goque/internal/entity"
-
 	"github.com/ruko1202/goque/internal/utils/xtime"
+	"github.com/ruko1202/goque/test/testutils"
 )
 
 func TestGoqueProcessor(t *testing.T) {
@@ -27,9 +27,11 @@ func TestGoqueProcessor(t *testing.T) {
 
 	t.Run("ok", func(t *testing.T) {
 		t.Parallel()
+		ctx := xlog.ContextWithLogger(ctx, zaptest.NewLogger(t))
+
 		task := &entity.Task{
 			ID:            uuid.New(),
-			Type:          "test task type",
+			Type:          "type[ok]",
 			ExternalID:    uuid.NewString(),
 			Payload:       "test payload",
 			Status:        entity.TaskStatusPending,
@@ -80,9 +82,11 @@ func TestGoqueProcessor(t *testing.T) {
 
 	t.Run("task process timeout", func(t *testing.T) {
 		t.Parallel()
+		ctx := xlog.ContextWithLogger(ctx, zaptest.NewLogger(t))
+
 		task := &entity.Task{
 			ID:            uuid.New(),
-			Type:          "test task type",
+			Type:          "type[process timeout]",
 			ExternalID:    uuid.NewString(),
 			Payload:       "test payload",
 			Status:        entity.TaskStatusPending,
@@ -145,9 +149,11 @@ func TestGoqueProcessor(t *testing.T) {
 
 	t.Run("max attempts", func(t *testing.T) {
 		t.Parallel()
+		ctx := xlog.ContextWithLogger(ctx, zaptest.NewLogger(t))
+
 		task := &entity.Task{
 			ID:            uuid.New(),
-			Type:          "test task type",
+			Type:          "type[max attempts",
 			ExternalID:    uuid.NewString(),
 			Payload:       "test payload",
 			Status:        entity.TaskStatusPending,
@@ -198,9 +204,11 @@ func TestGoqueProcessor(t *testing.T) {
 
 	t.Run("task canceled", func(t *testing.T) {
 		t.Parallel()
+		ctx := xlog.ContextWithLogger(ctx, zaptest.NewLogger(t))
+
 		task := &entity.Task{
 			ID:            uuid.New(),
-			Type:          "test task type",
+			Type:          "type[task canceled]",
 			ExternalID:    uuid.NewString(),
 			Payload:       "test payload",
 			Status:        entity.TaskStatusPending,
@@ -251,9 +259,11 @@ func TestGoqueProcessor(t *testing.T) {
 
 	t.Run("hooks", func(t *testing.T) {
 		t.Parallel()
+		ctx := xlog.ContextWithLogger(ctx, zaptest.NewLogger(t))
+
 		task := &entity.Task{
 			ID:            uuid.New(),
-			Type:          "test task type",
+			Type:          "type[hooks]",
 			ExternalID:    uuid.NewString(),
 			Payload:       "test payload",
 			Status:        entity.TaskStatusPending,
@@ -312,9 +322,11 @@ func TestGoqueProcessor(t *testing.T) {
 
 	t.Run("graceful stop", func(t *testing.T) {
 		t.Parallel()
+		ctx := xlog.ContextWithLogger(ctx, zaptest.NewLogger(t))
+
 		task := entity.Task{
 			ID:            uuid.New(),
-			Type:          "test task type",
+			Type:          "type[graceful stop]",
 			ExternalID:    uuid.NewString(),
 			Payload:       "test payload",
 			Status:        entity.TaskStatusPending,

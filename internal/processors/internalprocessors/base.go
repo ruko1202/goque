@@ -4,11 +4,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log/slog"
 	"time"
+
+	"github.com/ruko1202/xlog"
+	"go.uber.org/zap"
 )
 
 type baseProcessor struct {
+	globalCtx         context.Context
 	gracefulStoppedCh chan struct{}
 	gracefulCtxCancel context.CancelFunc
 
@@ -52,11 +55,11 @@ func (p *baseProcessor) Name() string {
 }
 
 // Run starts the processor, fetching and processing tasks until the context is canceled.
-func (p *baseProcessor) Run(ctx context.Context, parentProcessor string) {
-	slog.InfoContext(ctx, "start processor",
-		slog.String("parent processor", parentProcessor),
-		slog.String("processor", p.Name()),
-	)
+func (p *baseProcessor) Run(ctx context.Context) {
+	ctx = xlog.WithOperation(ctx, p.Name())
+	p.globalCtx = ctx
+
+	xlog.Info(ctx, "start processor")
 
 	ctx, p.gracefulCtxCancel = context.WithCancel(ctx)
 
@@ -76,26 +79,23 @@ func (p *baseProcessor) run(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case <-p.processTicker.C:
-			slog.InfoContext(ctx, "start processing", slog.String("processor", p.Name()))
+			xlog.Info(ctx, "start processing")
 			err := p.doProcessQueue(ctx)
 			if err != nil {
-				slog.ErrorContext(ctx, "process failed",
-					slog.Any("err", err),
-					slog.String("processor", p.Name()),
-				)
+				xlog.Error(ctx, "process failed", zap.Error(err))
 			}
 
-			slog.InfoContext(ctx, "stop processing", slog.String("processor", p.Name()))
+			xlog.Info(ctx, "stop processing")
 		}
 	}
 }
 
 // Stop gracefully shuts down the processor by canceling its context.
 func (p *baseProcessor) Stop() {
-	slog.Info("start graceful shutdown", slog.String("processor", p.Name()))
+	xlog.Info(p.globalCtx, "graceful shutdown")
 	p.gracefulCtxCancel()
 	<-p.gracefulStoppedCh
-	slog.Info("graceful shutdown successful finished", slog.String("processor", p.Name()))
+	xlog.Info(p.globalCtx, "graceful shutdown successful finished")
 }
 
 func (p *baseProcessor) doProcessQueue(ctx context.Context) error {

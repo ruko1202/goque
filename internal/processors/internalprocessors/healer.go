@@ -4,10 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log/slog"
 	"time"
 
+	"github.com/ruko1202/xlog"
 	"github.com/samber/lo"
+	"go.uber.org/zap"
 
 	"github.com/ruko1202/goque/internal/entity"
 )
@@ -35,7 +36,6 @@ type QueueHealer struct {
 	taskStorage HealerTaskStorage
 
 	taskType         entity.TaskType
-	timeout          time.Duration
 	updatedAtTimeAgo time.Duration
 }
 
@@ -45,7 +45,6 @@ func NewQueueHealer(taskStorage HealerTaskStorage, taskType entity.TaskType) *Qu
 		taskType:         taskType,
 		taskStorage:      taskStorage,
 		updatedAtTimeAgo: defaultHealerUpdatedAtTimeAgo,
-		timeout:          defaultHealerTimeout,
 	}
 	q.baseProcessor = newBaseProcessor(
 		queueHealer,
@@ -64,7 +63,12 @@ func (q *QueueHealer) SetUpdatedAtTimeAgo(updatedAtTimeAgo time.Duration) {
 
 // CureTasks marks stuck tasks in pending status as errored based on the configured time threshold.
 func (q *QueueHealer) CureTasks(ctx context.Context) error {
-	ctx, cancel := context.WithTimeout(ctx, q.timeout)
+	ctx = xlog.WithFields(ctx,
+		zap.String("internal.processor.action", "CureTasks"),
+		zap.Duration("timeout", q.processTimeout),
+	)
+
+	ctx, cancel := context.WithTimeout(ctx, q.processTimeout)
 	defer cancel()
 
 	tasks, err := q.taskStorage.CureTasks(ctx, q.taskType, []entity.TaskStatus{
@@ -72,20 +76,20 @@ func (q *QueueHealer) CureTasks(ctx context.Context) error {
 		entity.TaskStatusPending,
 	}, q.updatedAtTimeAgo, ErrTaskIsFrozen.Error())
 	if err != nil {
-		slog.ErrorContext(ctx, "failed to cure the queue", slog.Any("err", err))
+		xlog.Error(ctx, "failed to cure the queue", zap.Error(err))
 		return err
 	}
 
-	slog.InfoContext(ctx, fmt.Sprintf("cured the queue: %d tasks", len(tasks)))
+	xlog.Info(ctx, fmt.Sprintf("cured the queue: %d tasks", len(tasks)))
 	for _, task := range tasks {
-		slog.InfoContext(ctx, "cured task from queue",
-			slog.Any("taskID", task.ID),
-			slog.String("externalID", task.ExternalID),
-			slog.String("type", task.Type),
-			slog.String("status", task.Status),
-			slog.Any("errors", lo.FromPtr(task.Errors)),
-			slog.Time("createdAt", task.CreatedAt),
-			slog.Any("updatedAt", task.UpdatedAt),
+		xlog.Info(ctx, "cured task from queue",
+			zap.String("taskID", task.ID.String()),
+			zap.String("externalID", task.ExternalID),
+			zap.String("type", task.Type),
+			zap.String("status", task.Status),
+			zap.Any("errors", lo.FromPtr(task.Errors)),
+			zap.Time("createdAt", task.CreatedAt),
+			zap.Any("updatedAt", task.UpdatedAt),
 		)
 	}
 

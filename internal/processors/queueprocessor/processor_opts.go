@@ -1,6 +1,7 @@
 package queueprocessor
 
 import (
+	"context"
 	"time"
 )
 
@@ -43,7 +44,7 @@ func WithWorkersCount(count int) GoqueProcessorOpts {
 }
 
 // WithWorkersPanicHandler sets a custom panic handler for worker pool panics.
-func WithWorkersPanicHandler(handler func(any)) GoqueProcessorOpts {
+func WithWorkersPanicHandler(handler func(ctx context.Context) func(any)) GoqueProcessorOpts {
 	return func(p *GoqueProcessor) {
 		p.processor.workerPanicHandler = handler
 	}

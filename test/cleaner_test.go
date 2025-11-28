@@ -8,16 +8,14 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/ruko1202/xlog"
 	"github.com/stretchr/testify/require"
-
-	"github.com/ruko1202/goque/internal/storages"
-
-	"github.com/ruko1202/goque/internal/entity"
-
-	"github.com/ruko1202/goque/test/testutils"
+	"go.uber.org/zap/zaptest"
 
 	"github.com/ruko1202/goque"
-	"github.com/ruko1202/goque/internal/processors/queueprocessor"
+	"github.com/ruko1202/goque/internal/entity"
+	"github.com/ruko1202/goque/internal/storages"
+	"github.com/ruko1202/goque/test/testutils"
 )
 
 func TestCleaner(t *testing.T) {
@@ -31,6 +29,8 @@ func testCleaner(t *testing.T, storage storages.AdvancedTaskStorage) {
 
 	t.Run("ok", func(t *testing.T) {
 		t.Parallel()
+		ctx := xlog.ContextWithLogger(ctx, zaptest.NewLogger(t))
+
 		task := entity.NewTask(
 			"test healer"+uuid.NewString(),
 			testutils.ToJSON(t, "test payload: "+uuid.NewString()),
@@ -40,11 +40,11 @@ func testCleaner(t *testing.T, storage storages.AdvancedTaskStorage) {
 		goq := goque.NewGoque(storage)
 		goq.RegisterProcessor(
 			task.Type,
-			queueprocessor.NoopTaskProcessor(),
-			queueprocessor.WithTaskFetcherTick(10*time.Millisecond),
-			queueprocessor.WithCleanerPeriod(10*time.Millisecond),
-			queueprocessor.WithCleanerUpdatedAtTimeAgo(10*time.Millisecond),
-			queueprocessor.WithCleanerTimeout(time.Second),
+			goque.NoopTaskProcessor(),
+			goque.WithTaskFetcherTick(10*time.Millisecond),
+			goque.WithCleanerPeriod(10*time.Millisecond),
+			goque.WithCleanerUpdatedAtTimeAgo(10*time.Millisecond),
+			goque.WithCleanerTimeout(time.Second),
 		)
 		err := goq.Run(ctx)
 		require.NoError(t, err)

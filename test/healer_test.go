@@ -7,21 +7,17 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/ruko1202/xlog"
 	"github.com/samber/lo"
 	"github.com/stretchr/testify/require"
-
-	"github.com/ruko1202/goque/internal/storages"
-
-	"github.com/ruko1202/goque/internal/entity"
-
-	"github.com/ruko1202/goque/test/testutils"
-
-	"github.com/ruko1202/goque/internal/storages/dbentity"
-
-	"github.com/ruko1202/goque/internal/utils/xtime"
+	"go.uber.org/zap/zaptest"
 
 	"github.com/ruko1202/goque"
-	"github.com/ruko1202/goque/internal/processors/queueprocessor"
+	"github.com/ruko1202/goque/internal/entity"
+	"github.com/ruko1202/goque/internal/storages"
+	"github.com/ruko1202/goque/internal/storages/dbentity"
+	"github.com/ruko1202/goque/internal/utils/xtime"
+	"github.com/ruko1202/goque/test/testutils"
 )
 
 func TestHealer(t *testing.T) {
@@ -35,6 +31,8 @@ func testHealer(t *testing.T, storage storages.AdvancedTaskStorage) {
 
 	t.Run("ok", func(t *testing.T) {
 		t.Parallel()
+		ctx := xlog.ContextWithLogger(ctx, zaptest.NewLogger(t))
+
 		taskType := "test healer" + uuid.NewString()
 
 		expectedCurredTaskIDs := make([]uuid.UUID, 0)
@@ -57,10 +55,10 @@ func testHealer(t *testing.T, storage storages.AdvancedTaskStorage) {
 		goq := goque.NewGoque(storage)
 		goq.RegisterProcessor(
 			taskType,
-			queueprocessor.NoopTaskProcessor(),
-			queueprocessor.WithHealerPeriod(10*time.Millisecond),
-			queueprocessor.WithHealerUpdatedAtTimeAgo(time.Hour),
-			queueprocessor.WithHealerTimeout(time.Second),
+			goque.NoopTaskProcessor(),
+			goque.WithHealerPeriod(10*time.Millisecond),
+			goque.WithHealerUpdatedAtTimeAgo(time.Hour),
+			goque.WithHealerTimeout(time.Second),
 		)
 		err := goq.Run(ctx)
 		require.NoError(t, err)

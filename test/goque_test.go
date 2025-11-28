@@ -7,18 +7,16 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/ruko1202/xlog"
 	"github.com/samber/lo"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	"github.com/ruko1202/goque/internal/storages"
-
-	"github.com/ruko1202/goque/internal/entity"
-
-	"github.com/ruko1202/goque/test/testutils"
+	"go.uber.org/zap/zaptest"
 
 	"github.com/ruko1202/goque"
-	"github.com/ruko1202/goque/internal/processors/queueprocessor"
+	"github.com/ruko1202/goque/internal/entity"
+	"github.com/ruko1202/goque/internal/storages"
+	"github.com/ruko1202/goque/test/testutils"
 )
 
 func TestGoque(t *testing.T) {
@@ -32,6 +30,7 @@ func testGoque(t *testing.T, storage storages.AdvancedTaskStorage) {
 
 	t.Run("ok", func(t *testing.T) {
 		t.Parallel()
+		ctx := xlog.ContextWithLogger(ctx, zaptest.NewLogger(t))
 
 		task := entity.NewTask(
 			"test push and process type"+uuid.NewString(),
@@ -42,11 +41,8 @@ func testGoque(t *testing.T, storage storages.AdvancedTaskStorage) {
 		goq := goque.NewGoque(storage)
 		goq.RegisterProcessor(
 			task.Type,
-			queueprocessor.TaskProcessorFunc(func(_ context.Context, task *entity.Task) error {
-				t.Log("process task: ", task.ID, "payload:", task.Payload, "type:", task.Type)
-				return nil
-			}),
-			queueprocessor.WithTaskFetcherTick(10*time.Millisecond),
+			goque.NoopTaskProcessor(),
+			goque.WithTaskFetcherTick(10*time.Millisecond),
 		)
 		err := goq.Run(ctx)
 		require.NoError(t, err)
@@ -62,6 +58,7 @@ func testGoque(t *testing.T, storage storages.AdvancedTaskStorage) {
 
 	t.Run("stop when in pending a lot of tasks", func(t *testing.T) {
 		t.Parallel()
+		ctx := xlog.ContextWithLogger(ctx, zaptest.NewLogger(t))
 
 		ctx, cancel := context.WithCancel(ctx)
 		defer cancel()
@@ -83,7 +80,7 @@ func testGoque(t *testing.T, storage storages.AdvancedTaskStorage) {
 		goq := goque.NewGoque(storage)
 		goq.RegisterProcessor(
 			taskType,
-			queueprocessor.TaskProcessorFunc(func(_ context.Context, task *entity.Task) error {
+			goque.TaskProcessorFunc(func(_ context.Context, task *entity.Task) error {
 				ctx, cancel := context.WithCancel(ctx)
 				defer cancel()
 
@@ -97,9 +94,9 @@ func testGoque(t *testing.T, storage storages.AdvancedTaskStorage) {
 					return nil
 				}
 			}),
-			queueprocessor.WithWorkersCount(1),
-			queueprocessor.WithTaskFetcherTick(10*time.Millisecond),
-			queueprocessor.WithTaskFetcherMaxTasks(100),
+			goque.WithWorkersCount(1),
+			goque.WithTaskFetcherTick(10*time.Millisecond),
+			goque.WithTaskFetcherMaxTasks(100),
 		)
 		err := goq.Run(ctx)
 		require.NoError(t, err)

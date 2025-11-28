@@ -3,9 +3,10 @@ package queueprocessor
 import (
 	"context"
 	"errors"
-	"log/slog"
 
+	"github.com/ruko1202/xlog"
 	"github.com/samber/lo"
+	"go.uber.org/zap"
 
 	"github.com/ruko1202/goque/internal/entity"
 )
@@ -19,36 +20,32 @@ type (
 
 // LoggingBeforeProcessing default log before processing the task.
 func LoggingBeforeProcessing(ctx context.Context, task *entity.Task) {
-	slog.InfoContext(ctx, "processing task",
-		slog.Any("taskID", task.ID),
-		slog.String("externalID", task.ExternalID),
-		slog.String("type", task.Type),
-		slog.String("status", task.Status),
-		slog.Any("errors", lo.FromPtr(task.Errors)),
-		slog.Time("createdAt", task.CreatedAt),
-		slog.Any("updatedAt", task.UpdatedAt),
+	xlog.Info(ctx, "processing task",
+		zap.String("externalID", task.ExternalID),
+		zap.String("type", task.Type),
+		zap.String("status", task.Status),
+		zap.String("errors", lo.FromPtr(task.Errors)),
+		zap.Time("createdAt", task.CreatedAt),
+		zap.Any("updatedAt", task.UpdatedAt),
 	)
 }
 
 // LoggingAfterProcessing default log after processing the task.
 func LoggingAfterProcessing(ctx context.Context, task *entity.Task, err error) {
 	if err != nil {
-		slog.ErrorContext(ctx, "failed to process task",
-			slog.Any("taskID", task.ID),
-			slog.String("externalID", task.ExternalID),
-			slog.String("type", task.Type),
-			slog.String("status", task.Status),
-			slog.Any("errors", lo.FromPtr(task.Errors)),
-			slog.Time("createdAt", task.CreatedAt),
-			slog.Any("updatedAt", task.UpdatedAt),
-			slog.Any("err", err),
+		xlog.Error(ctx, "failed to process task",
+			zap.String("externalID", task.ExternalID),
+			zap.String("type", task.Type),
+			zap.String("status", task.Status),
+			zap.String("errors", lo.FromPtr(task.Errors)),
+			zap.Time("createdAt", task.CreatedAt),
+			zap.Any("updatedAt", task.UpdatedAt),
+			zap.Error(err),
 		)
 		return
 	}
 
-	slog.InfoContext(ctx, "process task successfully",
-		slog.String("taskID", task.ID.String()),
-	)
+	xlog.Info(ctx, "process task successfully")
 }
 
 func (p *GoqueProcessor) updateTaskStateBeforeProcessing(ctx context.Context, task *entity.Task) {
@@ -56,14 +53,12 @@ func (p *GoqueProcessor) updateTaskStateBeforeProcessing(ctx context.Context, ta
 
 	err := p.taskStorage.UpdateTask(ctx, task.ID, task)
 	if err != nil {
-		slog.ErrorContext(ctx, "failed to update task state",
-			slog.Any("err", err),
-			slog.String("operation", "before processing"),
-		)
+		xlog.Error(ctx, "failed to update task state", zap.Error(err))
 	}
 }
 
 func (p *GoqueProcessor) updateTaskState(ctx context.Context, task *entity.Task, taskErr error) {
+	xlog.WithFields(ctx, zap.String("processor.action", "updateTaskState"))
 	ctx = context.WithoutCancel(ctx)
 
 	switch {
@@ -87,24 +82,18 @@ func (p *GoqueProcessor) updateTaskState(ctx context.Context, task *entity.Task,
 	}
 	err := p.taskStorage.UpdateTask(ctx, task.ID, task)
 	if err != nil {
-		slog.ErrorContext(ctx, "failed to update task state",
-			slog.Any("err", err),
-			slog.String("operation", "after processing"),
-		)
+		xlog.Error(ctx, "failed to update task state", zap.Error(err))
 	}
 }
 
 func (p *GoqueProcessor) returnTaskWhenGracefulShutdown(ctx context.Context, task *entity.Task) {
 	ctx = context.WithoutCancel(ctx)
 
-	slog.InfoContext(ctx, "graceful shutdown: return task to queue", slog.String("taskID", task.ID.String()))
+	xlog.Info(ctx, "graceful shutdown: return task to queue")
 	task.Status = entity.TaskStatusNew
 
 	err := p.taskStorage.UpdateTask(ctx, task.ID, task)
 	if err != nil {
-		slog.ErrorContext(ctx, "failed to update task state",
-			slog.Any("err", err),
-			slog.String("operation", "after processing"),
-		)
+		xlog.Error(ctx, "failed to update task state", zap.Error(err))
 	}
 }
