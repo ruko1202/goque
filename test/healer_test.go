@@ -28,6 +28,7 @@ func testHealer(t *testing.T, storage storages.AdvancedTaskStorage) {
 	t.Helper()
 	t.Parallel()
 	ctx := context.Background()
+	queueManager := goque.NewTaskQueueManager(storage)
 
 	t.Run("ok", func(t *testing.T) {
 		t.Parallel()
@@ -49,7 +50,7 @@ func testHealer(t *testing.T, storage storages.AdvancedTaskStorage) {
 			task.UpdatedAt = lo.ToPtr(xtime.Now().Add(-2 * time.Hour))
 			expectedCurredTaskIDs = append(expectedCurredTaskIDs, task.ID)
 
-			pushToQueue(ctx, t, storage, task)
+			pushToQueue(ctx, t, queueManager, task)
 		}
 
 		goq := goque.NewGoque(storage)
@@ -65,7 +66,7 @@ func testHealer(t *testing.T, storage storages.AdvancedTaskStorage) {
 		defer goq.Stop()
 
 		require.Eventually(t, func() bool {
-			tasks, err := storage.GetTasks(ctx, &dbentity.GetTasksFilter{
+			tasks, err := queueManager.GetTasks(ctx, &dbentity.GetTasksFilter{
 				IDs:      expectedCurredTaskIDs,
 				TaskType: lo.ToPtr(taskType),
 				Status:   lo.ToPtr(entity.TaskStatusError),

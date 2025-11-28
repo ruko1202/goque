@@ -26,6 +26,7 @@ func testCleaner(t *testing.T, storage storages.AdvancedTaskStorage) {
 	t.Helper()
 	t.Parallel()
 	ctx := context.Background()
+	queueManager := goque.NewTaskQueueManager(storage)
 
 	t.Run("ok", func(t *testing.T) {
 		t.Parallel()
@@ -35,7 +36,7 @@ func testCleaner(t *testing.T, storage storages.AdvancedTaskStorage) {
 			"test healer"+uuid.NewString(),
 			testutils.ToJSON(t, "test payload: "+uuid.NewString()),
 		)
-		pushToQueue(ctx, t, storage, task)
+		pushToQueue(ctx, t, queueManager, task)
 
 		goq := goque.NewGoque(storage)
 		goq.RegisterProcessor(
@@ -53,7 +54,7 @@ func testCleaner(t *testing.T, storage storages.AdvancedTaskStorage) {
 		require.Eventually(t, func() bool {
 			t.Log("wait removing the task", task.ID)
 
-			_, err := storage.GetTask(ctx, task.ID)
+			_, err := queueManager.GetTask(ctx, task.ID)
 			return errors.Is(err, sql.ErrNoRows)
 		}, time.Second, time.Millisecond*50)
 	})

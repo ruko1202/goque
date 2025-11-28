@@ -18,20 +18,20 @@ import (
 
 // UpdateTask updates an existing task in the database with the provided data.
 func (s *Storage) UpdateTask(ctx context.Context, taskID uuid.UUID, task *entity.Task) error {
-	ctx = xlog.WithOperation(ctx, "storage.UpdateTask")
-
 	task.UpdatedAt = lo.ToPtr(xtime.Now())
-	return s.updateTaskTx(ctx, s.db, taskID, toDBModel(task))
+	return s.updateTaskTx(ctx, s.db, taskID.String(), toDBModel(task))
 }
 
 // HardUpdateTask updates a task without automatically setting the updated_at timestamp.
 func (s *Storage) HardUpdateTask(ctx context.Context, taskID uuid.UUID, task *entity.Task) error {
-	ctx = xlog.WithOperation(ctx, "storage.UpdateTask")
-
-	return s.updateTaskTx(ctx, s.db, taskID, toDBModel(task))
+	return s.updateTaskTx(ctx, s.db, taskID.String(), toDBModel(task))
 }
 
-func (s *Storage) updateTaskTx(ctx context.Context, tx dbutils.DBTx, taskID uuid.UUID, task *model.Task) error {
+func (s *Storage) updateTaskTx(ctx context.Context, tx dbutils.DBTx, taskID string, task *model.Task) error {
+	ctx = xlog.WithOperation(ctx, "storage.UpdateTask",
+		zap.String("task_id", taskID),
+	)
+
 	stmt := table.Task.
 		UPDATE(
 			table.Task.Status,
@@ -47,7 +47,7 @@ func (s *Storage) updateTaskTx(ctx context.Context, tx dbutils.DBTx, taskID uuid
 			task.UpdatedAt,
 			task.NextAttemptAt,
 		).
-		WHERE(table.Task.ID.EQ(sqlite.String(taskID.String())))
+		WHERE(table.Task.ID.EQ(sqlite.String(taskID)))
 
 	query, args := stmt.Sql()
 

@@ -20,11 +20,15 @@ import (
 func (s *Storage) CureTasks(
 	ctx context.Context,
 	taskType entity.TaskType,
-	unhealthStatuses []entity.TaskStatus,
+	statuses []entity.TaskStatus,
 	updatedAtTimeAgo time.Duration,
 	comment string,
 ) ([]*entity.Task, error) {
-	ctx = xlog.WithOperation(ctx, "storage.CureTasks")
+	ctx = xlog.WithOperation(ctx, "storage.CureTasks",
+		zap.Any("statuses", statuses),
+		zap.Duration("updated_at_time_ago", updatedAtTimeAgo),
+	)
+
 	stmt := table.Task.
 		UPDATE(
 			table.Task.Status,
@@ -45,7 +49,7 @@ func (s *Storage) CureTasks(
 		WHERE(
 			postgres.AND(
 				table.Task.Type.EQ(postgres.String(taskType)),
-				table.Task.Status.IN(lo.Map(unhealthStatuses, func(item entity.TaskStatus, _ int) postgres.Expression {
+				table.Task.Status.IN(lo.Map(statuses, func(item entity.TaskStatus, _ int) postgres.Expression {
 					return postgres.String(item)
 				})...),
 				table.Task.UpdatedAt.LT_EQ(

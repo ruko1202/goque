@@ -23,18 +23,21 @@ import (
 func (s *Storage) CureTasks(
 	ctx context.Context,
 	taskType entity.TaskType,
-	unhealthStatuses []entity.TaskStatus,
+	statuses []entity.TaskStatus,
 	updatedAtTimeAgo time.Duration,
 	comment string,
 ) ([]*entity.Task, error) {
-	ctx = xlog.WithOperation(ctx, "storage.CureTasks")
+	ctx = xlog.WithOperation(ctx, "storage.CureTasks",
+		zap.Any("statuses", statuses),
+		zap.Duration("updated_at_time_ago", updatedAtTimeAgo),
+	)
 
 	tasks := make([]*model.Task, 0)
 	err := dbutils.DoInTransaction(ctx, s.db, func(tx *sqlx.Tx) error {
 		var err error
 		tasks, err = s.getTasksByFilterTx(ctx, tx, &dbentity.GetTasksFilter{
 			TaskType:         lo.ToPtr(taskType),
-			Statuses:         unhealthStatuses,
+			Statuses:         statuses,
 			UpdatedAtTimeAgo: lo.ToPtr(updatedAtTimeAgo),
 		}, 1000)
 		if err != nil {

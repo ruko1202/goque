@@ -12,7 +12,9 @@ import (
 	"os"
 	"testing"
 
+	"github.com/ruko1202/xlog"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
 
 	"github.com/ruko1202/goque/internal/entity"
 	"github.com/ruko1202/goque/internal/storages"
@@ -24,6 +26,12 @@ var (
 )
 
 func TestMain(m *testing.M) {
+	globalLogger, err := zap.NewDevelopment()
+	if err != nil {
+		panic(err)
+	}
+	xlog.ReplaceGlobal(globalLogger)
+
 	taskStorages = testutils.SetupStorages(context.Background())
 
 	code := m.Run()

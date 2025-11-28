@@ -27,6 +27,7 @@ func testGoque(t *testing.T, storage storages.AdvancedTaskStorage) {
 	t.Helper()
 	t.Parallel()
 	ctx := context.Background()
+	queueManager := goque.NewTaskQueueManager(storage)
 
 	t.Run("ok", func(t *testing.T) {
 		t.Parallel()
@@ -36,7 +37,7 @@ func testGoque(t *testing.T, storage storages.AdvancedTaskStorage) {
 			"test push and process type"+uuid.NewString(),
 			testutils.ToJSON(t, "test payload: "+uuid.NewString()),
 		)
-		pushToQueue(ctx, t, storage, task)
+		pushToQueue(ctx, t, queueManager, task)
 
 		goq := goque.NewGoque(storage)
 		goq.RegisterProcessor(
@@ -49,7 +50,7 @@ func testGoque(t *testing.T, storage storages.AdvancedTaskStorage) {
 		defer goq.Stop()
 
 		require.Eventually(t, func() bool {
-			task, err := storage.GetTask(ctx, task.ID)
+			task, err := queueManager.GetTask(ctx, task.ID)
 			require.NoError(t, err)
 			t.Log("wait task status:", entity.TaskStatusDone, "actual status:", task.Status)
 			return task.Status == entity.TaskStatusDone
@@ -72,7 +73,7 @@ func testGoque(t *testing.T, storage storages.AdvancedTaskStorage) {
 				uuid.NewString(),
 			)
 			tasks[task.ExternalID] = task
-			pushToQueue(ctx, t, storage, task)
+			pushToQueue(ctx, t, queueManager, task)
 		}
 
 		doneOneTask := atomic.Bool{}
@@ -110,7 +111,7 @@ func testGoque(t *testing.T, storage storages.AdvancedTaskStorage) {
 		assert.LessOrEqual(t, len(processedTasks), 3)
 
 		for _, task := range tasks {
-			actualTask, err := storage.GetTask(ctx, task.ID)
+			actualTask, err := queueManager.GetTask(ctx, task.ID)
 			require.NoError(t, err)
 			require.Equal(t, task.Status, actualTask.Status)
 		}

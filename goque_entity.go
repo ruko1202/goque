@@ -1,7 +1,10 @@
 // Package goque provides a robust, PostgreSQL-backed task queue system for Go applications.
 package goque
 
-import "github.com/ruko1202/goque/internal/entity"
+import (
+	"github.com/ruko1202/goque/internal/entity"
+	"github.com/ruko1202/goque/internal/storages/dbentity"
+)
 
 // TaskType represents the type identifier for tasks in the queue.
 type TaskType = entity.TaskType
@@ -22,6 +25,9 @@ const (
 
 // Task represents a unit of work to be processed by the queue system.
 type Task = entity.Task
+
+// TaskFilter represents filtering criteria for querying tasks from the queue.
+type TaskFilter = dbentity.GetTasksFilter
 
 // Task creation functions for adding new tasks to the queue.
 var (

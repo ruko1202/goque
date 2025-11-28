@@ -17,7 +17,9 @@ import (
 
 // GetTasksForProcessing retrieves and locks tasks ready for processing, updating their status to pending.
 func (s *Storage) GetTasksForProcessing(ctx context.Context, taskType entity.TaskType, limit int64) ([]*entity.Task, error) {
-	ctx = xlog.WithOperation(ctx, "storage.GetTasksForProcessing")
+	ctx = xlog.WithOperation(ctx, "storage.GetTasksForProcessing",
+		zap.String("task_type", taskType),
+	)
 
 	var tasks []*model.Task
 	err := dbutils.DoInTransaction(ctx, s.db, func(tx *sqlx.Tx) error {

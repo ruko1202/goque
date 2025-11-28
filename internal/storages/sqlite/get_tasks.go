@@ -15,7 +15,9 @@ import (
 
 // GetTasks retrieves tasks matching the filter criteria with a specified limit.
 func (s *Storage) GetTasks(ctx context.Context, filter *dbentity.GetTasksFilter, limit int64) ([]*entity.Task, error) {
-	ctx = xlog.WithOperation(ctx, "storage.GetTasks")
+	ctx = xlog.WithOperation(ctx, "storage.GetTasks",
+		zap.Any("filter", filter),
+	)
 
 	tasks, err := s.getTasksByFilterTx(ctx, s.db, filter, limit)
 	if err != nil {

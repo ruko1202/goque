@@ -8,6 +8,8 @@ import (
 	"github.com/ruko1202/xlog"
 	"go.uber.org/zap"
 
+	"github.com/ruko1202/goque/internal/storages/dbutils"
+
 	"github.com/ruko1202/goque/internal/entity"
 	"github.com/ruko1202/goque/internal/pkg/generated/mysql/goque/model"
 	"github.com/ruko1202/goque/internal/pkg/generated/mysql/goque/table"
@@ -15,7 +17,18 @@ import (
 
 // GetTask retrieves a single task by its ID from the database.
 func (s *Storage) GetTask(ctx context.Context, id uuid.UUID) (*entity.Task, error) {
-	ctx = xlog.WithOperation(ctx, "storage.GetTask")
+	task, err := s.getTaskTx(ctx, s.db, id)
+	if err != nil {
+		return nil, err
+	}
+
+	return fromDBModel(task)
+}
+
+func (s *Storage) getTaskTx(ctx context.Context, tx dbutils.DBTx, id uuid.UUID) (*model.Task, error) {
+	ctx = xlog.WithOperation(ctx, "storage.GetTask",
+		zap.String("task_id", id.String()),
+	)
 
 	stmt := table.Task.
 		SELECT(table.Task.AllColumns).
@@ -24,11 +37,11 @@ func (s *Storage) GetTask(ctx context.Context, id uuid.UUID) (*entity.Task, erro
 	query, args := stmt.Sql()
 
 	task := new(model.Task)
-	err := s.db.GetContext(ctx, task, query, args...)
+	err := tx.GetContext(ctx, task, query, args...)
 	if err != nil {
 		xlog.Error(ctx, "failed to get task", zap.Error(err))
 		return nil, err
 	}
 
-	return fromDBModel(task)
+	return task, nil
 }
