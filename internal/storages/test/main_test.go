@@ -12,11 +12,11 @@ import (
 	"os"
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/ruko1202/goque/internal/entity"
 	"github.com/ruko1202/goque/internal/storages"
 	"github.com/ruko1202/goque/test/testutils"
-
-	"github.com/stretchr/testify/require"
 )
 
 var (

@@ -7,16 +7,15 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/ruko1202/xlog"
 	"github.com/samber/lo"
 	"github.com/stretchr/testify/require"
-
-	"github.com/ruko1202/goque/test/testutils"
+	"go.uber.org/zap/zaptest"
 
 	"github.com/ruko1202/goque/internal/entity"
-
 	"github.com/ruko1202/goque/internal/storages"
-
 	"github.com/ruko1202/goque/internal/utils/xtime"
+	"github.com/ruko1202/goque/test/testutils"
 )
 
 func TestDeleteTasks(t *testing.T) {
@@ -30,6 +29,8 @@ func testDeleteTasks(t *testing.T, storage storages.AdvancedTaskStorage) {
 
 	t.Run("ok", func(t *testing.T) {
 		t.Parallel()
+		ctx := xlog.ContextWithLogger(ctx, zaptest.NewLogger(t))
+
 		taskShouldDeleted := makeTaskWithStatus(ctx, t, storage, "test delete task"+uuid.NewString(), entity.TaskStatusDone)
 		taskShouldDeleted.UpdatedAt = lo.ToPtr(xtime.Now().Add(-time.Hour))
 		updateTask(ctx, t, storage, taskShouldDeleted)

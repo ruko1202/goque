@@ -5,16 +5,15 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
+	"github.com/ruko1202/xlog"
 	"github.com/samber/lo"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/zap/zaptest"
 
 	"github.com/ruko1202/goque/internal/entity"
-
 	"github.com/ruko1202/goque/internal/storages"
-
-	"github.com/ruko1202/goque/test/testutils"
-
 	"github.com/ruko1202/goque/internal/storages/dbentity"
+	"github.com/ruko1202/goque/test/testutils"
 )
 
 func TestGetTask(t *testing.T) {
@@ -28,6 +27,8 @@ func testGetTask(t *testing.T, storage storages.AdvancedTaskStorage) {
 
 	t.Run("ok", func(t *testing.T) {
 		t.Parallel()
+		ctx := xlog.ContextWithLogger(ctx, zaptest.NewLogger(t))
+
 		taskType := "test GetTask" + uuid.NewString()
 		statuses := []entity.TaskStatus{entity.TaskStatusNew, entity.TaskStatusPending, entity.TaskStatusDone}
 
@@ -38,6 +39,8 @@ func testGetTask(t *testing.T, storage storages.AdvancedTaskStorage) {
 
 		t.Run("GetTasks", func(t *testing.T) {
 			t.Parallel()
+			ctx := xlog.ContextWithLogger(ctx, zaptest.NewLogger(t))
+
 			expectedTasks := lo.Filter(createdTasks, func(item *entity.Task, _ int) bool {
 				return item.Status == entity.TaskStatusNew
 			})
@@ -61,6 +64,8 @@ func testGetTask(t *testing.T, storage storages.AdvancedTaskStorage) {
 
 	t.Run("empty filter", func(t *testing.T) {
 		t.Parallel()
+		ctx := xlog.ContextWithLogger(ctx, zaptest.NewLogger(t))
+
 		makeTask(ctx, t, storage, "test GetTask: empty filter")
 
 		tasks, err := storage.GetTasks(ctx, &dbentity.GetTasksFilter{}, 10)
@@ -70,6 +75,8 @@ func testGetTask(t *testing.T, storage storages.AdvancedTaskStorage) {
 
 	t.Run("not found", func(t *testing.T) {
 		t.Parallel()
+		ctx := xlog.ContextWithLogger(ctx, zaptest.NewLogger(t))
+
 		tasks, err := storage.GetTasks(ctx, &dbentity.GetTasksFilter{
 			TaskType: lo.ToPtr("not found"),
 		}, 10)

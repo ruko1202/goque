@@ -2,21 +2,20 @@ package sqlite
 
 import (
 	"context"
-	"log/slog"
 	"time"
 
 	"github.com/go-jet/jet/v2/mysql"
 	"github.com/go-jet/jet/v2/sqlite"
 	"github.com/jmoiron/sqlx"
+	"github.com/ruko1202/xlog"
 	"github.com/samber/lo"
-
-	"github.com/ruko1202/goque/internal/pkg/generated/sqlite3/model"
-	"github.com/ruko1202/goque/internal/storages/dbentity"
-	"github.com/ruko1202/goque/internal/storages/dbutils"
+	"go.uber.org/zap"
 
 	"github.com/ruko1202/goque/internal/entity"
-
+	"github.com/ruko1202/goque/internal/pkg/generated/sqlite3/model"
 	"github.com/ruko1202/goque/internal/pkg/generated/sqlite3/table"
+	"github.com/ruko1202/goque/internal/storages/dbentity"
+	"github.com/ruko1202/goque/internal/storages/dbutils"
 )
 
 // DeleteTasks removes tasks with specified statuses that haven't been updated within the given time period.
@@ -26,6 +25,8 @@ func (s *Storage) DeleteTasks(
 	statuses []entity.TaskStatus,
 	updatedAtTimeAgo time.Duration,
 ) ([]*entity.Task, error) {
+	ctx = xlog.WithOperation(ctx, "storage.DeleteTasks")
+
 	tasks := make([]*model.Task, 0)
 	err := dbutils.DoInTransaction(ctx, s.db, func(tx *sqlx.Tx) error {
 		var err error
@@ -35,14 +36,14 @@ func (s *Storage) DeleteTasks(
 			UpdatedAtTimeAgo: lo.ToPtr(updatedAtTimeAgo),
 		}, 1000)
 		if err != nil {
-			slog.ErrorContext(ctx, "failed to select tasks for deletion", slog.Any("err", err))
+			xlog.Error(ctx, "failed to select tasks for deletion", zap.Error(err))
 			return err
 		}
 
 		return s.deleteTasksTx(ctx, tx, tasks)
 	})
 	if err != nil {
-		slog.ErrorContext(ctx, "failed to delete tasks", slog.Any("err", err))
+		xlog.Error(ctx, "failed to delete tasks", zap.Error(err))
 		return nil, err
 	}
 
@@ -63,7 +64,7 @@ func (s *Storage) deleteTasksTx(ctx context.Context, tx dbutils.DBTx, tasks []*m
 	query, args := stmt.Sql()
 	_, err := tx.ExecContext(ctx, query, args...)
 	if err != nil {
-		slog.ErrorContext(ctx, "failed to delete tasks", slog.Any("err", err))
+		xlog.Error(ctx, "failed to delete tasks", zap.Error(err))
 		return err
 	}
 

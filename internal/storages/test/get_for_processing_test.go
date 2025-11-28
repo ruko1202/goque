@@ -6,15 +6,14 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/ruko1202/xlog"
 	"github.com/samber/lo"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/zap/zaptest"
 
 	"github.com/ruko1202/goque/internal/entity"
-
 	"github.com/ruko1202/goque/internal/storages"
-
 	"github.com/ruko1202/goque/internal/utils/xtime"
-
 	"github.com/ruko1202/goque/test/testutils"
 )
 
@@ -29,6 +28,8 @@ func testGetTaskForProcessing(t *testing.T, storage storages.AdvancedTaskStorage
 
 	t.Run("ok", func(t *testing.T) {
 		t.Parallel()
+		ctx := xlog.ContextWithLogger(ctx, zaptest.NewLogger(t))
+
 		taskType := "test GetTaskForProcessing" + uuid.NewString()
 		statuses := []entity.TaskStatus{entity.TaskStatusNew, entity.TaskStatusPending, entity.TaskStatusError}
 
@@ -61,6 +62,8 @@ func testGetTaskForProcessing(t *testing.T, storage storages.AdvancedTaskStorage
 
 	t.Run("not found", func(t *testing.T) {
 		t.Parallel()
+		ctx := xlog.ContextWithLogger(ctx, zaptest.NewLogger(t))
+
 		tasks, err := storage.GetTasksForProcessing(ctx, "not found", 10)
 		require.NoError(t, err)
 		require.Equal(t, 0, len(tasks))

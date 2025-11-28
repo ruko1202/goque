@@ -2,18 +2,17 @@ package task
 
 import (
 	"context"
-	"log/slog"
 	"time"
 
 	"github.com/go-jet/jet/v2/postgres"
+	"github.com/ruko1202/xlog"
 	"github.com/samber/lo"
+	"go.uber.org/zap"
 
 	"github.com/ruko1202/goque/internal/entity"
-
-	"github.com/ruko1202/goque/internal/utils/xtime"
-
 	"github.com/ruko1202/goque/internal/pkg/generated/postgres/public/model"
 	"github.com/ruko1202/goque/internal/pkg/generated/postgres/public/table"
+	"github.com/ruko1202/goque/internal/utils/xtime"
 )
 
 // DeleteTasks removes tasks with specified statuses that haven't been updated within the given time period.
@@ -23,6 +22,8 @@ func (s *Storage) DeleteTasks(
 	statuses []entity.TaskStatus,
 	updatedAtTimeAgo time.Duration,
 ) ([]*entity.Task, error) {
+	ctx = xlog.WithOperation(ctx, "storage.DeleteTasks")
+
 	stmt := table.Task.DELETE().
 		WHERE(
 			postgres.AND(
@@ -42,7 +43,7 @@ func (s *Storage) DeleteTasks(
 	dbTasks := make([]*model.Task, 0)
 	err := s.db.SelectContext(ctx, &dbTasks, query, args...)
 	if err != nil {
-		slog.ErrorContext(ctx, "failed to delete tasks", slog.Any("err", err))
+		xlog.Error(ctx, "failed to delete tasks", zap.Error(err))
 		return nil, err
 	}
 	return fromDBModels(dbTasks), nil

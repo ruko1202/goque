@@ -2,20 +2,21 @@ package mysqltask
 
 import (
 	"context"
-	"log/slog"
 
-	"github.com/ruko1202/goque/internal/pkg/generated/mysql/goque/model"
+	"github.com/ruko1202/xlog"
+	"go.uber.org/zap"
 
 	"github.com/ruko1202/goque/internal/entity"
-
+	"github.com/ruko1202/goque/internal/pkg/generated/mysql/goque/model"
+	"github.com/ruko1202/goque/internal/pkg/generated/mysql/goque/table"
 	"github.com/ruko1202/goque/internal/storages/dbentity"
 	"github.com/ruko1202/goque/internal/storages/dbutils"
-
-	"github.com/ruko1202/goque/internal/pkg/generated/mysql/goque/table"
 )
 
 // GetTasks retrieves tasks matching the filter criteria with a specified limit.
 func (s *Storage) GetTasks(ctx context.Context, filter *dbentity.GetTasksFilter, limit int64) ([]*entity.Task, error) {
+	ctx = xlog.WithOperation(ctx, "storage.GetTasks")
+
 	tasks, err := s.getTasksByFilterTx(ctx, s.db, filter, limit)
 	if err != nil {
 		return nil, err
@@ -26,7 +27,7 @@ func (s *Storage) GetTasks(ctx context.Context, filter *dbentity.GetTasksFilter,
 func (s *Storage) getTasksByFilterTx(ctx context.Context, tx dbutils.DBTx, filter *dbentity.GetTasksFilter, limit int64) ([]*model.Task, error) {
 	whereExpr, err := filter.BindMysqlWhereExpr()
 	if err != nil {
-		slog.ErrorContext(ctx, "failed to bind filter", slog.Any("err", err))
+		xlog.Error(ctx, "failed to bind filter", zap.Error(err))
 		return nil, err
 	}
 
@@ -40,7 +41,7 @@ func (s *Storage) getTasksByFilterTx(ctx context.Context, tx dbutils.DBTx, filte
 	tasks := make([]*model.Task, 0)
 	err = tx.SelectContext(ctx, &tasks, query, args...)
 	if err != nil {
-		slog.ErrorContext(ctx, "failed to get tasks", slog.Any("err", err))
+		xlog.Error(ctx, "failed to get tasks", zap.Error(err))
 		return nil, err
 	}
 

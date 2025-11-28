@@ -7,15 +7,14 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/ruko1202/xlog"
 	"github.com/samber/lo"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/zap/zaptest"
 
 	"github.com/ruko1202/goque/internal/entity"
-
 	"github.com/ruko1202/goque/internal/storages"
-
 	"github.com/ruko1202/goque/internal/utils/xtime"
-
 	"github.com/ruko1202/goque/test/testutils"
 )
 
@@ -30,6 +29,8 @@ func testCureTasks(t *testing.T, storage storages.AdvancedTaskStorage) {
 
 	t.Run("ok", func(t *testing.T) {
 		t.Parallel()
+		ctx := xlog.ContextWithLogger(ctx, zaptest.NewLogger(t))
+
 		task := makeTaskWithStatus(ctx, t, storage, "test cure task"+uuid.NewString(), entity.TaskStatusPending)
 		task.UpdatedAt = lo.ToPtr(xtime.Now().Add(-time.Minute))
 		updateTask(ctx, t, storage, task)

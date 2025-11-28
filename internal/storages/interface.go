@@ -9,7 +9,6 @@ import (
 	"github.com/jmoiron/sqlx"
 
 	"github.com/ruko1202/goque/internal/entity"
-
 	"github.com/ruko1202/goque/internal/storages/dbentity"
 )
 

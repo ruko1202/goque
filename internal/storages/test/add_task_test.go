@@ -5,15 +5,14 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
+	"github.com/ruko1202/xlog"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/zap/zaptest"
 
 	"github.com/ruko1202/goque/internal/entity"
-
 	"github.com/ruko1202/goque/internal/storages"
-
-	"github.com/ruko1202/goque/test/testutils"
-
 	"github.com/ruko1202/goque/internal/storages/dbentity"
+	"github.com/ruko1202/goque/test/testutils"
 )
 
 func TestAdd(t *testing.T) {
@@ -27,6 +26,8 @@ func testAdd(t *testing.T, storage storages.AdvancedTaskStorage) {
 
 	t.Run("ok", func(t *testing.T) {
 		t.Parallel()
+		ctx := xlog.ContextWithLogger(ctx, zaptest.NewLogger(t))
+
 		payload := testutils.TestPayload{Data: "test"}
 		task := entity.NewTask("test", testutils.ToJSON(t, payload))
 
@@ -40,6 +41,8 @@ func testAdd(t *testing.T, storage storages.AdvancedTaskStorage) {
 
 	t.Run("failed payload", func(t *testing.T) {
 		t.Parallel()
+		ctx := xlog.ContextWithLogger(ctx, zaptest.NewLogger(t))
+
 		task := entity.NewTask("test", "invalid payload")
 
 		err := storage.AddTask(ctx, task)
@@ -48,6 +51,8 @@ func testAdd(t *testing.T, storage storages.AdvancedTaskStorage) {
 
 	t.Run("several externalID", func(t *testing.T) {
 		t.Parallel()
+		ctx := xlog.ContextWithLogger(ctx, zaptest.NewLogger(t))
+
 		task := entity.NewTaskWithExternalID("test", testutils.ToJSON(t, "payload"), uuid.NewString())
 
 		err := storage.AddTask(ctx, task)

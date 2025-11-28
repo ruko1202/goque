@@ -4,20 +4,21 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log/slog"
 
 	"github.com/go-sql-driver/mysql"
-
-	"github.com/ruko1202/goque/internal/storages/dbutils"
+	"github.com/ruko1202/xlog"
+	"go.uber.org/zap"
 
 	"github.com/ruko1202/goque/internal/entity"
-
 	"github.com/ruko1202/goque/internal/pkg/generated/mysql/goque/table"
 	"github.com/ruko1202/goque/internal/storages/dbentity"
+	"github.com/ruko1202/goque/internal/storages/dbutils"
 )
 
 // AddTask inserts a new task into the database.
 func (s *Storage) AddTask(ctx context.Context, task *entity.Task) error {
+	ctx = xlog.WithOperation(ctx, "storage.AddTask")
+
 	// Validate JSON payload before insertion
 	if !dbutils.IsValidJSON(task.Payload) {
 		return dbentity.ErrInvalidPayloadFormat
@@ -32,7 +33,7 @@ func (s *Storage) AddTask(ctx context.Context, task *entity.Task) error {
 
 	_, err := s.db.ExecContext(ctx, query, args...)
 	if err := handleError(err); err != nil {
-		slog.ErrorContext(ctx, "failed to add task", slog.Any("err", err))
+		xlog.Error(ctx, "failed to add task", zap.Error(err))
 		return err
 	}
 

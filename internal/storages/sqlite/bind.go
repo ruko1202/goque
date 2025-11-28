@@ -1,16 +1,17 @@
 package sqlite
 
 import (
+	"context"
 	"fmt"
-	"log/slog"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/ruko1202/xlog"
 	"github.com/samber/lo"
-
-	"github.com/ruko1202/goque/internal/pkg/generated/sqlite3/model"
+	"go.uber.org/zap"
 
 	"github.com/ruko1202/goque/internal/entity"
+	"github.com/ruko1202/goque/internal/pkg/generated/sqlite3/model"
 )
 
 const (
@@ -79,7 +80,7 @@ func timeToString(t time.Time) string {
 func timeFromString(value string) time.Time {
 	t, err := time.Parse(timeFormat, value)
 	if err != nil {
-		slog.Error(fmt.Errorf("parse time: %w", err).Error(), slog.String("time", value))
+		xlog.Error(context.Background(), "parse time error", zap.Error(err), zap.String("time", value))
 		return time.Time{}
 	}
 

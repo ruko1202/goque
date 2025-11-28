@@ -2,30 +2,32 @@ package mysqltask
 
 import (
 	"context"
-	"log/slog"
 
 	"github.com/go-jet/jet/v2/mysql"
 	"github.com/google/uuid"
+	"github.com/ruko1202/xlog"
 	"github.com/samber/lo"
-
-	"github.com/ruko1202/goque/internal/pkg/generated/mysql/goque/model"
+	"go.uber.org/zap"
 
 	"github.com/ruko1202/goque/internal/entity"
-
+	"github.com/ruko1202/goque/internal/pkg/generated/mysql/goque/model"
+	"github.com/ruko1202/goque/internal/pkg/generated/mysql/goque/table"
 	"github.com/ruko1202/goque/internal/storages/dbutils"
 	"github.com/ruko1202/goque/internal/utils/xtime"
-
-	"github.com/ruko1202/goque/internal/pkg/generated/mysql/goque/table"
 )
 
 // UpdateTask updates an existing task in the database with the provided data.
 func (s *Storage) UpdateTask(ctx context.Context, taskID uuid.UUID, task *entity.Task) error {
+	ctx = xlog.WithOperation(ctx, "storage.UpdateTask")
+
 	task.UpdatedAt = lo.ToPtr(xtime.Now())
 	return s.updateTaskTx(ctx, s.db, taskID, toDBModel(task))
 }
 
 // HardUpdateTask updates a task without automatically setting the updated_at timestamp.
 func (s *Storage) HardUpdateTask(ctx context.Context, taskID uuid.UUID, task *entity.Task) error {
+	ctx = xlog.WithOperation(ctx, "storage.UpdateTask")
+
 	return s.updateTaskTx(ctx, s.db, taskID, toDBModel(task))
 }
 
@@ -51,7 +53,7 @@ func (s *Storage) updateTaskTx(ctx context.Context, tx dbutils.DBTx, taskID uuid
 
 	_, err := tx.ExecContext(ctx, query, args...)
 	if err != nil {
-		slog.ErrorContext(ctx, "failed to update task", slog.Any("err", err))
+		xlog.Error(ctx, "failed to update task", zap.Error(err))
 		return err
 	}
 
@@ -83,7 +85,7 @@ func (s *Storage) batchUpdateTasksStatusTx(ctx context.Context, tx dbutils.DBTx,
 
 	_, err := tx.ExecContext(ctx, query, args...)
 	if err != nil {
-		slog.ErrorContext(ctx, "failed to update task", slog.Any("err", err))
+		xlog.Error(ctx, "failed to update task", zap.Error(err))
 		return err
 	}
 

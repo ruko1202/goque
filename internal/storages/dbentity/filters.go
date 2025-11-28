@@ -12,7 +12,6 @@ import (
 	"github.com/samber/lo"
 
 	"github.com/ruko1202/goque/internal/entity"
-
 	"github.com/ruko1202/goque/internal/utils/xtime"
 
 	mysqltable "github.com/ruko1202/goque/internal/pkg/generated/mysql/goque/table"
