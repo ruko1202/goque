@@ -10,7 +10,7 @@ on:
       db_driver:
         required: true
         type: string
-        description: 'Database driver: postgres or mysql'
+        description: 'Database driver: postgres, mysql, or sqlite3'
       db_dsn:
         required: true
         type: string
@@ -47,6 +47,8 @@ jobs:
           --health-retries=5
         ports:
           - 3306:3306
+
+      # Note: SQLite doesn't require a service as it's file-based
 
     strategy:
       matrix:

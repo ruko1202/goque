@@ -1,6 +1,6 @@
 # Goque
-[![pipeline](https://github.com/ruko1202/goque/actions/workflows/ci.yml/badge.svg)](https://github.com/ruko1202/goque/actions/workflows/ci.yml)
-![Coverage](https://img.shields.io/badge/Coverage-79.8%25-brightgreen)
+[![pipeline](https://github.com/ruko1202/goque/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/ruko1202/goque/actions/workflows/ci.yml)
+![Coverage](https://img.shields.io/badge/Coverage-80.1%25-brightgreen)
 
 A robust, database-backed task queue system for Go with built-in worker pools, retry logic, and graceful shutdown support. Supports PostgreSQL, MySQL, and SQLite.
 
@@ -150,20 +150,43 @@ Tasks flow through the following states:
 
 ```
 new → pending → processing → done
-                 ↓       ↓
-              canceled  error → attempts_left (no more retries)
-                          ↓
-                        (retry) → processing
-  
+        ↑ ↓         ↓    ↓
+        │ └──error──┘  canceled
+        │     ↓
+        │  attempts_left
+        │
+        └──(healer fixes stuck pending tasks)
 ```
 
+### Status Descriptions
+
 - **new** - Task created and ready to be picked up
-- **pending** - Task scheduled for future processing
-- **processing** - Task currently being processed
-- **done** - Task completed successfully
+- **pending** - Task scheduled for future processing (via NextAttemptAt)
+- **processing** - Task currently being processed by a worker
+- **done** - Task completed successfully ✓ (terminal)
 - **error** - Task failed but has retry attempts remaining
-- **attempts_left** - Task failed and exhausted all retry attempts
-- **canceled** - Task was manually canceled
+- **attempts_left** - Task failed and exhausted all retry attempts ✗ (terminal)
+- **canceled** - Task was manually canceled ✗ (terminal)
+
+### Valid State Transitions
+
+| Current Status | Next Status | Trigger |
+|----------------|-------------|---------|
+| `new` | `pending` | Task scheduled for processing |
+| `pending` | `processing` | Worker picks up task |
+| `pending` | `error` | Healer marks stuck task (cure operation) |
+| `processing` | `done` | Successful processing |
+| `processing` | `error` | Failed processing with retries left |
+| `processing` | `canceled` | Manual cancellation |
+| `error` | `pending` | Retry logic schedules next attempt |
+| `error` | `attempts_left` | No more retry attempts available |
+
+### Terminal States
+
+Tasks in these states will not be processed again:
+- **done** - Successfully completed
+- **canceled** - Manually canceled by user
+- **attempts_left** - Failed with no remaining retry attempts
 
 ## Built-in Features
 

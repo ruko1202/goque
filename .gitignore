@@ -10,3 +10,7 @@ coverage.tmp
 
 .claude/settings.local.json
 agent-tasks
+
+goque.sqlite.db
+
+agent/tasks/

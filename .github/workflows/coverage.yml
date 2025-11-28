@@ -27,11 +27,18 @@ jobs:
           name: coverage-mysql
           path: coverage-mysql
 
+      - name: Download SQLite coverage
+        uses: actions/download-artifact@v6
+        with:
+          name: coverage-sqlite3
+          path: coverage-sqlite
+
       - name: Merge coverage files
         run: |
           cat coverage-postgres/coverage.out > coverage.out
-          # Skip the first line (mode line) from MySQL coverage and append the rest
+          # Skip the first line (mode line) from MySQL and SQLite coverage and append the rest
           tail -n +2 coverage-mysql/coverage.out >> coverage.out
+          tail -n +2 coverage-sqlite/coverage.out >> coverage.out
 
       - name: Generate coverage report
         run: |
@@ -62,7 +69,7 @@ jobs:
 
             **Total Coverage:** ${{ steps.coverage.outputs.coverage }}%
 
-            Coverage collected from integration tests running on Go 1.23 with PostgreSQL 17 and MySQL 8.0
+            Coverage collected from integration tests running on Go 1.23 with PostgreSQL 17, MySQL 8.0, and SQLite 3
 
             <details>
             <summary>Coverage by Package</summary>

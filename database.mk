@@ -66,9 +66,9 @@ ifeq ($(DB_DSN),)
     ifeq ($(DB_DRIVER),mysql)
         DB_DSN := 'root:root@tcp(localhost:3306)/goque?parseTime=true&loc=UTC'
     else ifeq ($(DB_DRIVER),sqlite3)
-        DB_DSN := './goque.db'
+        DB_DSN := './goque.sqlite.db'
     else ifeq ($(DB_DRIVER),sqlite)
-        DB_DSN := './goque.db'
+        DB_DSN := './goque.sqlite.db'
     else
         # Default to PostgreSQL with standard test database
         DB_DSN := 'postgres://postgres:postgres@localhost:5432/goque?sslmode=disable'
@@ -155,6 +155,8 @@ all-db-models: ## Generate models for all DB types
 	@ENV_CONFIG_FILE=.env.pg.local make db-models
 	@echo 
 	@ENV_CONFIG_FILE=.env.mysql.local make db-models
+	@echo
+	@ENV_CONFIG_FILE=.env.sqlite.local make db-models
 
 # db-info - Display current database configuration
 # Shows all relevant database settings:
@@ -195,6 +197,8 @@ docker-up: ## Start all databases with Docker Compose
 	$(info $(M) starting databases with Docker Compose...)
 	docker compose up -d
 	make docker-ps
+	@ENV_CONFIG_FILE=.env.sqlite.local make db-up
+	make all-db-models
 
 # docker-down - Stop and remove all database containers
 # Stops containers, removes them, and deletes associated volumes

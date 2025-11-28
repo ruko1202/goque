@@ -15,7 +15,8 @@ const (
 	// PgDriver represents the PostgreSQL database driver.
 	PgDriver = "postgres"
 	// MysqlDriver represents the MySQL database driver.
-	MysqlDriver = "mysql"
+	MysqlDriver  = "mysql"
+	SqliteDriver = "sqlite3"
 )
 
 // Config holds the configuration parameters for database connection settings.

@@ -2,8 +2,6 @@ module github.com/ruko1202/goque
 
 go 1.23.0
 
-toolchain go1.24.9
-
 require (
 	github.com/go-jet/jet/v2 v2.14.0
 	github.com/go-sql-driver/mysql v1.9.3
@@ -11,6 +9,7 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/jmoiron/sqlx v1.4.0
 	github.com/lib/pq v1.10.9
+	github.com/mattn/go-sqlite3 v1.14.32
 	github.com/panjf2000/ants/v2 v2.11.3
 	github.com/samber/lo v1.52.0
 	github.com/spf13/pflag v1.0.10

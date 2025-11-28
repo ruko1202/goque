@@ -55,10 +55,21 @@ jobs:
       db_driver: 'mysql'
       db_dsn: 'root:root@tcp(localhost:3306)/goque?parseTime=true&loc=UTC'
 
+  test-sqlite:
+    name: Integration tests [SQLite]
+    uses: ./.github/workflows/integration-test.yml
+    permissions:
+      contents: write
+      pull-requests: write
+    with:
+      main_go_version: '1.23'
+      db_driver: 'sqlite3'
+      db_dsn: 'goque_test.db'
+
   report-coverage:
     name: Report Coverage
     uses: ./.github/workflows/coverage.yml
-    needs: [test-postgres, test-mysql]
+    needs: [test-postgres, test-mysql, test-sqlite]
     permissions:
       contents: write
       pull-requests: write

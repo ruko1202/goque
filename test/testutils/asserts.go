@@ -27,7 +27,11 @@ func EqualTask(t *testing.T, expected, actual *entity.Task) {
 	require.Equal(t, expected.Attempts, actual.Attempts)
 	require.Equal(t, lo.FromPtr(expected.Errors), lo.FromPtr(actual.Errors))
 	AssertTimeInWithDelta(t, expected.CreatedAt, actual.CreatedAt, timeDelta)
-	AssertTimeInWithDelta(t, lo.FromPtr(expected.UpdatedAt), lo.FromPtr(actual.UpdatedAt), timeDelta)
+	if expected.UpdatedAt == nil {
+		require.Nil(t, actual.UpdatedAt)
+	} else {
+		AssertTimeInWithDelta(t, lo.FromPtr(expected.UpdatedAt), lo.FromPtr(actual.UpdatedAt), timeDelta)
+	}
 	AssertTimeInWithDelta(t, expected.NextAttemptAt, actual.NextAttemptAt, timeDelta)
 }
 

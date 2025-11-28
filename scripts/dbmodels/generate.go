@@ -8,10 +8,13 @@ import (
 	"github.com/go-jet/jet/v2/generator/metadata"
 	mysqlgen "github.com/go-jet/jet/v2/generator/mysql"
 	pggen "github.com/go-jet/jet/v2/generator/postgres"
+	sqlitegen "github.com/go-jet/jet/v2/generator/sqlite"
 	"github.com/go-jet/jet/v2/generator/template"
 	"github.com/go-jet/jet/v2/mysql"
 	"github.com/go-jet/jet/v2/postgres"
+	"github.com/go-jet/jet/v2/sqlite"
 	_ "github.com/lib/pq"
+	_ "github.com/mattn/go-sqlite3"
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
 )
@@ -58,6 +61,8 @@ func main() {
 		err = pgGenerator(cfg)
 	case "mysql":
 		err = mysqlGenerator(cfg)
+	case "sqlite", "sqlite3":
+		err = sqliteGenerator(cfg)
 	default:
 		err = fmt.Errorf("unsupported driver: %s", cfg.driver)
 	}
@@ -76,6 +81,13 @@ func mysqlGenerator(cfg *config) error {
 	cfg.dest = path.Join(cfg.dest, cfg.driver)
 	return mysqlgen.GenerateDSN(cfg.dsn, cfg.dest,
 		template.Default(mysql.Dialect).UseSchema(genTemplateSchema),
+	)
+}
+
+func sqliteGenerator(cfg *config) error {
+	cfg.dest = path.Join(cfg.dest, cfg.driver)
+	return sqlitegen.GenerateDSN(cfg.dsn, cfg.dest,
+		template.Default(sqlite.Dialect).UseSchema(genTemplateSchema),
 	)
 }
 
