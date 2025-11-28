@@ -209,6 +209,7 @@ docker-down: ## Stop and remove all database containers with volumes
 	$(info $(M) stopping all database containers and removing volumes...)
 	docker compose down -v
 	make docker-ps
+	@ENV_CONFIG_FILE=.env.sqlite.local rm -f "$(DB_DSN)"
 
 # docker-pg-up - Start only PostgreSQL service
 # Useful when you only need PostgreSQL for testing/development

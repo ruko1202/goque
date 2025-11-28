@@ -1,0 +1,55 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: goque_example_db
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: goque_example
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  apply-migrations:
+    image: kukymbr/goose-docker:3.26.0
+    container_name: goque_example_migrations
+    environment:
+      GOOSE_DBSTRING: 'postgres://postgres:postgres@postgres:5432/goque_example?sslmode=disable'
+      GOOSE_DRIVER: postgres
+    volumes:
+      - ./migrations:/migrations:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  app:
+    build:
+      context: ../..
+      dockerfile: examples/service/Dockerfile
+    container_name: goque_example_service
+    ports:
+      - "8080:8080"
+    environment:
+      GOQUE_DATABASE_DRIVER: postgres
+      GOQUE_DATABASE_DSN: "postgres://postgres:postgres@postgres:5432/goque_example?sslmode=disable"
+      GOQUE_SERVER_HOST: "0.0.0.0"
+      GOQUE_SERVER_PORT: 8080
+      GOQUE_QUEUE_WORKERS: 5
+      GOQUE_TASKGENERATOR_ENABLED: "true"
+      GOQUE_TASKGENERATOR_INTERVAL: 10s
+      GOQUE_TASKGENERATOR_MINTASKS: 1
+      GOQUE_TASKGENERATOR_MAXTASKS: 5
+    depends_on:
+      apply-migrations:
+        condition: service_completed_successfully
+
+volumes:
+  postgres_data:

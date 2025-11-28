@@ -1,0 +1,24 @@
+# Goque Example Service Configuration
+
+server:
+  host: localhost
+  port: 8080
+
+database:
+  driver: postgres
+  dsn: "postgres://postgres:postgres@localhost:5432/goque_example?sslmode=disable"
+
+queue:
+  workers: 5
+  maxattempts: 3
+  tasktimeout: 5m
+  healerinterval: 1m
+  cleanerinterval: 10m
+  retentionperiod: 24h
+  retrybaseinterval: 30s
+
+taskgenerator:
+  enabled: true
+  interval: 10s
+  mintasks: 1
+  maxtasks: 5

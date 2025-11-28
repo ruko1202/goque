@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Goque Task Dashboard</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🚀 Goque Task Queue Dashboard</h1>
+            <p>Real-time task monitoring and management</p>
+        </header>
+
+        <div class="controls">
+            <div class="filters">
+                <label>
+                    Status:
+                    <select id="statusFilter">
+                        <option value="">All</option>
+                        <option value="new">New</option>
+                        <option value="pending">Pending</option>
+                        <option value="processing">Processing</option>
+                        <option value="done">Done</option>
+                        <option value="error">Error</option>
+                        <option value="canceled">Canceled</option>
+                    </select>
+                </label>
+
+                <label>
+                    Type:
+                    <select id="typeFilter">
+                        <option value="">All</option>
+                        <option value="email">Email</option>
+                        <option value="notification">Notification</option>
+                        <option value="report">Report</option>
+                        <option value="webhook">Webhook</option>
+                    </select>
+                </label>
+
+                <button id="refreshBtn" class="btn btn-primary">🔄 Refresh</button>
+            </div>
+
+            <div class="create-task">
+                <button id="createTaskBtn" class="btn btn-success">➕ Create Task</button>
+            </div>
+        </div>
+
+        <div class="stats">
+            <div class="stat-card">
+                <div class="stat-value" id="totalTasks">-</div>
+                <div class="stat-label">Total Tasks</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="newTasks">-</div>
+                <div class="stat-label">New</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="processingTasks">-</div>
+                <div class="stat-label">Processing</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="doneTasks">-</div>
+                <div class="stat-label">Completed</div>
+            </div>
+        </div>
+
+        <div class="tasks-table">
+            <table id="tasksTable">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Type</th>
+                        <th>Status</th>
+                        <th>Attempts</th>
+                        <th>Created</th>
+                        <th>Updated</th>
+                    </tr>
+                </thead>
+                <tbody id="tasksBody">
+                    <tr>
+                        <td colspan="6" class="loading">Loading tasks...</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="pagination">
+            <button id="prevPage" class="btn">← Previous</button>
+            <span id="pageInfo">Page 1</span>
+            <button id="nextPage" class="btn">Next →</button>
+        </div>
+    </div>
+
+    <!-- Create Task Modal -->
+    <div id="createTaskModal" class="modal">
+        <div class="modal-content">
+            <span class="close">&times;</span>
+            <h2>Create New Task</h2>
+            <form id="createTaskForm">
+                <label>
+                    Task Type:
+                    <select id="newTaskType" required>
+                        <option value="email">Email</option>
+                        <option value="notification">Notification</option>
+                        <option value="report">Report</option>
+                        <option value="webhook">Webhook</option>
+                    </select>
+                </label>
+
+                <div id="payloadFields"></div>
+
+                <button type="submit" class="btn btn-success">Create Task</button>
+            </form>
+        </div>
+    </div>
+
+    <script src="/static/js/app.js"></script>
+</body>
+</html>

@@ -1,6 +1,6 @@
 # Goque
 [![pipeline](https://github.com/ruko1202/goque/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/ruko1202/goque/actions/workflows/ci.yml)
-![Coverage](https://img.shields.io/badge/Coverage-87.9%25-brightgreen)
+![Coverage](https://img.shields.io/badge/Coverage-88.3%25-brightgreen)
 
 A robust, database-backed task queue system for Go with built-in worker pools, retry logic, and graceful shutdown support. Supports PostgreSQL, MySQL, and SQLite.
 
@@ -20,12 +20,10 @@ A robust, database-backed task queue system for Go with built-in worker pools, r
 - ✅ **Built-in task healer** - Automatically marks stuck tasks as errored for reprocessing
 - ✅ **Multi-processor support** - Manage multiple task types with a single queue manager
 - ✅ **Structured logging** - Built-in structured logging with `log/slog`
+- ✅ **Production-ready example** - Complete example service with web dashboard and API
 
 ### Planned Features
 - 📋 **Prometheus metrics** - Built-in Prometheus metrics for monitoring
-- 📋 **Zap logger support** - High-performance logging with uber-go/zap
-- 📋 **Context values in logs** - Automatic extraction of trace IDs, request IDs from context
-- 📋 **Example service** - Complete real-world example application
 
 ## Installation
 
@@ -138,6 +136,12 @@ task := entity.NewTaskWithExternalID("send_email", payload, "order-123")
 // Add to storage
 err := taskStorage.AddTask(ctx, task)
 ```
+
+## Example Application
+
+A complete, production-ready example service demonstrating real-world Goque usage is available in the `examples/service` directory.
+
+For detailed instructions and API documentation, see [examples/service/README.md](examples/service/README.md).
 
 ## Configuration Options
 
