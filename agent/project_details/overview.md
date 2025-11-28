@@ -85,6 +85,12 @@ new → pending → processing → ✅ done
 - Idempotency support
 - Duplicate task prevention
 
+### 11. Prometheus Metrics
+- Built-in Prometheus metrics integration
+- Task processing counters and error tracking
+- Duration histograms for performance monitoring
+- Payload size tracking
+
 ## Use Cases
 
 1. **Email Processing** - Send emails asynchronously
@@ -108,24 +114,25 @@ new → pending → processing → ✅ done
 
 ```
 goque/
-├── goque.go                      # Public API entry point
-├── pkg/
-│   └── entity/                   # Public domain entities
+├── goque_manager.go              # Public API - TaskQueueManager interface
 ├── internal/
+│   ├── goque.go                  # Main Goque implementation
+│   ├── entity/                   # Domain entities and errors
+│   ├── queue_manager/            # Task queue manager implementation
+│   ├── metrics/                  # Prometheus metrics
 │   ├── processors/
 │   │   ├── queueprocessor/       # Core task processor
 │   │   └── internalprocessors/   # Healer, Cleaner
-│   ├── queuemngr/                # Task submission manager
 │   └── storages/
 │       ├── pg/                   # PostgreSQL storage
 │       ├── mysql/                # MySQL storage
 │       ├── sqlite/               # SQLite storage
-│       ├── dbutils/              # Database utilities
-│       └── dbentity/             # Common entities
+│       └── dbutils/              # Database utilities
 ├── migrations/
 │   ├── pg/                       # PostgreSQL migrations
 │   ├── mysql/                    # MySQL migrations
 │   └── sqlite/                   # SQLite migrations
+├── examples/service/             # Production-ready example service
 └── test/                         # Integration tests
 ```
 

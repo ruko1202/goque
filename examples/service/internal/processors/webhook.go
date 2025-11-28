@@ -25,7 +25,7 @@ func NewWebhookProcessor() *WebhookProcessor {
 
 // ProcessTask implements the TaskProcessor interface for webhook tasks.
 func (p *WebhookProcessor) ProcessTask(ctx context.Context, task *goque.Task) error {
-	ctx = xlog.WithOperation(ctx, "ReportProcessor.ProcessTask",
+	ctx = xlog.WithOperation(ctx, "WebhookProcessor",
 		zap.String("task_id", task.ID.String()),
 	)
 
@@ -40,18 +40,7 @@ func (p *WebhookProcessor) ProcessTask(ctx context.Context, task *goque.Task) er
 	)
 
 	xlog.Info(ctx, "Processing webhook task")
-	// Simulate webhook call with random processing time (1-4 seconds)
-	processingTime := time.Duration(1+time.Now().UnixNano()%3) * time.Second
-	select {
-	case <-time.After(processingTime):
-		if rand.Intn(10)%3 == 0 {
-			return fmt.Errorf("report processing timed out")
-		}
-		xlog.Info(ctx, "Webhook called successfully",
-			zap.Duration("processingTime", processingTime),
-		)
-		return nil
-	case <-ctx.Done():
-		return fmt.Errorf("webhook task canceled: %w", ctx.Err())
-	}
+	// Simulate webhook call with random processing time (500ms-4 seconds)
+	processingTime := time.Duration(500+rand.Intn(3_500)) * time.Millisecond
+	return mockProcess(ctx, "webhook", processingTime, 45)
 }

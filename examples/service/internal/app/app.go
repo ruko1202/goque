@@ -9,11 +9,11 @@ import (
 // Application represents the main application with all dependencies.
 type Application struct {
 	cfg          *config.Config
-	queueManager *goque.TaskQueueManager
+	queueManager goque.TaskQueueManager
 }
 
 // New creates a new Application instance with the provided Goque storage.
-func New(cfg *config.Config, queueManager *goque.TaskQueueManager) *Application {
+func New(cfg *config.Config, queueManager goque.TaskQueueManager) *Application {
 	return &Application{
 		cfg:          cfg,
 		queueManager: queueManager,

@@ -18,14 +18,14 @@ import (
 )
 
 type TaskGenerator struct {
-	queueManager *goque.TaskQueueManager
+	queueManager goque.TaskQueueManager
 	cfg          config.TaskGeneratorConfig
 	taskTypes    []models.TaskType
 }
 
 func NewTaskGenerator(
 	cfg config.TaskGeneratorConfig,
-	queueManager *goque.TaskQueueManager,
+	queueManager goque.TaskQueueManager,
 	taskTypes []models.TaskType,
 ) *TaskGenerator {
 	return &TaskGenerator{

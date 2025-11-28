@@ -11,9 +11,9 @@ Goque follows a layered architecture with clear separation of concerns.
 └──────────────┬──────────────────────────┘
                │
 ┌──────────────▼──────────────────────────┐
-│         Public API (goque.go)           │
+│   Public API (goque_manager.go)         │
 │  - Goque Manager                        │
-│  - QueueMngr (task submission)          │
+│  - TaskQueueManager interface           │
 └──────────┬────────────┬─────────────────┘
            │            │
 ┌──────────▼────────┐   │
@@ -21,12 +21,21 @@ Goque follows a layered architecture with clear separation of concerns.
 │  - GoqueProcessor │   │
 │  - Task execution │   │
 │  - Worker pools   │   │
+│  - Metrics        │   │
 └─────────┬─────────┘   │
           │             │
 ┌─────────▼─────────────▼─────────────────┐
 │    Internal Processors                  │
 │  - Healer (fix stuck tasks)             │
 │  - Cleaner (remove old tasks)           │
+│  - Metrics integration                  │
+└─────────┬───────────────────────────────┘
+          │
+┌─────────▼───────────────────────────────┐
+│     Queue Manager Layer                 │
+│  - TaskQueueManager implementation      │
+│  - Task operations (add, get, reset)    │
+│  - Metrics tracking                     │
 └─────────┬───────────────────────────────┘
           │
 ┌─────────▼───────────────────────────────┐
@@ -40,6 +49,14 @@ Goque follows a layered architecture with clear separation of concerns.
 │  Database (PostgreSQL/MySQL/SQLite)     │
 │  - tasks table                          │
 └─────────────────────────────────────────┘
+     │
+     ├──────────────────────────────────────┐
+     │     Metrics Layer (Prometheus)       │
+     │  - Task counters                     │
+     │  - Error tracking                    │
+     │  - Duration histograms               │
+     │  - Payload size tracking             │
+     └──────────────────────────────────────┘
 ```
 
 ## Core Components

@@ -42,14 +42,89 @@ services:
       GOQUE_DATABASE_DSN: "postgres://postgres:postgres@postgres:5432/goque_example?sslmode=disable"
       GOQUE_SERVER_HOST: "0.0.0.0"
       GOQUE_SERVER_PORT: 8080
-      GOQUE_QUEUE_WORKERS: 5
+      GOQUE_QUEUE_WORKERS: 10
       GOQUE_TASKGENERATOR_ENABLED: "true"
-      GOQUE_TASKGENERATOR_INTERVAL: 10s
-      GOQUE_TASKGENERATOR_MINTASKS: 1
-      GOQUE_TASKGENERATOR_MAXTASKS: 5
+      GOQUE_TASKGENERATOR_INTERVAL: 2m
+      GOQUE_TASKGENERATOR_MINTASKS: 10
+      GOQUE_TASKGENERATOR_MAXTASKS: 15
     depends_on:
       apply-migrations:
         condition: service_completed_successfully
 
+  victoriametrics:
+    image: victoriametrics/victoria-metrics:latest
+    container_name: goque_victoriametrics
+    ports:
+      - "8428:8428"
+    command:
+      - "--storageDataPath=/storage"
+      - "--httpListenAddr=:8428"
+      - "--retentionPeriod=30d"
+    volumes:
+      - victoriametrics_data:/storage
+    restart: unless-stopped
+
+  vmagent:
+    image: victoriametrics/vmagent:latest
+    container_name: goque_vmagent
+    depends_on:
+      - victoriametrics
+      - app
+    ports:
+      - "8429:8429"
+    volumes:
+      - ./monitoring/vmagent.yml:/etc/vmagent/vmagent.yml:ro
+      - vmagent_data:/vmagentdata
+    command:
+      - "--promscrape.config=/etc/vmagent/vmagent.yml"
+      - "--remoteWrite.url=http://victoriametrics:8428/api/v1/write"
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: goque_grafana
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_USERS_ALLOW_SIGN_UP=false
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    depends_on:
+      - victoriametrics
+      - loki
+    restart: unless-stopped
+
+  loki:
+    image: grafana/loki:latest
+    container_name: goque_loki
+    ports:
+      - "3100:3100"
+    command: -config.file=/etc/loki/local-config.yaml
+    volumes:
+      - ./monitoring/loki/loki-config.yaml:/etc/loki/local-config.yaml:ro
+      - loki_data:/loki
+    restart: unless-stopped
+
+  promtail:
+    image: grafana/promtail:latest
+    container_name: goque_promtail
+    volumes:
+      - ./monitoring/promtail/promtail-config.yaml:/etc/promtail/config.yaml:ro
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+      - /var/run/docker.sock:/var/run/docker.sock
+    command: -config.file=/etc/promtail/config.yaml
+    depends_on:
+      - loki
+      - app
+    restart: unless-stopped
+
 volumes:
   postgres_data:
+  victoriametrics_data:
+  vmagent_data:
+  grafana_data:
+  loki_data:

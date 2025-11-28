@@ -138,6 +138,24 @@ github.com/spf13/pflag
 - **Usage**: CLI tools, configuration
 - **Benefits**: POSIX/GNU-style flags
 
+### Monitoring
+
+#### prometheus/client_golang
+```go
+github.com/prometheus/client_golang
+```
+- **Purpose**: Prometheus metrics instrumentation
+- **Usage**: Built-in task queue metrics
+- **Components**:
+  - Counters for processed tasks
+  - Histograms for processing duration
+  - Error tracking with labels
+  - Payload size monitoring
+- **Benefits**:
+  - Standard metrics format
+  - Ready for Prometheus scraping
+  - Grafana dashboard compatible
+
 ### Testing
 
 #### testify v1.11.1
@@ -328,7 +346,15 @@ internal/
 - **Context**: Context-aware logging
 
 ### Metrics
-- Not built-in, but extensible via hooks
+- **Built-in**: Prometheus metrics via `internal/metrics`
+- **Metrics Exposed**:
+  - `goque_processed_tasks_total` - Task counters by type and status
+  - `goque_processed_tasks_with_error_total` - Error counters with details
+  - `goque_task_processing_duration_seconds` - Processing time histograms
+  - `goque_task_payload_size_bytes` - Payload size histograms
+- **Labels**: `task_type`, `status`, `task_error_type`, `task_processing_operations`, `service`
+- **Operations Tracked**: add_to_queue, processing, cleanup, health
+- **Extensible**: Via hooks for custom metrics
 
 ### Tracing
 - Not built-in, but extensible via context

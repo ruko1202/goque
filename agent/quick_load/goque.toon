@@ -22,7 +22,7 @@ project:
   databases: PostgreSQL 12+, MySQL 8+, SQLite 3+
   purpose: Robust database-backed task queue with worker pools, retry logic, and graceful shutdown
 
-  core_features[10]{feature,description}:
+  core_features[11]{feature,description}:
     Multi-database support,Works with PostgreSQL MySQL SQLite
     Reliable persistence,Task storage with ACID guarantees
     Worker pool management,Configurable concurrent processing using goroutine pools
@@ -33,6 +33,7 @@ project:
     Extensible hooks,Before/after processing hooks for custom logic
     Type-safe queries,PostgreSQL/MySQL use go-jet for type-safe SQL generation
     Built-in healer,Automatically marks stuck tasks as errored for reprocessing
+    Prometheus metrics,Built-in metrics for task counters errors duration and payload size
 
   task_statuses[7]{status,description,terminal}:
     new,Task created and ready to be picked up,false
@@ -59,15 +60,18 @@ project:
     healer_role: Fixes stuck pending tasks by marking them as error (cure operation)
 
 architecture:
-  layers[5]{layer,component,responsibility}:
-    Public API,goque.go,User-facing interface and queue manager
-    Queue Processor,internal/processors/queueprocessor,Core task processing engine
-    Internal Processors,internal/processors/internalprocessors,Healer and Cleaner
+  layers[6]{layer,component,responsibility}:
+    Public API,goque.go goque_manager.go goque_metrics.go,User-facing interface queue manager and metrics
+    Queue Processor,internal/processors/queueprocessor,Core task processing engine with metrics
+    Internal Processors,internal/processors/internalprocessors,Healer and Cleaner with metrics
+    Queue Manager,internal/queue_manager,TaskQueueManager implementation with metrics tracking
     Storage Layer,internal/storages,Multi-database persistence (PG/MySQL/SQLite)
     Database,PostgreSQL/MySQL/SQLite,Tasks table with indexes
 
-  key_components[5]{name,file,purpose}:
+  key_components[7]{name,file,purpose}:
     Goque Manager,goque.go,Main coordinator for task processing
+    TaskQueueManager,goque_manager.go,Public API for task queue operations with metrics
+    Metrics,goque_metrics.go internal/metrics,Prometheus metrics instrumentation
     GoqueProcessor,internal/processors/queueprocessor,Fetches and distributes tasks to workers
     Healer,internal/processors/internalprocessors/healer.go,Fixes stuck tasks in pending status
     Cleaner,internal/processors/internalprocessors/cleaner.go,Removes old completed/failed tasks
@@ -83,12 +87,13 @@ tech_stack:
     MySQL,github.com/go-sql-driver/mysql,v1.8.1
     SQLite,github.com/mattn/go-sqlite3,latest
 
-  key_dependencies[8]{package,version,purpose}:
+  key_dependencies[9]{package,version,purpose}:
     github.com/go-jet/jet/v2,v2.14.0,Type-safe SQL query builder for PG and MySQL
     github.com/panjf2000/ants/v2,v2.11.3,Goroutine pool management for workers
     github.com/google/uuid,latest,UUID generation for task IDs
     github.com/samber/lo,v1.52.0,Functional programming utilities
     github.com/spf13/viper,v1.21.0,Configuration management
+    github.com/prometheus/client_golang,latest,Prometheus metrics instrumentation and exposition
     github.com/stretchr/testify,v1.11.1,Testing assertions and mocks
     go.uber.org/mock,v0.6.0,Mock generation for interfaces
     github.com/jmoiron/sqlx,v1.4.0,SQL extensions for convenience
@@ -353,11 +358,15 @@ never_do[12]{action}:
   Never use raw SQL strings
 
 file_locations:
-  public_api: goque.go,pkg/entity/
+  public_api: goque.go,goque_manager.go,goque_entity.go,goque_metrics.go,goque_processor_opt.go,goque_storage.go
   processors: internal/processors/queueprocessor/,internal/processors/internalprocessors/
+  queue_manager: internal/queue_manager/
+  metrics: internal/metrics/
+  entity: internal/entity/
   storage: internal/storages/pg/,internal/storages/mysql/,internal/storages/sqlite/
   migrations: migrations/pg/,migrations/mysql/,migrations/sqlite/
   generated: internal/pkg/generated/postgres/,internal/pkg/generated/mysql/,internal/pkg/generated/mocks/
+  examples: examples/service/
   tests: test/
   docs: README.md,DATABASE.md,agent/
 

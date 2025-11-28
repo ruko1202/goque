@@ -33,6 +33,9 @@ func main() {
 		xlog.Fatal(ctx, "Failed to load configuration", zap.Error(err))
 	}
 
+	// Configure metrics
+	goque.SetMetricsServiceName("goque-example-service")
+
 	db := config.NewDB(ctx, cfg.Database.Driver, cfg.Database.DSN)
 	defer db.Close()
 

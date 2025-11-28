@@ -23,12 +23,13 @@ dev: ## Run the service in development mode
 
 docker-up: ## Start all services with docker-compose
 	@echo "Starting services with Docker Compose..."
-	@docker-compose up -d
+	@docker-compose up -d --build
 	@echo "✓ Services started"
 	@echo ""
 	@echo "Dashboard: http://localhost:8080"
 	@echo "API: http://localhost:8080/api/tasks"
 	@echo "Health: http://localhost:8080/health"
+	@echo "Grafana: http://localhost:3000"
 
 docker-down: ## Stop all services
 	@echo "Stopping services..."

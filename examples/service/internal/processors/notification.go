@@ -25,7 +25,7 @@ func NewNotificationProcessor() *NotificationProcessor {
 
 // ProcessTask implements the TaskProcessor interface for notification tasks.
 func (p *NotificationProcessor) ProcessTask(ctx context.Context, task *goque.Task) error {
-	ctx = xlog.WithOperation(ctx, "NotificationProcessor.ProcessTask",
+	ctx = xlog.WithOperation(ctx, "NotificationProcessor",
 		zap.String("task_id", task.ID.String()),
 	)
 
@@ -40,19 +40,7 @@ func (p *NotificationProcessor) ProcessTask(ctx context.Context, task *goque.Tas
 	)
 
 	xlog.Info(ctx, "Processing notification task")
-	// Simulate notification sending with random processing time (500ms-2s)
-	processingTime := time.Duration(500+time.Now().UnixNano()%1500) * time.Millisecond
-	select {
-	case <-time.After(processingTime):
-
-		if rand.Intn(10)%3 == 0 {
-			return fmt.Errorf("notification processing timed out")
-		}
-		xlog.Info(ctx, "Notification sent successfully to user",
-			zap.Duration("processingTime", processingTime),
-		)
-		return nil
-	case <-ctx.Done():
-		return fmt.Errorf("notification task canceled: %w", ctx.Err())
-	}
+	// Simulate notification sending with random processing time (500ms-3s)
+	processingTime := time.Duration(500+rand.Intn(2_500)) * time.Millisecond
+	return mockProcess(ctx, "notification", processingTime, 15)
 }

@@ -25,7 +25,7 @@ func NewEmailProcessor() *EmailProcessor {
 
 // ProcessTask implements the TaskProcessor interface for email tasks.
 func (p *EmailProcessor) ProcessTask(ctx context.Context, task *goque.Task) error {
-	ctx = xlog.WithOperation(ctx, "EmailProcessor.ProcessTask",
+	ctx = xlog.WithOperation(ctx, "EmailProcessor",
 		zap.String("task_id", task.ID.String()),
 	)
 	var payload models.EmailPayload
@@ -40,18 +40,7 @@ func (p *EmailProcessor) ProcessTask(ctx context.Context, task *goque.Task) erro
 	)
 
 	xlog.Info(ctx, "Processing email task")
-	// Simulate email sending with random processing time (1-3 seconds)
-	processingTime := time.Duration(1+time.Now().UnixNano()%2) * time.Second
-	select {
-	case <-time.After(processingTime):
-		if rand.Intn(10)%3 == 0 {
-			return fmt.Errorf("notification processing timed out")
-		}
-		xlog.Info(ctx, "Email sent successfully",
-			zap.Duration("processingTime", processingTime),
-		)
-		return nil
-	case <-ctx.Done():
-		return fmt.Errorf("email task canceled: %w", ctx.Err())
-	}
+	// Simulate email sending with random processing time (100ms-3 seconds)
+	processingTime := time.Duration(100+rand.Intn(2_900)) * time.Millisecond
+	return mockProcess(ctx, "email notification", processingTime, 25)
 }

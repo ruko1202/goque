@@ -4,12 +4,16 @@ import (
 	"net/http"
 
 	"github.com/labstack/echo/v4"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 // SetupRoutes configures all HTTP routes for the application.
 func SetupRoutes(e *echo.Echo, app *Application) {
 	// Health check
 	e.GET("/health", app.HealthCheckHandler)
+
+	// Metrics endpoint
+	e.GET("/metrics", echo.WrapHandler(promhttp.Handler()))
 
 	// API routes
 	api := e.Group("/api")

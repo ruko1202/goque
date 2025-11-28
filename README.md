@@ -1,6 +1,6 @@
 # Goque
 [![pipeline](https://github.com/ruko1202/goque/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/ruko1202/goque/actions/workflows/ci.yml)
-![Coverage](https://img.shields.io/badge/Coverage-88.3%25-brightgreen)
+![Coverage](https://img.shields.io/badge/Coverage-87.4%25-brightgreen)
 
 A robust, database-backed task queue system for Go with built-in worker pools, retry logic, and graceful shutdown support. Supports PostgreSQL, MySQL, and SQLite.
 
@@ -21,9 +21,7 @@ A robust, database-backed task queue system for Go with built-in worker pools, r
 - ✅ **Multi-processor support** - Manage multiple task types with a single queue manager
 - ✅ **Structured logging** - Built-in structured logging with `log/slog`
 - ✅ **Production-ready example** - Complete example service with web dashboard and API
-
-### Planned Features
-- 📋 **Prometheus metrics** - Built-in Prometheus metrics for monitoring
+- ✅ **Prometheus metrics** - Built-in Prometheus metrics for monitoring task queue performance
 
 ## Installation
 
@@ -80,61 +78,68 @@ package main
 
 import (
     "context"
-    "database/sql"
     "time"
 
-    "github.com/ruko1202/goque/internal"
-    "github.com/ruko1202/goque/internal/processor"
-    "github.com/ruko1202/goque/internal/storages/task"
+	"github.com/ruko1202/xlog"
+    "github.com/jmoiron/sqlx"
+    _ "github.com/lib/pq"
+    "github.com/ruko1202/goque"
+    "github.com/ruko1202/goque/pkg/goquestorage"
 )
 
 func main() {
+	ctx := context.Background()
     // Initialize database connection
-    // For PostgreSQL: sql.Open("postgres", dsn)
-    // For MySQL: sql.Open("mysql", dsn)
-    // For SQLite: sql.Open("sqlite3", dsn)
-    db, err := sql.Open("postgres", "your-connection-string")
+    db, err := goquestorage.NewDBConn(ctx, &goquestorage.Config{
+        DSN: "postgres://user:pass@localhost:5432/goque?sslmode=disable",
+        Driver: goquestorage.PgDriver,
+    })
+    if err != nil {
+        xlog.Panic(ctx, err.Error())
+    }
+
+    // Create task storage (works with any supported database)
+    taskStorage, err := goque.NewStorage(db)
     if err != nil {
         panic(err)
     }
 
-    // Create task storage (works with any supported database)
-    taskStorage := task.NewStorage(db)
+    // Optional: Configure metrics with service name
+    goque.SetMetricsServiceName("my-service")
 
     // Create Goque manager (includes built-in healer processor)
-    goque := internal.NewGoque(taskStorage)
+    goq := goque.NewGoque(taskStorage)
 
     // Register your task processors
-    goque.RegisterProcessor(
+    goq.RegisterProcessor(
         "send_email",
         &EmailProcessor{},
-        processor.WithWorkers(10),
-        processor.WithMaxAttempts(3),
-        processor.WithTaskTimeout(30 * time.Second),
+        goque.WithWorkersCount(10),
+        goque.WithTaskProcessingMaxAttempts(3),
+        goque.WithTaskProcessingTimeout(30 * time.Second),
     )
 
     // Run all processors
-    ctx := context.Background()
-    goque.Run(ctx)
+    goq.Run(ctx)
 
     // Graceful shutdown
-    defer goque.Stop()
+    defer goq.Stop()
 }
 ```
 
 ### 4. Adding Tasks to the Queue
 
 ```go
-import "github.com/ruko1202/goque/internal/entity"
-
+payload := `{"to": "user@example.com", "subject": "Hello"}`
 // Create a new task
-task := entity.NewTask("send_email", `{"to": "user@example.com", "subject": "Hello"}`)
+task := goque.NewTask("send_email", payload)
 
 // Or with external ID for idempotency
-task := entity.NewTaskWithExternalID("send_email", payload, "order-123")
+task := goque.NewTaskWithExternalID("send_email", payload, "external-order-123")
 
-// Add to storage
-err := taskStorage.AddTask(ctx, task)
+// Add to queue using TaskQueueManager (recommended - includes metrics)
+taskQueueManager := goque.NewTaskQueueManager(taskStorage)
+err := taskQueueManager.AddTaskToQueue(ctx, task)
 ```
 
 ## Example Application
@@ -209,14 +214,78 @@ Goque includes a built-in healer processor that automatically monitors and fixes
 You can configure the healer behavior:
 
 ```go
-import internalprocessors "github.com/ruko1202/goque/internal/internal_processors"
+goq.RegisterProcessor(
+    "send_email",
+    &EmailProcessor{},
+    goque.WithWorkersCount(10),
+    goque.WithTaskProcessingMaxAttempts(3),
+    goque.WithTaskProcessingTimeout(30 * time.Second),
 
-goque := internal.NewGoque(
-    taskStorage,
-    internalprocessors.WithHealerUpdatedAtTimeAgo(5 * time.Minute),
-    internalprocessors.WithHealerMaxTasks(200),
+    goque.WithHealerPeriod(10*time.Minute),
+    goque.WithHealerUpdatedAtTimeAgo(time.Hour),
+    goque.WithHealerTimeout(30*time.Second),
 )
 ```
+
+### Prometheus Metrics
+
+Goque includes built-in Prometheus metrics for comprehensive monitoring of your task queue. Metrics are automatically collected during task processing operations.
+
+#### Available Metrics
+
+| Metric Name | Type | Labels | Description |
+|-------------|------|--------|-------------|
+| `goque_processed_tasks_total` | Counter | `task_type`, `status` | Total number of processed tasks by type and final status |
+| `goque_processed_tasks_with_error_total` | Counter | `task_type`, `task_processing_operations`, `task_error_type` | Tasks processed with errors, including error type details |
+| `goque_task_processing_duration_seconds` | Histogram | `task_type` | Task processing duration distribution in seconds |
+| `goque_task_payload_size_bytes` | Histogram | `task_type` | Task payload size distribution in bytes |
+
+#### Configuration
+
+```go
+import (
+    "github.com/prometheus/client_golang/prometheus/promhttp"
+    "github.com/ruko1202/goque"
+    "net/http"
+)
+
+// Optional: Set service name for metrics labels
+goque.SetMetricsServiceName("my-service")
+
+// Expose metrics endpoint
+http.Handle("/metrics", promhttp.Handler())
+go http.ListenAndServe(":9090", nil)
+```
+
+#### Task Processing Operations
+
+Metrics track errors across different operations:
+- `add_to_queue` - Errors during task creation and queue insertion
+- `processing` - Errors during task execution
+- `cleanup` - Errors during task cleanup operations
+- `health` - Errors during healer operations
+
+#### Example Queries
+
+```promql
+# Task processing rate by type
+rate(goque_processed_tasks_total[5m])
+
+# Task error rate
+rate(goque_processed_tasks_with_error_total[5m])
+
+# Average processing duration
+rate(goque_task_processing_duration_seconds_sum[5m])
+  / rate(goque_task_processing_duration_seconds_count[5m])
+
+# 95th percentile processing time
+histogram_quantile(0.95, goque_task_processing_duration_seconds_bucket)
+
+# Tasks by status
+sum by (status) (goque_processed_tasks_total)
+```
+
+For a complete example with metrics integration, see [examples/service/](examples/service/).
 
 ## Development
 
@@ -308,11 +377,20 @@ make mocks
 
 ```
 .
+├── goque_manager.go            # Public API - TaskQueueManager interface
 ├── internal/
-│   ├── goque.go                # Main queue manager
-│   ├── entity/                 # Domain entities (Task, etc.)
-│   ├── processor/              # Queue processor and task processor interfaces
-│   ├── internal_processors/    # Built-in processors (healer, etc.)
+│   ├── goque.go                # Main Goque implementation
+│   ├── entity/                 # Domain entities and errors
+│   │   ├── task.go             # Task entity
+│   │   ├── errors.go           # Domain errors
+│   │   └── operations.go       # Task operation constants
+│   ├── queue_manager/          # Task queue manager implementation
+│   ├── metrics/                # Prometheus metrics
+│   │   ├── metrics.go          # Metrics collectors and functions
+│   │   └── vars.go             # Metrics configuration
+│   ├── processors/             # Task processing components
+│   │   ├── queueprocessor/     # Main queue processor
+│   │   └── internalprocessors/ # Built-in processors (healer, cleaner)
 │   ├── storages/               # Data access layer (multi-database support)
 │   │   ├── pg/task/            # PostgreSQL storage (go-jet)
 │   │   ├── mysql/task/         # MySQL storage (raw SQL)
@@ -324,6 +402,7 @@ make mocks
 │   ├── pg/                     # PostgreSQL migrations
 │   ├── mysql/                  # MySQL migrations
 │   └── sqlite/                 # SQLite migrations
+├── examples/service/           # Production-ready example service
 ├── DATABASE.md                 # Complete database setup guide
 └── test/                       # Test utilities and fixtures
 ```

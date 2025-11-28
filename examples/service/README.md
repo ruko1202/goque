@@ -21,6 +21,10 @@ Once running, open your browser to:
 - **Dashboard**: http://localhost:8080
 - **API**: http://localhost:8080/api/tasks
 - **Health**: http://localhost:8080/health
+- **Metrics**: http://localhost:8080/metrics
+- **Grafana**: http://localhost:3000 (admin/admin)
+- **VictoriaMetrics**: http://localhost:8428
+- **Loki**: http://localhost:3100
 
 ## Task Types
 
@@ -104,6 +108,106 @@ The built-in task generator creates random tasks periodically to demonstrate the
 - Generates 1-5 random tasks every 10 seconds (configurable)
 - Creates tasks of all types with realistic payloads
 - Can be enabled/disabled via configuration
+
+## Monitoring and Metrics
+
+The example service includes comprehensive monitoring with Prometheus metrics, VictoriaMetrics for storage, and Grafana for visualization.
+
+### Available Metrics
+
+The service exposes Prometheus metrics at `/metrics` endpoint:
+
+- **goque_processed_tasks_total** - Counter of processed tasks by type and status
+- **goque_processed_tasks_with_error_total** - Counter of errors by type and operation
+- **goque_task_processing_duration_seconds** - Histogram of task processing duration
+- **goque_task_payload_size_bytes** - Histogram of task payload sizes
+
+### Grafana Dashboard
+
+Access Grafana at http://localhost:3000 (credentials: admin/admin)
+
+The pre-configured dashboard includes:
+
+1. **Overview Stats**:
+   - Task processing rate
+   - Error rate
+   - P95 processing duration
+   - Total tasks processed
+
+2. **Time Series Graphs**:
+   - Task processing rate by type and status
+   - Processing duration percentiles (p50, p95, p99)
+   - Error rate by task type and operation
+   - Payload size percentiles
+
+3. **Auto-refresh** every 10 seconds
+
+### VictoriaMetrics
+
+VictoriaMetrics is used as the time-series database for metrics storage:
+
+- Web UI: http://localhost:8428
+- Data retention: 30 days
+- Scraped by vmagent every 10 seconds
+
+### Architecture
+
+```
+Application (/metrics) → vmagent → VictoriaMetrics ─┐
+Application (logs)     → promtail → Loki             ├─→ Grafana
+                                                      │
+                                                      └─→ Dashboards
+```
+
+## Log Aggregation with Loki
+
+The example service includes centralized log aggregation using Grafana Loki.
+
+### Log Collection
+
+**Promtail** collects logs from the application container:
+- Automatically discovers Docker containers
+- Extracts JSON log fields (level, timestamp, logger) as labels
+- Preserves full JSON log content for querying
+- Sends to Loki for storage
+
+### Grafana Logs Dashboard
+
+Access the logs dashboard in Grafana (http://localhost:3000):
+
+**"Goque Application Logs" dashboard includes**:
+
+1. **Log Volume Graph** - Logs per minute by level (info, warn, error)
+2. **Live Logs Viewer** - Real-time log stream with JSON parsing
+3. **Statistics**:
+   - Info logs count (5m window)
+   - Warning logs count (5m window)
+   - Error logs count (5m window)
+   - Total logs count (5m window)
+4. **Error Logs Panel** - Filtered view showing only errors
+
+### Log Levels
+
+The application uses structured logging with these levels:
+- **info** - Normal operations, task processing
+- **warn** - Warning conditions, big payloads
+- **error** - Error conditions, failed operations
+
+### Example Queries
+
+```logql
+# All logs from the service
+{container="goque_example_service"} | json
+
+# Only errors
+{container="goque_example_service"} | json | level="error"
+
+# Search for specific text
+{container="goque_example_service"} | json |= "task processing"
+
+# Count logs by level
+sum by (level) (count_over_time({container="goque_example_service"} | json [5m]))
+```
 
 ## Configuration
 
