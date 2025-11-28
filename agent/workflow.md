@@ -82,16 +82,25 @@ make lint
 
 Before starting any work:
 ```bash
-# 1. Ensure you're on main and up to date
-git checkout main
-git pull
+# 1. Check current branch
+CURRENT_BRANCH=$(git branch --show-current)
 
-# 2. Create a new feature branch
-git checkout -b feature/your-feature-name
+# 2. If on main/master, create a new feature branch
+if [ "$CURRENT_BRANCH" = "main" ] || [ "$CURRENT_BRANCH" = "master" ]; then
+    git checkout -b feature/your-feature-name
+else
+    # Continue working on current feature branch
+    echo "Working on branch: $CURRENT_BRANCH"
+fi
 
-# 3. Verify you're on the feature branch
+# 3. Verify you're NOT on main/master
 git branch --show-current  # Should NOT be 'main' or 'master'
 ```
+
+**Branch Strategy**:
+- **If currently on main/master** → Create new feature branch for your work
+- **If currently on feature branch** → Continue working on that branch
+- **Exception**: If user explicitly requests a new branch, create it regardless of current branch
 
 ### Branch Naming
 

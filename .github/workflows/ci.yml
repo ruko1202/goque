@@ -14,6 +14,9 @@ permissions:
   contents: read
   pull-requests: write
 
+env:
+  MAIN_GO_VERSION: 1.23
+
 jobs:
   lint:
     name: Lint
@@ -30,114 +33,32 @@ jobs:
           version: v2.3.0
           args: --timeout=5m
 
-  test:
-    name: Integration tests[PostgreSQL]
-    runs-on: ubuntu-latest
-    permissions: # Job-level permissions configuration starts here
-      contents: write           # 'write' access to repository contents
-      pull-requests: write      # 'write' access to pull requests
+  test-postgres:
+    name: Integration tests [PostgreSQL]
+    uses: ./.github/workflows/integration-test.yml
+    permissions:
+      contents: write
+      pull-requests: write
+    with:
+      main_go_version: '1.23'
+      db_driver: 'postgres'
+      db_dsn: 'postgres://postgres:postgres@localhost:5432/postgres?sslmode=disable'
 
-    services:
-      postgres:
-        image: postgres:16
-        env:
-          POSTGRES_USER: postgres
-          POSTGRES_PASSWORD: postgres
-          POSTGRES_DB: postgres
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-        ports:
-          - 5432:5432
+  test-mysql:
+    name: Integration tests [MySQL]
+    uses: ./.github/workflows/integration-test.yml
+    permissions:
+      contents: write
+      pull-requests: write
+    with:
+      main_go_version: '1.23'
+      db_driver: 'mysql'
+      db_dsn: 'root:root@tcp(localhost:3306)/goque?parseTime=true&loc=UTC'
 
-    strategy:
-      matrix:
-        go-version: ['1.23', '1.24']
-
-    env:
-      DB_DSN: postgres://postgres:postgres@localhost:5432/postgres?sslmode=disable
-      DB_DRIVER: postgres
-      MAIN_GO_VERSION: 1.23
-
-    steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-go@v6
-        with:
-          go-version: ${{ matrix.go-version }}
-          cache: true
-
-      - name: Install dependencies
-        run: go mod download
-
-      - name: Install binary dependencies
-        run: make bin-deps-db
-
-      - name: Set up database schema
-        run: make db-up
-
-      - name: Run integration tests
-        run: make test-cov
-
-      - name: Parse coverage
-        id: coverage
-        if: matrix.go-version == env.MAIN_GO_VERSION
-        run: |
-          COVERAGE=$(cat coverage.report | grep total | awk '{print $3}' | sed 's/%//')
-          echo "coverage=$COVERAGE" >> $GITHUB_OUTPUT
-          echo "Total coverage: $COVERAGE%"
-
-      - name: Get detailed coverage
-        id: coverage-details
-        if: matrix.go-version == env.MAIN_GO_VERSION && github.event_name == 'pull_request'
-        run: |
-          echo "details<<EOF" >> $GITHUB_OUTPUT
-          cat coverage.report >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
-
-      - name: Comment PR with coverage
-        if: matrix.go-version == env.MAIN_GO_VERSION && github.event_name == 'pull_request'
-        uses: marocchino/sticky-pull-request-comment@v2
-        with:
-          recreate: true
-          message: |
-            ## Test Coverage Report
-
-            **Total Coverage:** ${{ steps.coverage.outputs.coverage }}%
-
-            <details>
-            <summary>Coverage by Package</summary>
-
-            ```
-            ${{ steps.coverage-details.outputs.details }}
-            ```
-            </details>
-
-      - name: Generate coverage badge
-        if: matrix.go-version == env.MAIN_GO_VERSION && github.ref == 'refs/heads/main'
-        uses: tj-actions/coverage-badge-go@v3
-        with:
-          filename: coverage.report
-
-      - name: Verify changed files
-        if: matrix.go-version == env.MAIN_GO_VERSION && github.ref == 'refs/heads/main'
-        uses: tj-actions/verify-changed-files@v18
-        id: verify-changed-files
-        with:
-          files: README.md
-
-      - name: Commit coverage badge
-        if: matrix.go-version == env.MAIN_GO_VERSION && github.ref == 'refs/heads/main' && steps.verify-changed-files.outputs.files_changed == 'true'
-        run: |
-          git config --local user.email "github-actions[bot]@users.noreply.github.com"
-          git config --local user.name "github-actions[bot]"
-          git add README.md
-          git commit -m "Update coverage badge [skip ci]"
-
-      - name: Push changes
-        if: matrix.go-version == env.MAIN_GO_VERSION && github.ref == 'refs/heads/main' && steps.verify-changed-files.outputs.files_changed == 'true'
-        uses: ad-m/github-push-action@master
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          branch: ${{ github.ref }}
+  report-coverage:
+    name: Report Coverage
+    uses: ./.github/workflows/coverage.yml
+    needs: [test-postgres, test-mysql]
+    permissions:
+      contents: write
+      pull-requests: write

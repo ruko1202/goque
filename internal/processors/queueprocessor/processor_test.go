@@ -13,6 +13,8 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
+	"github.com/ruko1202/goque/test/testutils"
+
 	"github.com/ruko1202/goque/internal/entity"
 
 	"github.com/ruko1202/goque/internal/utils/xtime"
@@ -52,14 +54,14 @@ func TestGoqueProcessor(t *testing.T) {
 		defaultFetcherMock(mocks, task.Type, []*entity.Task{task})
 
 		gomock.InOrder(
-			mocks.taskService.EXPECT().
+			mocks.taskStorage.EXPECT().
 				UpdateTask(gomock.Any(), task.ID, task).
 				DoAndReturn(func(_ context.Context, taskID uuid.UUID, task *entity.Task) error {
 					assert.Equal(t, task.ID, taskID)
 					assert.Equal(t, entity.TaskStatusProcessing, task.Status)
 					return nil
 				}),
-			mocks.taskService.EXPECT().
+			mocks.taskStorage.EXPECT().
 				UpdateTask(gomock.Any(), task.ID, task).
 				DoAndReturn(func(_ context.Context, taskID uuid.UUID, task *entity.Task) error {
 					assert.Equal(t, task.ID, taskID)
@@ -115,23 +117,20 @@ func TestGoqueProcessor(t *testing.T) {
 		defaultFetcherMock(mocks, task.Type, []*entity.Task{task})
 
 		gomock.InOrder(
-			mocks.taskService.EXPECT().
+			mocks.taskStorage.EXPECT().
 				UpdateTask(gomock.Any(), gomock.Any(), gomock.Any()).
 				DoAndReturn(func(_ context.Context, taskID uuid.UUID, task *entity.Task) error {
 					assert.Equal(t, task.ID, taskID)
 					assert.Equal(t, entity.TaskStatusProcessing, task.Status)
 					return nil
 				}),
-			mocks.taskService.EXPECT().
+			mocks.taskStorage.EXPECT().
 				UpdateTask(gomock.Any(), gomock.Any(), gomock.Any()).
 				DoAndReturn(func(_ context.Context, taskID uuid.UUID, task *entity.Task) error {
 					assert.Equal(t, task.ID, taskID)
 					assert.Equal(t, entity.TaskStatusError, task.Status)
 					assert.Equal(t, "attempt 1: task processing timeout: 100ms. context deadline exceeded\n", lo.FromPtr(task.Errors))
-					assert.Equal(t,
-						now.Add(time.Minute).In(time.UTC).Round(time.Minute),
-						task.NextAttemptAt.Round(time.Minute),
-					)
+					testutils.AssertTimeInWithDelta(t, now.Add(time.Minute).In(time.UTC), task.NextAttemptAt, time.Minute)
 					return nil
 				}),
 		)
@@ -172,14 +171,14 @@ func TestGoqueProcessor(t *testing.T) {
 		defaultFetcherMock(mocks, task.Type, []*entity.Task{task})
 
 		gomock.InOrder(
-			mocks.taskService.EXPECT().
+			mocks.taskStorage.EXPECT().
 				UpdateTask(gomock.Any(), gomock.Any(), gomock.Any()).
 				DoAndReturn(func(_ context.Context, taskID uuid.UUID, task *entity.Task) error {
 					assert.Equal(t, task.ID, taskID)
 					assert.Equal(t, entity.TaskStatusProcessing, task.Status)
 					return nil
 				}),
-			mocks.taskService.EXPECT().
+			mocks.taskStorage.EXPECT().
 				UpdateTask(gomock.Any(), gomock.Any(), gomock.Any()).
 				DoAndReturn(func(_ context.Context, taskID uuid.UUID, task *entity.Task) error {
 					assert.Equal(t, task.ID, taskID)
@@ -225,14 +224,14 @@ func TestGoqueProcessor(t *testing.T) {
 		defaultFetcherMock(mocks, task.Type, []*entity.Task{task})
 
 		gomock.InOrder(
-			mocks.taskService.EXPECT().
+			mocks.taskStorage.EXPECT().
 				UpdateTask(gomock.Any(), gomock.Any(), gomock.Any()).
 				DoAndReturn(func(_ context.Context, taskID uuid.UUID, task *entity.Task) error {
 					assert.Equal(t, task.ID, taskID)
 					assert.Equal(t, entity.TaskStatusProcessing, task.Status)
 					return nil
 				}),
-			mocks.taskService.EXPECT().
+			mocks.taskStorage.EXPECT().
 				UpdateTask(gomock.Any(), gomock.Any(), gomock.Any()).
 				DoAndReturn(func(_ context.Context, taskID uuid.UUID, task *entity.Task) error {
 					assert.Equal(t, task.ID, taskID)
@@ -286,14 +285,14 @@ func TestGoqueProcessor(t *testing.T) {
 		defaultFetcherMock(mocks, task.Type, []*entity.Task{task})
 
 		gomock.InOrder(
-			mocks.taskService.EXPECT().
+			mocks.taskStorage.EXPECT().
 				UpdateTask(gomock.Any(), gomock.Any(), gomock.Any()).
 				DoAndReturn(func(_ context.Context, taskID uuid.UUID, task *entity.Task) error {
 					assert.Equal(t, task.ID, taskID)
 					assert.Equal(t, entity.TaskStatusProcessing, task.Status)
 					return nil
 				}),
-			mocks.taskService.EXPECT().
+			mocks.taskStorage.EXPECT().
 				UpdateTask(gomock.Any(), gomock.Any(), gomock.Any()).
 				DoAndReturn(func(_ context.Context, taskID uuid.UUID, task *entity.Task) error {
 					assert.Equal(t, task.ID, taskID)
@@ -348,7 +347,7 @@ func TestGoqueProcessor(t *testing.T) {
 			return &copyTask
 		}))
 
-		mocks.taskService.EXPECT().
+		mocks.taskStorage.EXPECT().
 			UpdateTask(gomock.Any(), gomock.Any(), gomock.Any()).
 			Return(nil).
 			AnyTimes()

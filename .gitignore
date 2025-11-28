@@ -9,3 +9,4 @@ coverage.report
 coverage.tmp
 
 .claude/settings.local.json
+agent-tasks

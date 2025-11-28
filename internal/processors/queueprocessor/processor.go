@@ -9,22 +9,14 @@ import (
 	"runtime/debug"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/panjf2000/ants/v2"
 	"github.com/samber/lo"
 
 	"github.com/ruko1202/goque/internal/entity"
+	"github.com/ruko1202/goque/internal/storages"
 
 	"github.com/ruko1202/goque/internal/processors/internalprocessors"
 )
-
-// TaskStorage defines the interface for task storage operations.
-type TaskStorage interface {
-	GetTasksForProcessing(ctx context.Context, taskType entity.TaskType, maxTasks int64) ([]*entity.Task, error)
-	UpdateTask(ctx context.Context, taskID uuid.UUID, task *entity.Task) error
-	internalprocessors.CleanerTaskStorage
-	internalprocessors.HealerTaskStorage
-}
 
 type (
 	taskFetcher struct {
@@ -50,7 +42,7 @@ type GoqueProcessor struct {
 	gracefulStoppedCh chan struct{}
 	gracefulCtxCancel context.CancelFunc
 
-	taskStorage TaskStorage
+	taskStorage storages.Task
 
 	fetcher      *taskFetcher
 	processor    *taskProcessor
@@ -60,7 +52,7 @@ type GoqueProcessor struct {
 
 // NewGoqueProcessor creates a new processor instance with the specified configuration.
 func NewGoqueProcessor(
-	taskStorage TaskStorage,
+	taskStorage storages.Task,
 	taskType entity.TaskType,
 	processor TaskProcessor,
 	opts ...GoqueProcessorOpts,

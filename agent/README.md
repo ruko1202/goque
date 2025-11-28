@@ -32,13 +32,23 @@ This directory contains comprehensive documentation for AI agents working on the
 
 ```bash
 # Before starting ANY work
-git checkout main
-git pull
-git checkout -b feature/your-feature-name  # Max 3 words after prefix!
+CURRENT_BRANCH=$(git branch --show-current)
+
+# If on main/master, create new branch
+if [ "$CURRENT_BRANCH" = "main" ] || [ "$CURRENT_BRANCH" = "master" ]; then
+    git checkout -b feature/your-feature-name  # Max 3 words after prefix!
+else
+    echo "Working on branch: $CURRENT_BRANCH"
+fi
 
 # Always verify
 git branch --show-current  # Must NOT be 'main' or 'master'
 ```
+
+**Branch Strategy**:
+- On main/master → Create new feature branch
+- On feature branch → Continue on current branch
+- Exception: Create new branch if user explicitly requests it
 
 **Branch Naming**:
 - Maximum 3 words after prefix (e.g., `docs/add-rule` ✅)

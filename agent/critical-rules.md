@@ -681,10 +681,13 @@ apiKey := "sk_live_51HqJ8K..."
 
 ✅ **RIGHT**:
 ```bash
-# 1. Create feature branch from main
-git checkout main
-git pull
-git checkout -b feature/add-new-feature
+# 1. Check current branch and create feature branch if needed
+CURRENT_BRANCH=$(git branch --show-current)
+if [ "$CURRENT_BRANCH" = "main" ] || [ "$CURRENT_BRANCH" = "master" ]; then
+    git checkout -b feature/add-new-feature
+else
+    echo "Working on existing branch: $CURRENT_BRANCH"
+fi
 
 # 2. Make changes
 # ... edit files ...
@@ -702,6 +705,11 @@ gh pr create --title "Add new feature" --body "Description..."
 # 6. After review and approval, merge via GitHub UI
 # main branch stays protected
 ```
+
+**Branch Strategy**:
+- **If on main/master** → Create new feature branch before committing
+- **If on feature branch** → Continue working on current branch
+- **Exception**: If user explicitly requests new branch, create it
 
 ❌ **WRONG**:
 ```bash
@@ -772,10 +780,11 @@ Main branch should have protection rules:
 **AI Agent Checklist**:
 
 Before making any commit:
-- [ ] Am I on a feature branch? (`git branch --show-current`)
-- [ ] Is it NOT main or master?
-- [ ] Have I created a descriptive branch name?
+- [ ] Check current branch: `git branch --show-current`
+- [ ] If on main/master → Create new feature branch NOW
+- [ ] If on feature branch → Continue on current branch
 - [ ] Branch name has maximum 3 words after prefix? (e.g., `docs/add-rule` ✅, not `docs/add-branch-protection-rule-from-main` ❌)
+- [ ] Exception: If user explicitly requests new branch, create it regardless
 
 **No exceptions** - Always use feature branches, never commit directly to main/master.
 

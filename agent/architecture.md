@@ -31,12 +31,13 @@ Goque follows a layered architecture with clear separation of concerns.
           │
 ┌─────────▼───────────────────────────────┐
 │       Storage Layer                     │
-│  - Task Storage (PostgreSQL)            │
+│  - Task Storage (Multi-DB)              │
+│  - PostgreSQL / MySQL implementations   │
 │  - Type-safe queries (go-jet)           │
 └─────────┬───────────────────────────────┘
           │
 ┌─────────▼───────────────────────────────┐
-│       PostgreSQL Database               │
+│       Database (PostgreSQL or MySQL)    │
 │  - tasks table                          │
 └─────────────────────────────────────────┘
 ```
@@ -141,11 +142,17 @@ type TaskProcessor interface {
 - `PushTask(ctx, type, payload)` - Add new task
 - `PushTaskWithExternalID(ctx, type, payload, externalID)` - Add with external ID
 
-### 5. Storage Layer (`internal/storages/sql/pg/task/`)
+### 5. Storage Layer (`pkg/goquestorage/`, `internal/storages/`)
 
-**Purpose**: PostgreSQL persistence
+**Purpose**: Multi-database persistence layer with PostgreSQL and MySQL support
 
-**Key Operations**:
+**Implementations**:
+- **PostgreSQL** (`internal/storages/pg/task/`) - Primary implementation
+- **MySQL** (`internal/storages/mysql/task/`) - Alternative implementation
+- **Common utilities** (`internal/storages/dbutils/`) - Shared database utilities
+- **Shared entities** (`internal/storages/dbentity/`) - Common filters and entities
+
+**Key Operations** (same interface for all databases):
 - `AddTask(ctx, task)` - Insert task
 - `GetTasksForProcessing(ctx, type, limit)` - Fetch tasks to process
 - `UpdateTask(ctx, task)` - Update task status
@@ -153,10 +160,11 @@ type TaskProcessor interface {
 - `DeleteTasks(ctx, statuses, updatedBefore, limit)` - Cleaner operation
 
 **Features**:
-- Type-safe queries using go-jet
-- Transaction support
-- Row-level locking (FOR UPDATE SKIP LOCKED)
+- Type-safe queries using go-jet for both PostgreSQL and MySQL
+- Transaction support with automatic rollback
+- Row-level locking (FOR UPDATE SKIP LOCKED / FOR UPDATE)
 - Efficient batch operations
+- Database-agnostic public interface
 
 ## Data Flow
 

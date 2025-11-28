@@ -9,11 +9,19 @@
   - Context-aware concurrency
 
 ### Database
-- **PostgreSQL 12+**
+Goque supports multiple database backends:
+
+- **PostgreSQL 12+** (Primary)
   - ACID guarantees
-  - Row-level locking
-  - JSONB support
+  - Row-level locking (FOR UPDATE SKIP LOCKED)
+  - JSONB support for task payloads
   - Advanced indexing
+
+- **MySQL 8.0+** (Alternative)
+  - ACID guarantees
+  - Row-level locking (FOR UPDATE)
+  - JSON column type for task payloads
+  - Standard indexing
 
 ## Key Dependencies
 
@@ -24,20 +32,29 @@
 github.com/go-jet/jet/v2
 ```
 - **Purpose**: Type-safe SQL query builder
-- **Usage**: All database queries
+- **Usage**: All database queries (PostgreSQL and MySQL)
 - **Benefits**:
   - Compile-time query validation
   - IDE auto-completion
   - Refactoring support
   - No string-based queries
+  - Multi-database support (postgres and mysql packages)
 
 #### lib/pq v1.10.9
 ```go
 github.com/lib/pq
 ```
 - **Purpose**: PostgreSQL driver
-- **Usage**: Database connection
+- **Usage**: PostgreSQL database connection
 - **Benefits**: Pure Go implementation
+
+#### go-sql-driver/mysql v1.8.1
+```go
+github.com/go-sql-driver/mysql
+```
+- **Purpose**: MySQL driver
+- **Usage**: MySQL database connection
+- **Benefits**: Pure Go implementation, full MySQL protocol support
 
 #### sqlx v1.4.0
 ```go

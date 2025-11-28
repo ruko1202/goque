@@ -80,7 +80,7 @@ func newTaskTableImpl(schemaName, tableName, alias string) taskTable {
 		NextAttemptAtColumn = postgres.TimestampzColumn("next_attempt_at")
 		allColumns          = postgres.ColumnList{IDColumn, TypeColumn, ExternalIDColumn, PayloadColumn, StatusColumn, AttemptsColumn, ErrorsColumn, CreatedAtColumn, UpdatedAtColumn, NextAttemptAtColumn}
 		mutableColumns      = postgres.ColumnList{TypeColumn, ExternalIDColumn, PayloadColumn, StatusColumn, AttemptsColumn, ErrorsColumn, CreatedAtColumn, UpdatedAtColumn, NextAttemptAtColumn}
-		defaultColumns      = postgres.ColumnList{IDColumn, CreatedAtColumn, NextAttemptAtColumn}
+		defaultColumns      = postgres.ColumnList{CreatedAtColumn, NextAttemptAtColumn}
 	)
 
 	return taskTable{

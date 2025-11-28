@@ -6,9 +6,9 @@ import (
 
 	"go.uber.org/mock/gomock"
 
-	"github.com/ruko1202/goque/internal/entity"
+	"github.com/ruko1202/goque/internal/pkg/generated/mocks/mock_storages"
 
-	mock_queueprocessor "github.com/ruko1202/goque/internal/pkg/generated/mocks/mock_processors/queueprocessor"
+	"github.com/ruko1202/goque/internal/entity"
 )
 
 func TestMain(m *testing.M) {
@@ -16,7 +16,7 @@ func TestMain(m *testing.M) {
 }
 
 type procMocks struct {
-	taskService *mock_queueprocessor.MockTaskStorage
+	taskStorage *mock_storages.MockTask
 }
 
 func initGoqueProcessorWithMocks(
@@ -30,19 +30,19 @@ func initGoqueProcessorWithMocks(
 	ctrl := gomock.NewController(t)
 
 	mocks := &procMocks{
-		taskService: mock_queueprocessor.NewMockTaskStorage(ctrl),
+		taskStorage: mock_storages.NewMockTask(ctrl),
 	}
-	goqueProc := NewGoqueProcessor(mocks.taskService, taskType, processor, opts...)
+	goqueProc := NewGoqueProcessor(mocks.taskStorage, taskType, processor, opts...)
 
 	return goqueProc, mocks
 }
 
 func defaultFetcherMock(mocks *procMocks, taskType string, tasks []*entity.Task) {
 	gomock.InOrder(
-		mocks.taskService.EXPECT().
+		mocks.taskStorage.EXPECT().
 			GetTasksForProcessing(gomock.Any(), taskType, defaultFetchMaxTasks).
 			Return(tasks, nil),
-		mocks.taskService.EXPECT().
+		mocks.taskStorage.EXPECT().
 			GetTasksForProcessing(gomock.Any(), taskType, defaultFetchMaxTasks).
 			Return([]*entity.Task{}, nil).
 			AnyTimes(),

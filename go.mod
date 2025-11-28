@@ -6,6 +6,7 @@ toolchain go1.24.9
 
 require (
 	github.com/go-jet/jet/v2 v2.14.0
+	github.com/go-sql-driver/mysql v1.9.3
 	github.com/goccy/go-json v0.10.5
 	github.com/google/uuid v1.6.0
 	github.com/jmoiron/sqlx v1.4.0
@@ -19,6 +20,7 @@ require (
 )
 
 require (
+	filippo.io/edwards25519 v1.1.0 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/fsnotify/fsnotify v1.9.0 // indirect
 	github.com/go-viper/mapstructure/v2 v2.4.0 // indirect

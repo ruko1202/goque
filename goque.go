@@ -7,16 +7,8 @@ import (
 	"log/slog"
 	"sync"
 
-	"github.com/ruko1202/goque/internal/processors/internalprocessors"
 	"github.com/ruko1202/goque/internal/processors/queueprocessor"
 )
-
-// TaskStorage combines all storage interfaces required by Goque for task processing, cleaning, and healing operations.
-type TaskStorage interface {
-	queueprocessor.TaskStorage
-	internalprocessors.CleanerTaskStorage
-	internalprocessors.HealerTaskStorage
-}
 
 // Goque is the main task queue manager that coordinates multiple task processors.
 type Goque struct {

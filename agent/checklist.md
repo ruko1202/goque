@@ -6,9 +6,9 @@ Before starting work:
 
 - [ ] Issue exists describing the work
 - [ ] Issue has been discussed and approach agreed upon
-- [ ] Latest code pulled from main
-- [ ] **New feature branch created from main** (NOT working on main/master!)
-- [ ] **Verified current branch** (`git branch --show-current` shows feature branch)
+- [ ] **Check current branch** (`git branch --show-current`)
+- [ ] **If on main/master** → Create new feature branch NOW
+- [ ] **If on feature branch** → Continue on current branch (unless user requests new branch)
 - [ ] **Branch name has max 3 words** after prefix - see [Branch Naming](branch-naming.md)
 - [ ] Database is running and accessible
 - [ ] Migrations are up to date (`make db-status`)
@@ -91,10 +91,11 @@ While coding:
 Before committing:
 
 ### Branch Check (CRITICAL!)
-- [ ] **Verify NOT on main/master**: `git branch --show-current`
-- [ ] Working on a feature branch with descriptive name
+- [ ] **Check current branch**: `git branch --show-current`
+- [ ] **If on main/master** → STOP and create feature branch immediately
+- [ ] **If on feature branch** → Continue working on current branch
 - [ ] **Branch name has max 3 words** after prefix - see [Branch Naming](branch-naming.md)
-- [ ] If on main/master by mistake, create feature branch immediately
+- [ ] **Exception**: Create new branch only if user explicitly requests it
 
 ### Run Checks
 - [ ] All tests pass with race detector: `make test-cov`

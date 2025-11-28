@@ -368,7 +368,7 @@ When reporting an issue, please include:
 
 1. **Environment**:
    - Go version
-   - PostgreSQL version
+   - Database type and version (PostgreSQL or MySQL)
    - Goque version
 
 2. **Configuration**:
@@ -395,7 +395,7 @@ When reporting an issue, please include:
 ```markdown
 **Environment**
 - Go version: 1.23
-- PostgreSQL version: 15.2
+- Database: PostgreSQL 15.2 (or MySQL 8.0)
 - Goque version: v1.0.0
 
 **Configuration**

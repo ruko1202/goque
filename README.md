@@ -2,18 +2,19 @@
 [![pipeline](https://github.com/ruko1202/goque/actions/workflows/ci.yml/badge.svg)](https://github.com/ruko1202/goque/actions/workflows/ci.yml)
 ![Coverage](https://img.shields.io/badge/Coverage-83.5%25-brightgreen)
 
-A robust, PostgreSQL-backed task queue system for Go with built-in worker pools, retry logic, and graceful shutdown support.
+A robust, database-backed task queue system for Go with built-in worker pools, retry logic, and graceful shutdown support. Supports PostgreSQL, MySQL, and SQLite.
 
 ## Features
 
-- **PostgreSQL-backed persistence** - Reliable task storage with ACID guarantees
+- **Multi-database support** - Works with PostgreSQL, MySQL, and SQLite
+- **Reliable persistence** - Task storage with ACID guarantees
 - **Worker pool management** - Configurable concurrent task processing using goroutine pools
 - **Automatic retry logic** - Configurable retry attempts with custom backoff strategies
 - **Task lifecycle management** - Track task status through multiple states (new, processing, done, error, etc.)
 - **Graceful shutdown** - Clean worker shutdown with in-flight task handling
 - **Task timeout handling** - Per-task timeout configuration with context cancellation
 - **Extensible hooks** - Before/after processing hooks for custom logic
-- **Type-safe queries** - Using go-jet for type-safe SQL query generation
+- **Type-safe queries** - PostgreSQL uses go-jet for type-safe SQL query generation
 - **External ID support** - Associate tasks with external identifiers for idempotency
 - **Built-in task healer** - Automatically marks stuck tasks as errored for reprocessing
 - **Multi-processor support** - Manage multiple task types with a single queue manager
@@ -28,19 +29,30 @@ go get github.com/ruko1202/goque
 
 ### 1. Prepare database
 
-First, set up your PostgreSQL database and run migrations:
+Goque supports three database backends: **PostgreSQL**, **MySQL**, and **SQLite**.
 
 ```bash
-# Configure your database connection
-echo 'DB_DSN "postgresql://user:password@localhost:5432/dbname?sslmode=disable"' > .env.local
-echo 'DB_DRIVER "postgres"' >> .env.local
+# Configure your database connection in .env.local
+# For PostgreSQL:
+echo 'DB_DRIVER postgres' > .env.local
+echo 'DB_DSN postgres://postgres:postgres@localhost:5432/goque?sslmode=disable' >> .env.local
+
+# For MySQL:
+# echo 'DB_DRIVER mysql' > .env.local
+# echo 'DB_DSN root:root@tcp(localhost:3306)/goque?parseTime=true&loc=UTC' >> .env.local
+
+# For SQLite:
+# echo 'DB_DRIVER sqlite3' > .env.local
+# echo 'DB_DSN ./goque.db' >> .env.local
 
 # Install database tools
 make bin-deps-db
 
-# Run migrations
+# Run migrations (works with any database)
 make db-up
 ```
+
+For detailed database setup instructions, see [DATABASE.md](DATABASE.md).
 
 ### 2. Create a Task Processor
 
@@ -72,12 +84,15 @@ import (
 
 func main() {
     // Initialize database connection
+    // For PostgreSQL: sql.Open("postgres", dsn)
+    // For MySQL: sql.Open("mysql", dsn)
+    // For SQLite: sql.Open("sqlite3", dsn)
     db, err := sql.Open("postgres", "your-connection-string")
     if err != nil {
         panic(err)
     }
 
-    // Create task storage
+    // Create task storage (works with any supported database)
     taskStorage := task.NewStorage(db)
 
     // Create Goque manager (includes built-in healer processor)
@@ -173,7 +188,10 @@ goque := internal.NewGoque(
 ### Prerequisites
 
 - Go 1.23 or higher
-- PostgreSQL 12+
+- One of the supported databases:
+  - PostgreSQL 12+
+  - MySQL 8+
+  - SQLite 3+
 - Make
 
 ### Setup
@@ -211,8 +229,14 @@ make fmt
 
 ### Database Operations
 
+All database commands work with any supported database (PostgreSQL, MySQL, SQLite).
+Simply configure `DB_DRIVER` in `.env.local` and use universal commands:
+
 ```bash
-# Create a new migration
+# Show current database configuration
+make db-info
+
+# Create a new migration for current DB_DRIVER
 make db-migrate-create name="your_migration_name"
 
 # Check migration status
@@ -224,9 +248,20 @@ make db-up
 # Rollback last migration
 make db-down
 
-# Regenerate database models
+# Regenerate database models (PostgreSQL only)
 make db-models
+
+# Docker Compose commands for local development
+make docker-up           # Start PostgreSQL and MySQL with Docker Compose
+make docker-pg-up        # Start only PostgreSQL
+make docker-mysql-up     # Start only MySQL
+make docker-down         # Stop and remove all containers
+make docker-down-volumes # Stop and remove containers with volumes
+make docker-logs         # Show logs from all containers
+make docker-ps           # Show status of containers
 ```
+
+For complete database setup guide, migrations structure, and Docker Compose configuration, see [DATABASE.md](DATABASE.md).
 
 ### Generate Mocks
 
@@ -243,12 +278,18 @@ make mocks
 │   ├── entity/                 # Domain entities (Task, etc.)
 │   ├── processor/              # Queue processor and task processor interfaces
 │   ├── internal_processors/    # Built-in processors (healer, etc.)
-│   ├── storages/               # Data access layer
-│   │   ├── task/               # Task storage implementation
+│   ├── storages/               # Data access layer (multi-database support)
+│   │   ├── pg/task/            # PostgreSQL storage (go-jet)
+│   │   ├── mysql/task/         # MySQL storage (raw SQL)
+│   │   ├── sqlite/task/        # SQLite storage (raw SQL)
 │   │   └── dbutils/            # Database utilities
 │   └── pkg/
 │       └── generated/          # Generated code (models, mocks)
 ├── migrations/                 # Database migrations
+│   ├── pg/                     # PostgreSQL migrations
+│   ├── mysql/                  # MySQL migrations
+│   └── sqlite/                 # SQLite migrations
+├── DATABASE.md                 # Complete database setup guide
 └── test/                       # Test utilities and fixtures
 ```
 

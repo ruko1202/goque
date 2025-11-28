@@ -3,11 +3,12 @@ package entity
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/samber/lo"
 
-	"github.com/ruko1202/goque/internal/pkg/generated/postgres/public/model"
+	"github.com/ruko1202/goque/internal/utils/xtime"
 )
 
 // TaskType represents the type of task to be executed.
@@ -35,15 +36,30 @@ const (
 )
 
 // Task represents a unit of work in the queue system.
-type Task model.Task
+type Task struct {
+	ID            uuid.UUID
+	Type          TaskType
+	ExternalID    string
+	Payload       string
+	Status        TaskStatus
+	Attempts      int32
+	Errors        *string
+	CreatedAt     time.Time
+	UpdatedAt     *time.Time
+	NextAttemptAt time.Time
+}
 
 // NewTask creates a new task with the specified type and payload.
 func NewTask(taskType TaskType, payload string) *Task {
+	now := xtime.Now()
 	task := &Task{
-		Type:       taskType,
-		ExternalID: "internal-" + uuid.NewString(),
-		Payload:    payload,
-		Status:     TaskStatusNew,
+		ID:            newUUID(),
+		Type:          taskType,
+		ExternalID:    "internal-" + uuid.NewString(),
+		Payload:       payload,
+		Status:        TaskStatusNew,
+		CreatedAt:     now,
+		NextAttemptAt: now,
 	}
 
 	return task
@@ -65,4 +81,13 @@ func (t *Task) AddError(err error) {
 	taskErr := lo.FromPtr(t.Errors)
 	taskErr += fmt.Sprintf("attempt %d: %v\n", t.Attempts, err)
 	t.Errors = &taskErr
+}
+
+func newUUID() uuid.UUID {
+	uuidV7, err := uuid.NewV7()
+	if err != nil {
+		return uuid.New()
+	}
+
+	return uuidV7
 }
