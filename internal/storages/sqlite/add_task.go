@@ -1,18 +1,13 @@
-package mysqltask
+package sqlite
 
 import (
 	"context"
-	"errors"
-	"fmt"
 	"log/slog"
-
-	"github.com/go-sql-driver/mysql"
 
 	"github.com/ruko1202/goque/internal/storages/dbutils"
 
 	"github.com/ruko1202/goque/internal/entity"
-
-	"github.com/ruko1202/goque/internal/pkg/generated/mysql/goque/table"
+	"github.com/ruko1202/goque/internal/pkg/generated/sqlite3/table"
 	"github.com/ruko1202/goque/internal/storages/dbentity"
 )
 
@@ -22,6 +17,7 @@ func (s *Storage) AddTask(ctx context.Context, task *entity.Task) error {
 	if !dbutils.IsValidJSON(task.Payload) {
 		return dbentity.ErrInvalidPayloadFormat
 	}
+
 	dbTask := toDBModel(task)
 
 	stmt := table.Task.
@@ -44,16 +40,11 @@ func handleError(err error) error {
 		return nil
 	}
 
-	var mysqlErr *mysql.MySQLError
-	if errors.As(err, &mysqlErr) {
-		switch mysqlErr.Number {
-		case 1062: // ER_DUP_ENTRY
-			return fmt.Errorf("%w: %s", dbentity.ErrDuplicateTask, mysqlErr.Message)
-		case 3140, 3141, 3142: // JSON_INVALID_DATA
-			return fmt.Errorf("%w: %s", dbentity.ErrInvalidPayloadFormat, mysqlErr.Message)
-		default:
-			return mysqlErr
-		}
+	// modernc.org/sqlite returns errors as strings
+	// Check for UNIQUE constraint violation
+	errMsg := err.Error()
+	if errMsg == "UNIQUE constraint failed: task.type, task.external_id" {
+		return dbentity.ErrDuplicateTask
 	}
 
 	return err

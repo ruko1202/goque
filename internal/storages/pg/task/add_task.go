@@ -8,6 +8,8 @@ import (
 
 	"github.com/lib/pq"
 
+	"github.com/ruko1202/goque/internal/storages/dbutils"
+
 	"github.com/ruko1202/goque/internal/entity"
 
 	"github.com/ruko1202/goque/internal/storages/dbentity"
@@ -17,6 +19,10 @@ import (
 
 // AddTask inserts a new task into the database.
 func (s *Storage) AddTask(ctx context.Context, task *entity.Task) error {
+	// Validate JSON payload before insertion
+	if !dbutils.IsValidJSON(task.Payload) {
+		return dbentity.ErrInvalidPayloadFormat
+	}
 	dbTask := toDBModel(task)
 
 	stmt := table.Task.

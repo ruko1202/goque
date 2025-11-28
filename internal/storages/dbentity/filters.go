@@ -7,6 +7,7 @@ import (
 
 	"github.com/go-jet/jet/v2/mysql"
 	"github.com/go-jet/jet/v2/postgres"
+	"github.com/go-jet/jet/v2/sqlite"
 	"github.com/google/uuid"
 	"github.com/samber/lo"
 
@@ -16,6 +17,7 @@ import (
 
 	mysqltable "github.com/ruko1202/goque/internal/pkg/generated/mysql/goque/table"
 	pgtable "github.com/ruko1202/goque/internal/pkg/generated/postgres/public/table"
+	sqlitetable "github.com/ruko1202/goque/internal/pkg/generated/sqlite3/table"
 	"github.com/ruko1202/goque/internal/storages/dbutils"
 )
 
@@ -85,7 +87,7 @@ func (f *GetTasksFilter) BindMysqlWhereExpr() (mysql.BoolExpression, error) {
 
 	if len(f.IDs) > 0 {
 		expr.And(
-			mysqltable.Task.ID.IN(lo.Map(f.IDs, func(item uuid.UUID, _ int) postgres.Expression {
+			mysqltable.Task.ID.IN(lo.Map(f.IDs, func(item uuid.UUID, _ int) mysql.Expression {
 				return mysql.UUID(item)
 			})...),
 		)
@@ -104,7 +106,7 @@ func (f *GetTasksFilter) BindMysqlWhereExpr() (mysql.BoolExpression, error) {
 
 	if len(f.Statuses) > 0 {
 		expr.And(
-			mysqltable.Task.Status.IN(lo.Map(f.Statuses, func(item entity.TaskStatus, _ int) postgres.Expression {
+			mysqltable.Task.Status.IN(lo.Map(f.Statuses, func(item entity.TaskStatus, _ int) mysql.Expression {
 				return mysql.String(item)
 			})...),
 		)
@@ -114,6 +116,54 @@ func (f *GetTasksFilter) BindMysqlWhereExpr() (mysql.BoolExpression, error) {
 		expr.And(
 			mysqltable.Task.UpdatedAt.LT_EQ(
 				mysql.TimestampT(xtime.Now().Add(-f.UpdatedAtTimeAgo.Abs())),
+			),
+		)
+	}
+
+	if expr == nil {
+		return nil, errors.New("no filter criteria specified")
+	}
+
+	return expr.Expression(), nil
+}
+
+// BindSqliteWhereExpr converts the filter to a SQLite WHERE expression using go-jet.
+//
+//nolint:dupl // Similar to BindPgWhereExpr but uses SQLite-specific types, cannot be easily abstracted
+func (f *GetTasksFilter) BindSqliteWhereExpr() (sqlite.BoolExpression, error) {
+	expr := dbutils.NewSqliteWhereBuilder()
+
+	if len(f.IDs) > 0 {
+		expr.And(
+			sqlitetable.Task.ID.IN(lo.Map(f.IDs, func(item uuid.UUID, _ int) sqlite.Expression {
+				return sqlite.UUID(item)
+			})...),
+		)
+	}
+	if f.TaskType != nil {
+		expr.And(
+			sqlitetable.Task.Type.EQ(sqlite.String(lo.FromPtr(f.TaskType))),
+		)
+	}
+
+	if f.Status != nil {
+		expr.And(
+			sqlitetable.Task.Status.EQ(sqlite.String(lo.FromPtr(f.Status))),
+		)
+	}
+
+	if len(f.Statuses) > 0 {
+		expr.And(
+			sqlitetable.Task.Status.IN(lo.Map(f.Statuses, func(item entity.TaskStatus, _ int) sqlite.Expression {
+				return sqlite.String(item)
+			})...),
+		)
+	}
+
+	if f.UpdatedAtTimeAgo != nil {
+		expr.And(
+			sqlite.DATETIME(sqlitetable.Task.UpdatedAt).LT_EQ(
+				sqlite.DATETIME(xtime.Now().Add(-f.UpdatedAtTimeAgo.Abs())),
 			),
 		)
 	}
