@@ -204,18 +204,20 @@ workflow:
     examples_good: feature/add-priority,fix/race-condition,docs/update-readme
     examples_bad: docs/add-branch-protection-rule-from-main,featureAddPriority
 
-  commit_workflow[5]{step,command,description}:
-    1,git checkout -b feature/name,Create feature branch if on main
-    2,make changes,Edit files implement feature
-    3,make test-cov && make lint,Verify tests and linting pass
-    4,git commit -m "type: message",Commit code changes
-    5,git commit -m "docs: message",Commit documentation updates separately
+  commit_workflow[6]{step,command,description}:
+    1,make docker-up,Start databases using Docker
+    2,git checkout -b feature/name,Create feature branch if on main
+    3,make changes,Edit files implement feature
+    4,make test-cov && make lint,Verify tests and linting pass
+    5,git commit -m "type: message",Commit code changes
+    6,git commit -m "docs: message",Commit documentation updates separately
 
   testing_requirements:
     before_commit: make test-cov (includes -race flag)
     coverage_target: 80%+
     test_isolation: No shared state between tests
     mock_generation: make mocks after interface changes
+    database_setup: make docker-up before running tests
 
   documentation_requirements:
     when_to_update: After ANY code change affecting behavior API or architecture
@@ -295,10 +297,11 @@ code_organization:
     example: TaskProcessor interface with one method ProcessTask
 
 common_operations:
-  make_targets[12]{target,description}:
+  make_targets[13]{target,description}:
     make all,Full setup - deps and tools
     make deps,Download Go modules
     make bin-deps,Install binary tools
+    make docker-up,Start databases using Docker
     make test-cov,Run tests with coverage and race detector
     make lint,Run golangci-lint
     make fmt,Format code with gofmt and goimports
@@ -311,11 +314,13 @@ common_operations:
 
 quick_start:
   step1_database:
-    action: Configure DB in .env.local
+    action: Start databases using Docker
+    command: make docker-up
+    note: This starts all database containers and applies migrations
+    alternative: Configure DB in .env.local for custom setup
     postgres: DB_DRIVER=postgres DB_DSN=postgres://user:pass@localhost:5432/goque
     mysql: DB_DRIVER=mysql DB_DSN=root:root@tcp(localhost:3306)/goque
     sqlite: DB_DRIVER=sqlite3 DB_DSN=./goque.db
-    commands: make bin-deps-db && make db-up
 
   step2_processor:
     interface: TaskProcessor
@@ -370,9 +375,10 @@ file_locations:
   tests: test/
   docs: README.md,DATABASE.md,agent/
 
-agent_quick_start[5]{step,action}:
-  1,Check current branch (git branch --show-current) - create feature branch if on main
-  2,Read critical-rules.md - all 23 rules are non-negotiable
-  3,Follow naming conventions for all new code
-  4,Run tests (make test-cov) and lint (make lint) before committing
-  5,Update documentation in separate commit after code changes
+agent_quick_start[6]{step,action}:
+  1,Start databases with make docker-up
+  2,Check current branch (git branch --show-current) - create feature branch if on main
+  3,Read critical-rules.md - all 23 rules are non-negotiable
+  4,Follow naming conventions for all new code
+  5,Run tests (make test-cov) and lint (make lint) before committing
+  6,Update documentation in separate commit after code changes
