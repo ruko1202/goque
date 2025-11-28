@@ -46,7 +46,7 @@ test-with-coverage:
 # -------------------------------------
 .PHONY: lint
 lint:
-	#$(info $(M) running linter...)
+	$(info $(M) running linter...)
 	@$(GOBIN)/golangci-lint run
 
 .PHONY: fmt
@@ -94,5 +94,4 @@ mocks:
 	rm -rf ./internal/pkg/generated/mocks
 	$(GOBIN)/mockgen -typed -destination ./internal/pkg/generated/mocks/mock_processor/goque_processor.go -source ./internal/processor/goque_processor.go
 	$(GOBIN)/mockgen -typed -destination ./internal/pkg/generated/mocks/mock_processor/task_processor.go -source ./internal/processor/task_processor.go
-	$(GOBIN)/mockgen -typed -destination ./internal/pkg/generated/mocks/mock_queue_mngr/queue_mngr.go -source ./internal/queue_mngr/queue.go
 

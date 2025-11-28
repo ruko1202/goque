@@ -3,6 +3,7 @@ package dbutils
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"log/slog"
 
 	"github.com/jmoiron/sqlx"
@@ -29,19 +30,35 @@ func DoInTransaction(ctx context.Context, db *sqlx.DB, fn func(tx *sqlx.Tx) erro
 
 	var txErr error
 	defer func() {
-		if txErr != nil || recover() != nil {
-			if rollbackErr := tx.Rollback(); rollbackErr != nil {
-				slog.ErrorContext(ctx, "failed to rollback transaction", slog.Any("err", rollbackErr))
-			}
+		if recErr := recover(); recErr != nil || txErr != nil {
+			slog.ErrorContext(ctx, "panic recovery when execute the transaction",
+				slog.Any("panic", recErr),
+				slog.Any("err", txErr),
+			)
+			txErr = errors.Join(txErr, rollback(ctx, tx))
 			return
 		}
 
-		if commitErr := tx.Commit(); commitErr != nil {
-			slog.ErrorContext(ctx, "failed to commit transaction", slog.Any("err", commitErr))
-		}
+		txErr = errors.Join(txErr, commit(ctx, tx))
 	}()
 
 	txErr = fn(tx)
 
 	return txErr
+}
+
+func rollback(ctx context.Context, tx *sqlx.Tx) error {
+	if err := tx.Rollback(); err != nil {
+		slog.ErrorContext(ctx, "failed to rollback the transaction", slog.Any("err", err))
+		return err
+	}
+	return nil
+}
+
+func commit(ctx context.Context, tx *sqlx.Tx) error {
+	if err := tx.Commit(); err != nil {
+		slog.ErrorContext(ctx, "failed to commit the transaction", slog.Any("err", err))
+		return err
+	}
+	return nil
 }

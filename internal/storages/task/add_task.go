@@ -19,9 +19,9 @@ func (s *Storage) AddTask(ctx context.Context, task *entity.Task) error {
 		MODEL(task).
 		RETURNING(table.Task.DefaultColumns)
 
-	query, arg := stmt.Sql()
+	query, args := stmt.Sql()
 
-	err := s.db.GetContext(ctx, task, query, arg...)
+	err := s.db.GetContext(ctx, task, query, args...)
 	if err != nil {
 		slog.ErrorContext(ctx, "failed to add task", slog.Any("err", err))
 		return err

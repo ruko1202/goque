@@ -48,6 +48,7 @@ func (s *Storage) getTasksForProcessingTx(ctx context.Context, tx *sqlx.Tx, task
 					postgres.String(entity.TaskStatusNew),
 					postgres.String(entity.TaskStatusError),
 				),
+				table.Task.NextAttemptAt.LT_EQ(postgres.NOW()),
 			),
 		).
 		ORDER_BY(

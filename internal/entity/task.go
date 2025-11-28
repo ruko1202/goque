@@ -18,12 +18,19 @@ type TaskStatus = string
 
 // Task status constants define the possible states of a task in the queue.
 const (
-	TaskStatusNew          = "new"
-	TaskStatusPending      = "pending"
-	TaskStatusProcessing   = "processing"
-	TaskStatusDone         = "done"
-	TaskStatusCanceled     = "canceled"
-	TaskStatusError        = "error"
+	// TaskStatusNew is a new task.
+	TaskStatusNew = "new"
+	// TaskStatusPending is a task waiting to be processed.
+	TaskStatusPending = "pending"
+	// TaskStatusProcessing is a task in progress.
+	TaskStatusProcessing = "processing"
+	// TaskStatusDone is a task that was processed successfully.
+	TaskStatusDone = "done"
+	// TaskStatusCanceled is a canceled task.
+	TaskStatusCanceled = "canceled"
+	// TaskStatusError is a task is processed with an error and HAS attempts.
+	TaskStatusError = "error"
+	// TaskStatusAttemptsLeft is a task that was processed with an error and NO attempts.
 	TaskStatusAttemptsLeft = "attempts_left"
 )
 
