@@ -11,7 +11,6 @@ import (
 
 	"github.com/ruko1202/goque/internal/entity"
 	"github.com/ruko1202/goque/internal/storages"
-	"github.com/ruko1202/goque/internal/storages/dbentity"
 	"github.com/ruko1202/goque/test/testutils"
 )
 
@@ -46,7 +45,7 @@ func testAdd(t *testing.T, storage storages.AdvancedTaskStorage) {
 		task := entity.NewTask("test", "invalid payload")
 
 		err := storage.AddTask(ctx, task)
-		require.ErrorIs(t, err, dbentity.ErrInvalidPayloadFormat)
+		require.ErrorIs(t, err, entity.ErrInvalidPayloadFormat)
 	})
 
 	t.Run("several externalID", func(t *testing.T) {
@@ -59,6 +58,6 @@ func testAdd(t *testing.T, storage storages.AdvancedTaskStorage) {
 		require.NoError(t, err)
 
 		err = storage.AddTask(ctx, task)
-		require.ErrorIs(t, err, dbentity.ErrDuplicateTask)
+		require.ErrorIs(t, err, entity.ErrDuplicateTask)
 	})
 }

@@ -28,7 +28,7 @@ func TestMain(m *testing.M) {
 	os.Exit(code)
 }
 
-func pushToQueue(ctx context.Context, t *testing.T, queueManager *goque.TaskQueueManager, task *entity.Task) {
+func pushToQueue(ctx context.Context, t *testing.T, queueManager goque.TaskQueueManager, task *entity.Task) {
 	t.Helper()
 
 	err := queueManager.AddTaskToQueue(ctx, task)

@@ -11,7 +11,6 @@ import (
 
 	"github.com/ruko1202/goque/internal/entity"
 	"github.com/ruko1202/goque/internal/pkg/generated/postgres/public/table"
-	"github.com/ruko1202/goque/internal/storages/dbentity"
 	"github.com/ruko1202/goque/internal/storages/dbutils"
 )
 
@@ -24,7 +23,7 @@ func (s *Storage) AddTask(ctx context.Context, task *entity.Task) error {
 
 	// Validate JSON payload before insertion
 	if !dbutils.IsValidJSON(task.Payload) {
-		return dbentity.ErrInvalidPayloadFormat
+		return entity.ErrInvalidPayloadFormat
 	}
 	dbTask := toDBModel(task)
 
@@ -52,9 +51,9 @@ func handleError(err error) error {
 	if errors.As(err, &pqErr) {
 		switch pqErr.Code.Name() {
 		case "unique_violation":
-			return fmt.Errorf("%w: %s", dbentity.ErrDuplicateTask, pqErr.Detail)
+			return fmt.Errorf("%w: %s", entity.ErrDuplicateTask, pqErr.Detail)
 		case "invalid_text_representation":
-			return fmt.Errorf("%w: %s", dbentity.ErrInvalidPayloadFormat, pqErr.Detail)
+			return fmt.Errorf("%w: %s", entity.ErrInvalidPayloadFormat, pqErr.Detail)
 		default:
 			return pqErr
 		}

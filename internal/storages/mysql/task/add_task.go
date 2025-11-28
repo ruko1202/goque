@@ -11,7 +11,6 @@ import (
 
 	"github.com/ruko1202/goque/internal/entity"
 	"github.com/ruko1202/goque/internal/pkg/generated/mysql/goque/table"
-	"github.com/ruko1202/goque/internal/storages/dbentity"
 	"github.com/ruko1202/goque/internal/storages/dbutils"
 )
 
@@ -24,7 +23,7 @@ func (s *Storage) AddTask(ctx context.Context, task *entity.Task) error {
 
 	// Validate JSON payload before insertion
 	if !dbutils.IsValidJSON(task.Payload) {
-		return dbentity.ErrInvalidPayloadFormat
+		return entity.ErrInvalidPayloadFormat
 	}
 	dbTask := toDBModel(task)
 
@@ -52,9 +51,9 @@ func handleError(err error) error {
 	if errors.As(err, &mysqlErr) {
 		switch mysqlErr.Number {
 		case 1062: // ER_DUP_ENTRY
-			return fmt.Errorf("%w: %s", dbentity.ErrDuplicateTask, mysqlErr.Message)
+			return fmt.Errorf("%w: %s", entity.ErrDuplicateTask, mysqlErr.Message)
 		case 3140, 3141, 3142: // JSON_INVALID_DATA
-			return fmt.Errorf("%w: %s", dbentity.ErrInvalidPayloadFormat, mysqlErr.Message)
+			return fmt.Errorf("%w: %s", entity.ErrInvalidPayloadFormat, mysqlErr.Message)
 		default:
 			return mysqlErr
 		}

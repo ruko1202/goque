@@ -8,7 +8,6 @@ import (
 
 	"github.com/ruko1202/goque/internal/entity"
 	"github.com/ruko1202/goque/internal/pkg/generated/sqlite3/table"
-	"github.com/ruko1202/goque/internal/storages/dbentity"
 	"github.com/ruko1202/goque/internal/storages/dbutils"
 )
 
@@ -21,7 +20,7 @@ func (s *Storage) AddTask(ctx context.Context, task *entity.Task) error {
 
 	// Validate JSON payload before insertion
 	if !dbutils.IsValidJSON(task.Payload) {
-		return dbentity.ErrInvalidPayloadFormat
+		return entity.ErrInvalidPayloadFormat
 	}
 
 	dbTask := toDBModel(task)
@@ -50,7 +49,7 @@ func handleError(err error) error {
 	// Check for UNIQUE constraint violation
 	errMsg := err.Error()
 	if errMsg == "UNIQUE constraint failed: task.type, task.external_id" {
-		return dbentity.ErrDuplicateTask
+		return entity.ErrDuplicateTask
 	}
 
 	return err
