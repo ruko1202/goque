@@ -469,6 +469,48 @@ git rebase -i HEAD~3
 # drop = remove commit
 ```
 
+### Squashing Similar Commits
+
+**Rule**: If there are commits with the same purpose or affecting the same module, squash them together.
+
+**When to Squash**:
+- Multiple commits modifying the same file or component
+- Sequential documentation updates for the same feature
+- Related refactoring changes
+- Multiple fixes for the same bug
+
+**How to Squash**:
+```bash
+# Interactive rebase last N commits
+git rebase -i HEAD~N
+
+# Mark commits to squash:
+pick abc123 docs: add feature X
+squash def456 docs: update feature X
+squash ghi789 docs: fix typo in feature X
+
+# Result: Single commit "docs: add feature X"
+```
+
+**Benefits**:
+- Cleaner git history
+- Easier code review
+- Logical grouping of related changes
+- Easier to revert if needed
+
+**Example - Before Squashing**:
+```
+docs: add TOON format
+docs: update TOON format
+docs: fix TOON format typo
+docs: add TOON format reference
+```
+
+**Example - After Squashing**:
+```
+docs: add TOON format documentation
+```
+
 ## Conventional Commits
 
 This project follows [Conventional Commits](https://www.conventionalcommits.org/):

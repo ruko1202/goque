@@ -16,12 +16,21 @@ Goque supports multiple database backends:
   - Row-level locking (FOR UPDATE SKIP LOCKED)
   - JSONB support for task payloads
   - Advanced indexing
+  - Best for production deployments
 
 - **MySQL 8.0+** (Alternative)
   - ACID guarantees
   - Row-level locking (FOR UPDATE)
   - JSON column type for task payloads
   - Standard indexing
+  - Good for MySQL-based infrastructure
+
+- **SQLite 3+** (Embedded)
+  - ACID guarantees
+  - Transaction-based locking
+  - JSON support via JSON1 extension
+  - Embedded database (no separate server)
+  - Ideal for development, testing, and small deployments
 
 ## Key Dependencies
 
@@ -55,6 +64,18 @@ github.com/go-sql-driver/mysql
 - **Purpose**: MySQL driver
 - **Usage**: MySQL database connection
 - **Benefits**: Pure Go implementation, full MySQL protocol support
+
+#### mattn/go-sqlite3
+```go
+github.com/mattn/go-sqlite3
+```
+- **Purpose**: SQLite driver
+- **Usage**: SQLite database connection
+- **Benefits**:
+  - Pure Go implementation
+  - Embedded database (no separate server)
+  - Zero configuration
+  - Perfect for development and testing
 
 #### sqlx v1.4.0
 ```go
@@ -226,10 +247,13 @@ github.com/golangci/golangci-lint/v2
 
 ### Required
 - **Go Runtime**: 1.23+
-- **PostgreSQL**: 12+
+- **Database** (one of):
+  - PostgreSQL 12+ (production recommended)
+  - MySQL 8.0+ (alternative)
+  - SQLite 3+ (development/testing/embedded)
 
 ### Optional
-- **Docker**: For local PostgreSQL
+- **Docker**: For local PostgreSQL and MySQL
 - **Make**: For build automation
 
 ## Package Structure

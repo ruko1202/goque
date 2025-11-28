@@ -1,0 +1,367 @@
+# Goque Project Context (TOON Format)
+# Token-Oriented Object Notation for AI Agent Context Loading
+# Version: 1.1
+#
+# Format: https://github.com/toon-format/toon#readme
+#
+# Metrics:
+#   Size: ~4K tokens (vs ~34K tokens in markdown)
+#   Savings: 88% fewer tokens
+#   Files: 1 file (vs 13 markdown files)
+#   Coverage: 100% of critical rules, principles, and workflows
+
+for_more_details:
+  location: agent/project_details/
+  purpose: Detailed documentation with code examples and explanations
+  use_when: Need more context examples or detailed explanations beyond this TOON summary
+
+project:
+  name: Goque
+  type: Task Queue System
+  language: Go 1.23+
+  databases: PostgreSQL 12+, MySQL 8+, SQLite 3+
+  purpose: Robust database-backed task queue with worker pools, retry logic, and graceful shutdown
+
+  core_features[10]{feature,description}:
+    Multi-database support,Works with PostgreSQL MySQL SQLite
+    Reliable persistence,Task storage with ACID guarantees
+    Worker pool management,Configurable concurrent processing using goroutine pools
+    Automatic retry logic,Configurable retry attempts with custom backoff
+    Task lifecycle,Track status through new pending processing done error canceled
+    Graceful shutdown,Clean worker shutdown with in-flight task handling
+    Task timeout,Per-task timeout configuration with context cancellation
+    Extensible hooks,Before/after processing hooks for custom logic
+    Type-safe queries,PostgreSQL/MySQL use go-jet for type-safe SQL generation
+    Built-in healer,Automatically marks stuck tasks as errored for reprocessing
+
+  task_statuses[7]{status,description,terminal}:
+    new,Task created and ready to be picked up,false
+    pending,Task scheduled for future processing (via NextAttemptAt),false
+    processing,Task currently being processed by a worker,false
+    done,Task completed successfully,true
+    error,Task failed but has retry attempts remaining,false
+    attempts_left,Task failed and exhausted all retry attempts,true
+    canceled,Task was manually canceled,true
+
+  state_transitions[8]{from_status,to_status,trigger}:
+    new,pending,Task scheduled for processing
+    pending,processing,Worker picks up task
+    pending,error,Healer marks stuck task (cure operation without changing attempts)
+    processing,done,Successful processing
+    processing,error,Failed processing with retries left
+    processing,canceled,Manual cancellation
+    error,pending,Retry logic schedules next attempt
+    error,attempts_left,No more retry attempts available
+
+  lifecycle_notes:
+    terminal_states: done canceled attempts_left
+    flow_diagram: new → pending → processing → done; pending ↔ error; processing → canceled/error; error → attempts_left
+    healer_role: Fixes stuck pending tasks by marking them as error (cure operation)
+
+architecture:
+  layers[5]{layer,component,responsibility}:
+    Public API,goque.go,User-facing interface and queue manager
+    Queue Processor,internal/processors/queueprocessor,Core task processing engine
+    Internal Processors,internal/processors/internalprocessors,Healer and Cleaner
+    Storage Layer,internal/storages,Multi-database persistence (PG/MySQL/SQLite)
+    Database,PostgreSQL/MySQL/SQLite,Tasks table with indexes
+
+  key_components[5]{name,file,purpose}:
+    Goque Manager,goque.go,Main coordinator for task processing
+    GoqueProcessor,internal/processors/queueprocessor,Fetches and distributes tasks to workers
+    Healer,internal/processors/internalprocessors/healer.go,Fixes stuck tasks in pending status
+    Cleaner,internal/processors/internalprocessors/cleaner.go,Removes old completed/failed tasks
+    TaskStorage,internal/storages,Database abstraction for task persistence
+
+tech_stack:
+  runtime:
+    go_version: 1.23+
+    toolchain: go1.24.9
+
+  databases[3]{name,driver,version}:
+    PostgreSQL,github.com/lib/pq,v1.10.9
+    MySQL,github.com/go-sql-driver/mysql,v1.8.1
+    SQLite,github.com/mattn/go-sqlite3,latest
+
+  key_dependencies[8]{package,version,purpose}:
+    github.com/go-jet/jet/v2,v2.14.0,Type-safe SQL query builder for PG and MySQL
+    github.com/panjf2000/ants/v2,v2.11.3,Goroutine pool management for workers
+    github.com/google/uuid,latest,UUID generation for task IDs
+    github.com/samber/lo,v1.52.0,Functional programming utilities
+    github.com/spf13/viper,v1.21.0,Configuration management
+    github.com/stretchr/testify,v1.11.1,Testing assertions and mocks
+    go.uber.org/mock,v0.6.0,Mock generation for interfaces
+    github.com/jmoiron/sqlx,v1.4.0,SQL extensions for convenience
+
+  dev_tools[5]{tool,version,purpose}:
+    goose,v3.26.0,Database migrations for all DB backends
+    golangci-lint,v2.3.0,Go linters aggregator for code quality
+    mockgen,from go.uber.org/mock,Generate mocks for interfaces
+    jet codegen,from go-jet,Generate database models
+    Docker,latest,Local database containers
+
+critical_rules[23]{id,rule,rationale,no_exceptions}:
+    1,Never break public API backward compatibility,Users depend on stable API,true
+    2,Always use go-jet for SQL queries - never raw strings,Prevent SQL injection + type safety,true
+    3,Context must be first parameter in blocking functions,Enable cancellation timeout tracing,true
+    4,Always handle errors - never ignore,Reliability and debugging,true
+    5,Wrap errors with context using %w,Error chain for debugging,true
+    6,Run make test-cov before committing,Prevent broken builds + race detection,true
+    7,Run make lint before committing,Code quality and consistency,true
+    8,No goroutine leaks - all must be stoppable,Prevent resource leaks + graceful shutdown,true
+    9,Use worker pools not unlimited goroutines,Prevent goroutine explosion,true
+    10,Database migrations must be reversible,Enable rollback safety,true
+    11,Regenerate db models after schema changes,Keep generated code in sync,true
+    12,Task fetching must use FOR UPDATE SKIP LOCKED,Prevent duplicate processing,true
+    13,Never modify internal/pkg/generated/ manually,Changes will be overwritten,true
+    14,Tests must be isolated - no shared state,Reliable parallelizable tests,true
+    15,No data races - must pass race detector,Prevent race conditions,true
+    16,Exported symbols must have GoDoc comments,Documentation standards,true
+    17,Methods that modify receiver use pointer,Consistency and correctness,true
+    18,Always use defer for cleanup operations,Guaranteed cleanup,true
+    19,No panic in library code - return errors,Users control error handling,true
+    20,No breaking changes without discussion,Team alignment required,true
+    21,Update documentation immediately after code,Keep docs synchronized,true
+    22,Never commit sensitive information,Security and privacy,true
+    23,Never commit directly to main/master branch,Protect main + enable code review,true
+
+naming_conventions:
+  packages:
+    style: short lowercase no underscores singular
+    examples_good: task,processor,queuemngr
+    examples_bad: task_storage,TaskProcessor
+
+  files:
+    style: lowercase with underscores for multi-word
+    examples_good: task.go,add_task.go,processor_test.go
+    examples_bad: Task.go,addTask.go
+
+  types:
+    exported: PascalCase
+    unexported: camelCase
+    interfaces: no I prefix or Interface suffix
+    examples_good: Task,TaskProcessor,GoqueProcessor
+    examples_bad: task,ITaskProcessor,TaskProcessorInterface
+
+  functions:
+    exported: PascalCase verb-based
+    unexported: camelCase verb-based
+    examples_good: NewGoque,ProcessTask,getTasksForProcessing
+    examples_bad: new_goque,process_task
+
+  variables:
+    style: camelCase descriptive
+    scope_rule: short names for small scope, longer for wider scope
+    examples_good: taskStorage,maxAttempts,db
+    examples_bad: TaskStorage,max_attempts
+
+design_principles[26]{id,principle,implementation}:
+    1,Reliability First,PostgreSQL persistence + ACID + retry + healer
+    2,Simplicity,Small focused interfaces + clear separation + minimal deps
+    3,Composability,Build complex systems from simple components
+    4,Extensibility,Hook system + options pattern + interface-based
+    5,Type Safety,go-jet + strong typing + no stringly-typed code
+    6,Testability,Dependency injection + interfaces + mock generation
+    7,Explicit Over Implicit,No hidden magic + clear errors + explicit config
+    8,Fail Fast,Validate immediately + return errors + no silent failures
+    9,Context-Aware,Context first param + propagate + check cancellation
+    10,Graceful Degradation,Auto retry + healer + graceful shutdown + error recovery
+    11,Separation of Concerns,Layered architecture + no cross-layer violations
+    12,Dependency Inversion,Depend on abstractions not concretions
+    13,Single Responsibility,Each component has one job
+    14,Open/Closed,Open for extension closed for modification
+    15,Efficient Resources,Goroutine pooling + batch ops + connection pooling
+    16,Predictable Performance,Configurable limits + no unbounded ops + timeouts
+    17,Scalability,Multiple instances + database coordination
+    18,Observability,Structured logging + context + error tracking + hooks
+    19,Debuggability,Clear errors + logging + status tracking + no hidden state
+    20,Maintainability,Clear structure + tests + docs + consistent conventions
+    21,SQL Injection Prevention,go-jet + no string concat + parameterized queries
+    22,Safe Concurrency,No data races + proper locking + protected state
+    23,Self-Documenting Code,Clear names that explain purpose
+    24,Comment Why Not What,Explain rationale not obvious actions
+    25,Backward Compatibility,Stable API + migrations + deprecation warnings
+    26,Progressive Enhancement,Start simple add complexity when needed
+
+workflow:
+  branch_strategy:
+    rule: Always work on feature branches never on main/master
+    check_branch: git branch --show-current
+    if_main: Create new feature branch immediately
+    if_feature: Continue on current branch
+    exception: Create new branch only if user explicitly requests
+
+  branch_naming:
+    format: <type>/<word1>-<word2>-<word3>
+    max_words: 3 words after prefix
+    style: lowercase with hyphens
+    types[6]: feature,fix,docs,refactor,test,chore
+    examples_good: feature/add-priority,fix/race-condition,docs/update-readme
+    examples_bad: docs/add-branch-protection-rule-from-main,featureAddPriority
+
+  commit_workflow[5]{step,command,description}:
+    1,git checkout -b feature/name,Create feature branch if on main
+    2,make changes,Edit files implement feature
+    3,make test-cov && make lint,Verify tests and linting pass
+    4,git commit -m "type: message",Commit code changes
+    5,git commit -m "docs: message",Commit documentation updates separately
+
+  testing_requirements:
+    before_commit: make test-cov (includes -race flag)
+    coverage_target: 80%+
+    test_isolation: No shared state between tests
+    mock_generation: make mocks after interface changes
+
+  documentation_requirements:
+    when_to_update: After ANY code change affecting behavior API or architecture
+    separate_commit: Documentation must be separate commit immediately after code
+    files_to_update: README.md,agent/ docs,GoDoc comments,known-issues.md
+    known_issues: Review EVERY commit - remove resolved issues - no Past Issues section
+
+  commit_squashing:
+    rule: Squash commits with same purpose or affecting same module
+    when_to_squash: Multiple commits modifying same file/component, sequential doc updates, related refactoring
+    how: git rebase -i HEAD~N then mark commits as squash/fixup
+    benefits: Cleaner history easier review logical grouping easier revert
+
+error_handling:
+  rules[5]{rule,example}:
+    Always return errors never panic,return fmt.Errorf("failed: %w" err)
+    Wrap errors with %w for error chain,fmt.Errorf("context: %w" err)
+    Never ignore errors,if err != nil { return err }
+    Use custom errors for known cases,var ErrTaskNotFound = errors.New("not found")
+    Check with errors.Is and errors.As,errors.Is(err ErrTaskNotFound)
+
+database:
+  query_building:
+    tool: go-jet
+    rule: Never write raw SQL strings
+    reason: Prevent SQL injection + type safety + IDE support
+
+  concurrency:
+    locking_postgres: FOR UPDATE SKIP LOCKED
+    locking_mysql: FOR UPDATE
+    reason: Prevent duplicate task processing across multiple workers
+
+  migrations:
+    tool: goose via make commands
+    reversible: Every up migration must have down migration
+    workflow[5]{step,command}:
+      Create migration,make db-migrate-create name="migration_name"
+      Apply migrations,make db-up
+      Check status,make db-status
+      Regenerate models,make db-models
+      Rollback if needed,make db-down
+
+  schema:
+    table: tasks
+    indexes[2]{name,columns,purpose}:
+      idx_tasks_processing,type status next_attempt_at,Optimize task fetching
+      idx_tasks_external_id,external_id,Ensure external ID uniqueness
+
+testing:
+  file_naming: add_task.go -> add_task_test.go
+  function_naming: TestAddTask,TestAddTask_DuplicateExternalID
+  style: Table-driven tests with testify assertions
+  race_detection: go test -race ./... must pass
+  isolation: Each test independent - no shared state
+  mocking: Use gomock for interface mocks
+
+code_organization:
+  file_structure[7]{section,content}:
+    1,Package declaration
+    2,Imports (grouped: stdlib external internal)
+    3,Constants
+    4,Types
+    5,Constructor
+    6,Methods
+    7,Helper functions
+
+  options_pattern:
+    style: Functional options
+    example: WithWorkers(10),WithMaxAttempts(3),WithTaskTimeout(30*time.Second)
+    benefit: Clean extensible API
+
+  interface_design:
+    rule: Small focused interfaces
+    single_method_ok: true
+    example: TaskProcessor interface with one method ProcessTask
+
+common_operations:
+  make_targets[12]{target,description}:
+    make all,Full setup - deps and tools
+    make deps,Download Go modules
+    make bin-deps,Install binary tools
+    make test-cov,Run tests with coverage and race detector
+    make lint,Run golangci-lint
+    make fmt,Format code with gofmt and goimports
+    make db-up,Apply database migrations
+    make db-down,Rollback last migration
+    make db-status,Check migration status
+    make db-models,Regenerate database models (PostgreSQL only)
+    make db-migrate-create,Create new migration
+    make mocks,Generate mocks from interfaces
+
+quick_start:
+  step1_database:
+    action: Configure DB in .env.local
+    postgres: DB_DRIVER=postgres DB_DSN=postgres://user:pass@localhost:5432/goque
+    mysql: DB_DRIVER=mysql DB_DSN=root:root@tcp(localhost:3306)/goque
+    sqlite: DB_DRIVER=sqlite3 DB_DSN=./goque.db
+    commands: make bin-deps-db && make db-up
+
+  step2_processor:
+    interface: TaskProcessor
+    method: ProcessTask(ctx context.Context, task *entity.Task) error
+    implementation: User provides business logic
+
+  step3_manager:
+    create: internal.NewGoque(taskStorage)
+    register: goque.RegisterProcessor(taskType, processor, opts...)
+    run: goque.Run(ctx)
+    stop: goque.Stop()
+
+safety_checklist[13]{check}:
+  On feature branch NOT main/master
+  Tests pass with race detector (make test-cov)
+  Linter passes (make lint)
+  Code formatted (make fmt)
+  Errors wrapped with %w
+  Context is first parameter
+  Exported symbols documented
+  No raw SQL strings
+  Database models regenerated if schema changed
+  Mocks regenerated if interfaces changed
+  No sensitive information (secrets tokens user data)
+  Documentation updated in separate commit
+  known-issues.md reviewed and cleaned
+
+never_do[12]{action}:
+  Never commit directly to main/master
+  Never commit commented-out code
+  Never commit debug prints
+  Never commit secrets tokens or user personal data
+  Never commit .env.local
+  Never commit merge conflicts
+  Never force push to main
+  Never skip tests
+  Never disable linter without justification
+  Never leak goroutines
+  Never leave resolved issues in known-issues.md
+  Never use raw SQL strings
+
+file_locations:
+  public_api: goque.go,pkg/entity/
+  processors: internal/processors/queueprocessor/,internal/processors/internalprocessors/
+  storage: internal/storages/pg/,internal/storages/mysql/,internal/storages/sqlite/
+  migrations: migrations/pg/,migrations/mysql/,migrations/sqlite/
+  generated: internal/pkg/generated/postgres/,internal/pkg/generated/mysql/,internal/pkg/generated/mocks/
+  tests: test/
+  docs: README.md,DATABASE.md,agent/
+
+agent_quick_start[5]{step,action}:
+  1,Check current branch (git branch --show-current) - create feature branch if on main
+  2,Read critical-rules.md - all 23 rules are non-negotiable
+  3,Follow naming conventions for all new code
+  4,Run tests (make test-cov) and lint (make lint) before committing
+  5,Update documentation in separate commit after code changes

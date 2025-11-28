@@ -32,12 +32,12 @@ Goque follows a layered architecture with clear separation of concerns.
 ┌─────────▼───────────────────────────────┐
 │       Storage Layer                     │
 │  - Task Storage (Multi-DB)              │
-│  - PostgreSQL / MySQL implementations   │
+│  - PostgreSQL / MySQL / SQLite impls    │
 │  - Type-safe queries (go-jet)           │
 └─────────┬───────────────────────────────┘
           │
 ┌─────────▼───────────────────────────────┐
-│       Database (PostgreSQL or MySQL)    │
+│  Database (PostgreSQL/MySQL/SQLite)     │
 │  - tasks table                          │
 └─────────────────────────────────────────┘
 ```
@@ -144,11 +144,19 @@ type TaskProcessor interface {
 
 ### 5. Storage Layer (`pkg/goquestorage/`, `internal/storages/`)
 
-**Purpose**: Multi-database persistence layer with PostgreSQL and MySQL support
+**Purpose**: Multi-database persistence layer with PostgreSQL, MySQL, and SQLite support
 
 **Implementations**:
 - **PostgreSQL** (`internal/storages/pg/task/`) - Primary implementation
+  - Uses go-jet for type-safe queries
+  - Row-level locking with FOR UPDATE SKIP LOCKED
 - **MySQL** (`internal/storages/mysql/task/`) - Alternative implementation
+  - Uses go-jet for type-safe queries
+  - Row-level locking with FOR UPDATE
+- **SQLite** (`internal/storages/sqlite/task/`) - Embedded database implementation
+  - Uses go-jet for type-safe queries
+  - Transaction-based locking
+  - Ideal for development and small deployments
 - **Common utilities** (`internal/storages/dbutils/`) - Shared database utilities
 - **Shared entities** (`internal/storages/dbentity/`) - Common filters and entities
 
@@ -160,9 +168,9 @@ type TaskProcessor interface {
 - `DeleteTasks(ctx, statuses, updatedBefore, limit)` - Cleaner operation
 
 **Features**:
-- Type-safe queries using go-jet for both PostgreSQL and MySQL
+- Type-safe queries using go-jet for all databases
 - Transaction support with automatic rollback
-- Row-level locking (FOR UPDATE SKIP LOCKED / FOR UPDATE)
+- Row-level locking (FOR UPDATE SKIP LOCKED / FOR UPDATE / transaction-based)
 - Efficient batch operations
 - Database-agnostic public interface
 

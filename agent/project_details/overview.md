@@ -2,12 +2,12 @@
 
 ## What is Goque?
 
-Goque is a robust, PostgreSQL-backed task queue system for Go applications. It provides reliable task processing with built-in worker pools, retry logic, and graceful shutdown support.
+Goque is a robust, database-backed task queue system for Go applications with support for PostgreSQL, MySQL, and SQLite. It provides reliable task processing with built-in worker pools, retry logic, and graceful shutdown support.
 
 ## Core Purpose
 
 Goque solves the problem of reliable asynchronous task processing in distributed systems by:
-- Providing durable task storage using PostgreSQL
+- Providing durable task storage using PostgreSQL, MySQL, or SQLite
 - Managing concurrent task processing with worker pools
 - Handling failures automatically with retry logic
 - Ensuring tasks don't get stuck with automatic healing
@@ -15,7 +15,8 @@ Goque solves the problem of reliable asynchronous task processing in distributed
 
 ## Key Features
 
-### 1. PostgreSQL-backed Persistence
+### 1. Multi-Database Persistence
+- Supports PostgreSQL 12+, MySQL 8+, and SQLite 3+
 - Reliable task storage with ACID guarantees
 - Tasks survive application restarts
 - No data loss on crashes
@@ -31,14 +32,28 @@ Goque solves the problem of reliable asynchronous task processing in distributed
 - Per-task attempt tracking
 
 ### 4. Task Lifecycle Management
-Task states:
+
+**Task states:**
 - `new` - Ready to be picked up
-- `pending` - Scheduled for future processing
-- `processing` - Currently being processed
-- `done` - Completed successfully
+- `pending` - Scheduled for future processing (via NextAttemptAt)
+- `processing` - Currently being processed by a worker
+- `done` - Completed successfully ✓ (terminal)
 - `error` - Failed but has retry attempts remaining
-- `attempts_left` - Failed and exhausted all retries
-- `canceled` - Manually canceled
+- `attempts_left` - Failed and exhausted all retries ✗ (terminal)
+- `canceled` - Manually canceled ✗ (terminal)
+
+**State flow:**
+```
+new → pending → processing → ✅ done
+        ↑ ↓         ↓    ↓
+        │ └──error──┘  ❌ canceled
+        │     ↓
+        │  ❌ attempts_left
+        │
+        └──(healer fixes stuck pending)
+```
+
+**Terminal states** (no further processing): `done`, `canceled`, `attempts_left`
 
 ### 5. Built-in Task Healer
 - Monitors stuck tasks in `pending` status
@@ -102,8 +117,15 @@ goque/
 │   │   └── internalprocessors/   # Healer, Cleaner
 │   ├── queuemngr/                # Task submission manager
 │   └── storages/
-│       └── sql/pg/task/          # PostgreSQL storage
-├── migrations/                   # Database migrations
+│       ├── pg/                   # PostgreSQL storage
+│       ├── mysql/                # MySQL storage
+│       ├── sqlite/               # SQLite storage
+│       ├── dbutils/              # Database utilities
+│       └── dbentity/             # Common entities
+├── migrations/
+│   ├── pg/                       # PostgreSQL migrations
+│   ├── mysql/                    # MySQL migrations
+│   └── sqlite/                   # SQLite migrations
 └── test/                         # Integration tests
 ```
 
@@ -111,5 +133,6 @@ goque/
 
 - Go developers building distributed systems
 - Teams needing reliable background job processing
-- Applications requiring task queues with PostgreSQL
+- Applications requiring task queues with PostgreSQL, MySQL, or SQLite
 - Systems needing automatic retry and healing
+- Projects needing embedded database support (SQLite)
