@@ -9,14 +9,18 @@ import (
 	"github.com/google/uuid"
 	"github.com/samber/lo"
 
-	"github.com/ruko1202/goque/internal/entity"
 	"github.com/ruko1202/goque/internal/storages/dbutils"
 
+	"github.com/ruko1202/goque/internal/entity"
 	"github.com/ruko1202/goque/internal/pkg/generated/postgres/public/table"
 )
 
 // UpdateTask updates an existing task in the database with the provided data.
 func (s *Storage) UpdateTask(ctx context.Context, taskID uuid.UUID, task *entity.Task) error {
+	return s.updateTask(ctx, s.db, taskID, task)
+}
+
+func (s *Storage) updateTask(ctx context.Context, tx dbutils.DBTx, taskID uuid.UUID, task *entity.Task) error {
 	task.UpdatedAt = lo.ToPtr(time.Now().In(time.UTC))
 
 	stmt := table.Task.
@@ -32,7 +36,7 @@ func (s *Storage) UpdateTask(ctx context.Context, taskID uuid.UUID, task *entity
 
 	query, args := stmt.Sql()
 
-	_, err := s.db.ExecContext(ctx, query, args...)
+	_, err := tx.ExecContext(ctx, query, args...)
 	if err != nil {
 		slog.ErrorContext(ctx, "failed to update task", slog.Any("err", err))
 		return err

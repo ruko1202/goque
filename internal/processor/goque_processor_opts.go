@@ -1,35 +1,65 @@
 package processor
 
-import "time"
+import (
+	"time"
+
+	"github.com/ruko1202/goque/internal/commonopts"
+)
+
+const (
+	commonProcessorOptsType = "common_opts"
+)
+
+// GetGoqueProcessorOpts extracts processor-specific options from a list of internal processor options.
+func GetGoqueProcessorOpts(opts []commonopts.InternalProcessorOpt) []GoqueProcessorOpts {
+	return commonopts.GetOpts[GoqueProcessorOpts](opts, commonProcessorOptsType)
+}
 
 // GoqueProcessorOpts is a function type for configuring GoqueProcessor options.
 type GoqueProcessorOpts func(*GoqueProcessor)
 
-// WithFetcherMaxTasks sets the maximum number of tasks to fetch in each cycle.
-func WithFetcherMaxTasks(maxTasks int64) GoqueProcessorOpts {
+// OptionType returns the option type identifier for processor options.
+func (o GoqueProcessorOpts) OptionType() string { return commonProcessorOptsType }
+
+// WithTaskFetcherMaxTasks sets the maximum number of tasks to fetch in each cycle.
+func WithTaskFetcherMaxTasks(maxTasks int64) GoqueProcessorOpts {
 	return func(p *GoqueProcessor) {
-		p.fetcherConfig.maxTasks = maxTasks
+		p.fetcher.maxTasks = maxTasks
 	}
 }
 
-// WithFetcherTick sets the interval between task fetching cycles.
-func WithFetcherTick(tick time.Duration) GoqueProcessorOpts {
+// WithTaskFetcherTick sets the interval between task fetching cycles.
+func WithTaskFetcherTick(tick time.Duration) GoqueProcessorOpts {
 	return func(p *GoqueProcessor) {
-		p.fetcherConfig.tick = tick
+		p.fetcher.tick = tick
+	}
+}
+
+// WithTaskFetcher replaces the default task fetcher with a custom implementation.
+func WithTaskFetcher(fetcher TaskFetcher) GoqueProcessorOpts {
+	return func(p *GoqueProcessor) {
+		p.fetcher.taskFetcher = fetcher
+	}
+}
+
+// WithTaskFetcherTimeout sets the timeout for task fetching operations.
+func WithTaskFetcherTimeout(timeout time.Duration) GoqueProcessorOpts {
+	return func(p *GoqueProcessor) {
+		p.fetcher.timeout = timeout
 	}
 }
 
 // WithTaskTimeout sets the maximum execution time for a single task.
-func WithTaskTimeout(taskTimeout time.Duration) GoqueProcessorOpts {
+func WithTaskTimeout(timeout time.Duration) GoqueProcessorOpts {
 	return func(p *GoqueProcessor) {
-		p.processorConfig.taskTimeout = taskTimeout
+		p.processor.timeout = timeout
 	}
 }
 
 // WithWorkersCount sets the number of concurrent workers for processing tasks.
 func WithWorkersCount(count int) GoqueProcessorOpts {
 	return func(p *GoqueProcessor) {
-		p.processorConfig.workers = count
+		p.processor.workers = count
 	}
 }
 
@@ -39,34 +69,48 @@ func WithMaxAttempts(maxAttempts int32) GoqueProcessorOpts {
 		maxAttempts = 1
 	}
 	return func(p *GoqueProcessor) {
-		p.processorConfig.maxAttempts = maxAttempts
+		p.processor.maxAttempts = maxAttempts
 	}
 }
 
 // WithNextAttemptAtFunc sets a custom function to calculate the next retry time.
 func WithNextAttemptAtFunc(nextAttemptAt NextAttemptAtFunc) GoqueProcessorOpts {
 	return func(p *GoqueProcessor) {
-		p.processorConfig.nextAttemptAtFunc = nextAttemptAt
+		p.processor.nextAttemptAtFunc = nextAttemptAt
 	}
 }
 
 // WithStaticNextAttemptAtFunc sets a fixed retry delay period.
 func WithStaticNextAttemptAtFunc(period time.Duration) GoqueProcessorOpts {
 	return func(p *GoqueProcessor) {
-		p.processorConfig.nextAttemptAtFunc = StaticNextAttemptAtFunc(period)
+		p.processor.nextAttemptAtFunc = StaticNextAttemptAtFunc(period)
 	}
 }
 
-// WithHookBeforeProcessing adds hooks to run before task processing.
-func WithHookBeforeProcessing(hooks ...HookBeforeProcessing) GoqueProcessorOpts {
+// WithHooksBeforeProcessing adds hooks to run before task processing.
+func WithHooksBeforeProcessing(hooks ...HookBeforeProcessing) GoqueProcessorOpts {
 	return func(p *GoqueProcessor) {
-		p.processorConfig.hooksBeforeProcessing = append(p.processorConfig.hooksBeforeProcessing, hooks...)
+		p.processor.hooksBeforeProcessing = append(p.processor.hooksBeforeProcessing, hooks...)
 	}
 }
 
-// WithHookAfterProcessing adds hooks to run after task processing completes.
-func WithHookAfterProcessing(hooks ...HookAfterProcessing) GoqueProcessorOpts {
+// WithReplaceHooksBeforeProcessing replaces all hooks with new ones.
+func WithReplaceHooksBeforeProcessing(hooks ...HookBeforeProcessing) GoqueProcessorOpts {
 	return func(p *GoqueProcessor) {
-		p.processorConfig.hooksAfterProcessing = append(p.processorConfig.hooksAfterProcessing, hooks...)
+		p.processor.hooksBeforeProcessing = hooks
+	}
+}
+
+// WithHooksAfterProcessing adds hooks to run after task processing completes.
+func WithHooksAfterProcessing(hooks ...HookAfterProcessing) GoqueProcessorOpts {
+	return func(p *GoqueProcessor) {
+		p.processor.hooksAfterProcessing = append(p.processor.hooksAfterProcessing, hooks...)
+	}
+}
+
+// WithReplaceHooksAfterProcessing replaces all hooks with new ones.
+func WithReplaceHooksAfterProcessing(hooks ...HookAfterProcessing) GoqueProcessorOpts {
+	return func(p *GoqueProcessor) {
+		p.processor.hooksAfterProcessing = hooks
 	}
 }

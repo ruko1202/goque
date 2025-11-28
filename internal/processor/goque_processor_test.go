@@ -38,12 +38,12 @@ func TestGoqueProcessor(t *testing.T) {
 		processedTasks := atomic.Int32{}
 		goqueProc, mocks := initGoqueProcessorWithMocks(t,
 			task.Type,
-			TaskProcessorFunc(func(_ context.Context, _ string) error {
+			TaskProcessorFunc(func(_ context.Context, _ *entity.Task) error {
 				processedTasks.Add(1)
 				return nil
 			}),
-			WithFetcherTick(100*time.Millisecond),
-			WithFetcherMaxTasks(defaultFetchMaxTasks),
+			WithTaskFetcherTick(100*time.Millisecond),
+			WithTaskFetcherMaxTasks(defaultFetchMaxTasks),
 			WithWorkersCount(1),
 		)
 
@@ -91,7 +91,7 @@ func TestGoqueProcessor(t *testing.T) {
 		processedTasks := atomic.Int32{}
 		goqueProc, mocks := initGoqueProcessorWithMocks(t,
 			task.Type,
-			TaskProcessorFunc(func(ctx context.Context, _ string) error {
+			TaskProcessorFunc(func(ctx context.Context, _ *entity.Task) error {
 				defer func() {
 					processedTasks.Add(1)
 				}()
@@ -105,7 +105,7 @@ func TestGoqueProcessor(t *testing.T) {
 					return nil
 				}
 			}),
-			WithFetcherTick(100*time.Millisecond),
+			WithTaskFetcherTick(100*time.Millisecond),
 			WithTaskTimeout(100*time.Millisecond),
 			WithStaticNextAttemptAtFunc(time.Minute),
 		)
@@ -159,11 +159,11 @@ func TestGoqueProcessor(t *testing.T) {
 		processedTasks := atomic.Int32{}
 		goqueProc, mocks := initGoqueProcessorWithMocks(t,
 			task.Type,
-			TaskProcessorFunc(func(_ context.Context, _ string) error {
+			TaskProcessorFunc(func(_ context.Context, _ *entity.Task) error {
 				processedTasks.Add(1)
 				return fmt.Errorf("task processing error")
 			}),
-			WithFetcherTick(100*time.Millisecond),
+			WithTaskFetcherTick(100*time.Millisecond),
 			WithMaxAttempts(1),
 		)
 
@@ -212,11 +212,11 @@ func TestGoqueProcessor(t *testing.T) {
 		processedTasks := atomic.Int32{}
 		goqueProc, mocks := initGoqueProcessorWithMocks(t,
 			task.Type,
-			TaskProcessorFunc(func(_ context.Context, _ string) error {
+			TaskProcessorFunc(func(_ context.Context, _ *entity.Task) error {
 				processedTasks.Add(1)
 				return ErrTaskCancel
 			}),
-			WithFetcherTick(100*time.Millisecond),
+			WithTaskFetcherTick(100*time.Millisecond),
 			WithMaxAttempts(1),
 		)
 
@@ -265,17 +265,17 @@ func TestGoqueProcessor(t *testing.T) {
 		processedTasks := atomic.Int32{}
 		goqueProc, mocks := initGoqueProcessorWithMocks(t,
 			task.Type,
-			TaskProcessorFunc(func(_ context.Context, _ string) error {
+			TaskProcessorFunc(func(_ context.Context, _ *entity.Task) error {
 				processedTasks.Add(1)
 				return ErrTaskCancel
 			}),
-			WithFetcherTick(100*time.Millisecond),
+			WithTaskFetcherTick(100*time.Millisecond),
 			WithNextAttemptAtFunc(RoundStepNextAttemptAtFunc([]time.Duration{time.Minute})),
-			WithHookBeforeProcessing(func(_ context.Context, task *entity.Task) {
+			WithHooksBeforeProcessing(func(_ context.Context, task *entity.Task) {
 				processedTasks.Add(1)
 				t.Log("before processing task: ", task.ID)
 			}),
-			WithHookAfterProcessing(func(_ context.Context, task *entity.Task, err error) {
+			WithHooksAfterProcessing(func(_ context.Context, task *entity.Task, err error) {
 				processedTasks.Add(1)
 				t.Log("after processing task: ", task.ID, " err: ", err)
 			}),
@@ -326,7 +326,7 @@ func TestGoqueProcessor(t *testing.T) {
 		processedTasks := atomic.Int32{}
 		goqueProc, mocks := initGoqueProcessorWithMocks(t,
 			task.Type,
-			TaskProcessorFunc(func(ctx context.Context, _ string) error {
+			TaskProcessorFunc(func(ctx context.Context, _ *entity.Task) error {
 				select {
 				case <-ctx.Done():
 					return ctx.Err()
@@ -336,7 +336,7 @@ func TestGoqueProcessor(t *testing.T) {
 
 				return nil
 			}),
-			WithFetcherTick(100*time.Millisecond),
+			WithTaskFetcherTick(100*time.Millisecond),
 			WithWorkersCount(5),
 		)
 

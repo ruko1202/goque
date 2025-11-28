@@ -18,7 +18,6 @@ type DBTx interface {
 
 	Exec(query string, args ...any) (sql.Result, error)
 	ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error)
-	NamedExecContext(ctx context.Context, query string, arg any) (sql.Result, error)
 }
 
 // DoInTransaction executes a function within a database transaction with automatic commit/rollback handling.

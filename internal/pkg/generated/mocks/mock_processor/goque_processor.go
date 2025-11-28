@@ -43,7 +43,7 @@ func (m *MockTaskStorage) EXPECT() *MockTaskStorageMockRecorder {
 }
 
 // GetTasksForProcessing mocks base method.
-func (m *MockTaskStorage) GetTasksForProcessing(ctx context.Context, taskType string, maxTasks int64) ([]*entity.Task, error) {
+func (m *MockTaskStorage) GetTasksForProcessing(ctx context.Context, taskType entity.TaskType, maxTasks int64) ([]*entity.Task, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetTasksForProcessing", ctx, taskType, maxTasks)
 	ret0, _ := ret[0].([]*entity.Task)
@@ -70,13 +70,13 @@ func (c *MockTaskStorageGetTasksForProcessingCall) Return(arg0 []*entity.Task, a
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *MockTaskStorageGetTasksForProcessingCall) Do(f func(context.Context, string, int64) ([]*entity.Task, error)) *MockTaskStorageGetTasksForProcessingCall {
+func (c *MockTaskStorageGetTasksForProcessingCall) Do(f func(context.Context, entity.TaskType, int64) ([]*entity.Task, error)) *MockTaskStorageGetTasksForProcessingCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *MockTaskStorageGetTasksForProcessingCall) DoAndReturn(f func(context.Context, string, int64) ([]*entity.Task, error)) *MockTaskStorageGetTasksForProcessingCall {
+func (c *MockTaskStorageGetTasksForProcessingCall) DoAndReturn(f func(context.Context, entity.TaskType, int64) ([]*entity.Task, error)) *MockTaskStorageGetTasksForProcessingCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
@@ -177,6 +177,69 @@ func (c *MockTaskProcessorProcessTaskCall) Do(f func(context.Context, string) er
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
 func (c *MockTaskProcessorProcessTaskCall) DoAndReturn(f func(context.Context, string) error) *MockTaskProcessorProcessTaskCall {
+	c.Call = c.Call.DoAndReturn(f)
+	return c
+}
+
+// MockTaskFetcher is a mock of TaskFetcher interface.
+type MockTaskFetcher struct {
+	ctrl     *gomock.Controller
+	recorder *MockTaskFetcherMockRecorder
+	isgomock struct{}
+}
+
+// MockTaskFetcherMockRecorder is the mock recorder for MockTaskFetcher.
+type MockTaskFetcherMockRecorder struct {
+	mock *MockTaskFetcher
+}
+
+// NewMockTaskFetcher creates a new mock instance.
+func NewMockTaskFetcher(ctrl *gomock.Controller) *MockTaskFetcher {
+	mock := &MockTaskFetcher{ctrl: ctrl}
+	mock.recorder = &MockTaskFetcherMockRecorder{mock}
+	return mock
+}
+
+// EXPECT returns an object that allows the caller to indicate expected use.
+func (m *MockTaskFetcher) EXPECT() *MockTaskFetcherMockRecorder {
+	return m.recorder
+}
+
+// FetchTasks mocks base method.
+func (m *MockTaskFetcher) FetchTasks(ctx context.Context) ([]*entity.Task, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "FetchTasks", ctx)
+	ret0, _ := ret[0].([]*entity.Task)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// FetchTasks indicates an expected call of FetchTasks.
+func (mr *MockTaskFetcherMockRecorder) FetchTasks(ctx any) *MockTaskFetcherFetchTasksCall {
+	mr.mock.ctrl.T.Helper()
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchTasks", reflect.TypeOf((*MockTaskFetcher)(nil).FetchTasks), ctx)
+	return &MockTaskFetcherFetchTasksCall{Call: call}
+}
+
+// MockTaskFetcherFetchTasksCall wrap *gomock.Call
+type MockTaskFetcherFetchTasksCall struct {
+	*gomock.Call
+}
+
+// Return rewrite *gomock.Call.Return
+func (c *MockTaskFetcherFetchTasksCall) Return(arg0 []*entity.Task, arg1 error) *MockTaskFetcherFetchTasksCall {
+	c.Call = c.Call.Return(arg0, arg1)
+	return c
+}
+
+// Do rewrite *gomock.Call.Do
+func (c *MockTaskFetcherFetchTasksCall) Do(f func(context.Context) ([]*entity.Task, error)) *MockTaskFetcherFetchTasksCall {
+	c.Call = c.Call.Do(f)
+	return c
+}
+
+// DoAndReturn rewrite *gomock.Call.DoAndReturn
+func (c *MockTaskFetcherFetchTasksCall) DoAndReturn(f func(context.Context) ([]*entity.Task, error)) *MockTaskFetcherFetchTasksCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }

@@ -11,29 +11,26 @@ import (
 	"github.com/ruko1202/goque/internal"
 	"github.com/ruko1202/goque/internal/entity"
 	"github.com/ruko1202/goque/internal/processor"
-	"github.com/ruko1202/goque/internal/queuemngr"
 )
 
 func TestGoque(t *testing.T) {
 	ctx := context.Background()
 
-	queueMngr := queuemngr.NewQueueMngr(taskStorage)
-
-	task := entity.NewTask("test push and process type"+uuid.NewString(), toJSON(t, "test payload: "+uuid.NewString()))
-
-	err := queueMngr.AddTaskToQueue(ctx, task)
-	require.NoError(t, err)
-	t.Log("added task:", task.ID, "payload:", task.Payload, "type:", task.Type)
+	task := entity.NewTask(
+		"test push and process type"+uuid.NewString(),
+		toJSON(t, "test payload: "+uuid.NewString()),
+	)
+	pushToQueue(ctx, t, task)
 
 	goque := internal.NewGoque(taskStorage)
 	goque.RegisterProcessor(
 		task.Type,
-		processor.TaskProcessorFunc(func(_ context.Context, payload string) error {
-			t.Log("process task: ", payload)
+		processor.TaskProcessorFunc(func(_ context.Context, task *entity.Task) error {
+			t.Log("process task: ", task.ID, "payload:", task.Payload, "type:", task.Type)
 			return nil
 		}),
-		processor.WithFetcherTick(200*time.Millisecond),
-		processor.WithFetcherMaxTasks(10),
+		processor.WithTaskFetcherTick(200*time.Millisecond),
+		processor.WithTaskFetcherMaxTasks(10),
 	)
 	goque.Run(ctx)
 	defer goque.Stop()

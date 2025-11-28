@@ -2,7 +2,6 @@ package task
 
 import (
 	"context"
-	"slices"
 	"testing"
 
 	"github.com/google/uuid"
@@ -30,7 +29,7 @@ func TestGetTask(t *testing.T) {
 			})
 			tasks, err := storage.GetTasks(ctx, &GetTasksFilter{
 				Status:   lo.ToPtr(entity.TaskStatusNew),
-				TaskType: taskType,
+				TaskType: &taskType,
 			}, 10)
 			require.NoError(t, err)
 			require.Equal(t, len(expectedTasks), len(tasks))
@@ -44,38 +43,19 @@ func TestGetTask(t *testing.T) {
 				equalTask(t, expected, actual)
 			}
 		})
+	})
 
-		t.Run("GetOlderTasks", func(t *testing.T) {
-			tasks, err := storage.GetOlderTasks(ctx, &GetTasksFilter{
-				TaskType: taskType,
-			}, 10)
-			require.NoError(t, err)
-			require.Equal(t, len(createdTasks), len(tasks))
+	t.Run("empty filter", func(t *testing.T) {
+		makeTask(t, "test GetTask: empty filter")
 
-			for i, expected := range createdTasks {
-				actual := tasks[i]
-				equalTask(t, expected, actual)
-			}
-		})
-
-		t.Run("GetNewestTasks", func(t *testing.T) {
-			tasks, err := storage.GetNewestTasks(ctx, &GetTasksFilter{
-				TaskType: taskType,
-			}, 10)
-			require.NoError(t, err)
-			require.Equal(t, len(createdTasks), len(tasks))
-
-			slices.Reverse(tasks)
-			for i, expected := range createdTasks {
-				actual := tasks[i]
-				equalTask(t, expected, actual)
-			}
-		})
+		tasks, err := storage.GetTasks(ctx, &GetTasksFilter{}, 10)
+		require.NoError(t, err)
+		require.GreaterOrEqual(t, len(tasks), 1)
 	})
 
 	t.Run("not found", func(t *testing.T) {
 		tasks, err := storage.GetTasks(ctx, &GetTasksFilter{
-			TaskType: "not found",
+			TaskType: lo.ToPtr("not found"),
 		}, 10)
 		require.NoError(t, err)
 		require.Equal(t, 0, len(tasks))

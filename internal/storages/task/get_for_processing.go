@@ -54,10 +54,9 @@ func (s *Storage) getTasksForProcessingTx(ctx context.Context, tx *sqlx.Tx, task
 		ORDER_BY(
 			table.Task.NextAttemptAt.ASC(),
 		).
-		LIMIT(limit).
-		FOR(postgres.UPDATE())
+		LIMIT(limit)
 
-	tasks, err := s.getTasksTx(ctx, tx, stmt)
+	tasks, err := s.getTasksTx(ctx, tx, stmt, true)
 	if err != nil {
 		slog.ErrorContext(ctx, "failed to get task for processing", slog.Any("err", err))
 		return nil, err

@@ -2,7 +2,9 @@ package task
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
+	"time"
 
 	"github.com/go-jet/jet/v2/postgres"
 	"github.com/samber/lo"
@@ -15,57 +17,78 @@ import (
 
 // GetTasksFilter defines filtering criteria for task queries.
 type GetTasksFilter struct {
-	TaskType entity.TaskType
-	Status   *entity.TaskStatus
+	TaskType         *entity.TaskType
+	Status           *entity.TaskStatus
+	UpdatedAtTimeAgo *time.Duration
 }
 
-func (f *GetTasksFilter) bindWhereExpr() postgres.BoolExpression {
-	expr := postgres.AND(
-		table.Task.Type.EQ(postgres.String(f.TaskType)),
-	)
+func (f *GetTasksFilter) bindWhereExpr() (postgres.BoolExpression, error) {
+	expr := dbutils.NewWhereBuilder()
+
+	if f.TaskType != nil {
+		expr.And(
+			table.Task.Type.EQ(postgres.String(lo.FromPtr(f.TaskType))),
+		)
+	}
 
 	if f.Status != nil {
-		expr = expr.AND(
+		expr.And(
 			table.Task.Status.EQ(postgres.String(lo.FromPtr(f.Status))),
 		)
 	}
 
-	return expr
+	if f.UpdatedAtTimeAgo != nil {
+		expr.And(
+			table.Task.UpdatedAt.LT_EQ(
+				postgres.NOW().SUB(
+					postgres.INTERVALd(f.UpdatedAtTimeAgo.Abs()),
+				),
+			),
+		)
+	}
+
+	if expr == nil {
+		return nil, fmt.Errorf("no filter criteria specified")
+	}
+
+	return expr.Expression(), nil
 }
 
 // GetTasks retrieves tasks matching the filter criteria with a specified limit.
 func (s *Storage) GetTasks(ctx context.Context, filter *GetTasksFilter, limit int64) ([]*entity.Task, error) {
+	whereExpr, err := filter.bindWhereExpr()
+	if err != nil {
+		slog.ErrorContext(ctx, "failed to bind filter", slog.Any("err", err))
+		return nil, err
+	}
+
 	stmt := table.Task.
 		SELECT(table.Task.AllColumns).
-		WHERE(filter.bindWhereExpr()).
+		WHERE(whereExpr).
 		LIMIT(limit)
 
-	return s.getTasksTx(ctx, s.db, stmt)
+	return s.getTasksTx(ctx, s.db, stmt, false)
 }
 
-// GetOlderTasks retrieves tasks ordered by creation date (oldest first) matching the filter.
-func (s *Storage) GetOlderTasks(ctx context.Context, filter *GetTasksFilter, limit int64) ([]*entity.Task, error) {
+func (s *Storage) getOlderTasks(ctx context.Context, tx dbutils.DBTx, filter *GetTasksFilter, limit int64, forUpdate bool) ([]*entity.Task, error) {
+	whereExpr, err := filter.bindWhereExpr()
+	if err != nil {
+		slog.ErrorContext(ctx, "failed to bind filter", slog.Any("err", err))
+		return nil, err
+	}
 	stmt := table.Task.
 		SELECT(table.Task.AllColumns).
-		WHERE(filter.bindWhereExpr()).
+		WHERE(whereExpr).
 		ORDER_BY(table.Task.CreatedAt.ASC()).
 		LIMIT(limit)
 
-	return s.getTasksTx(ctx, s.db, stmt)
+	return s.getTasksTx(ctx, tx, stmt, forUpdate)
 }
 
-// GetNewestTasks retrieves tasks ordered by creation date (newest first) matching the filter.
-func (s *Storage) GetNewestTasks(ctx context.Context, filter *GetTasksFilter, limit int64) ([]*entity.Task, error) {
-	stmt := table.Task.
-		SELECT(table.Task.AllColumns).
-		WHERE(filter.bindWhereExpr()).
-		ORDER_BY(table.Task.CreatedAt.DESC()).
-		LIMIT(limit)
-
-	return s.getTasksTx(ctx, s.db, stmt)
-}
-
-func (s *Storage) getTasksTx(ctx context.Context, tx dbutils.DBTx, stmt postgres.Statement) ([]*entity.Task, error) {
+func (s *Storage) getTasksTx(ctx context.Context, tx dbutils.DBTx, stmt postgres.SelectStatement, forUpdate bool) ([]*entity.Task, error) {
+	if forUpdate {
+		stmt = stmt.FOR(postgres.UPDATE())
+	}
 	query, args := stmt.Sql()
 
 	tasks := make([]*entity.Task, 0)

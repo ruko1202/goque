@@ -17,24 +17,22 @@ import (
 
 // TaskStorage defines the interface for task storage operations.
 type TaskStorage interface {
-	GetTasksForProcessing(ctx context.Context, taskType string, maxTasks int64) ([]*entity.Task, error)
+	GetTasksForProcessing(ctx context.Context, taskType entity.TaskType, maxTasks int64) ([]*entity.Task, error)
 	UpdateTask(ctx context.Context, taskID uuid.UUID, task *entity.Task) error
 }
 
-// TaskProcessor defines the interface for processing individual tasks.
-type TaskProcessor interface {
-	ProcessTask(ctx context.Context, payload string) error
-}
-
 type (
-	fetcherConfig struct {
-		taskType entity.TaskType
-		maxTasks int64
-		tick     time.Duration
+	taskFetcher struct {
+		taskFetcher TaskFetcher
+		taskType    entity.TaskType
+		maxTasks    int64
+		tick        time.Duration
+		timeout     time.Duration
 	}
-	processorConfig struct {
+	taskProcessor struct {
+		taskProcessor         TaskProcessor
 		workers               int
-		taskTimeout           time.Duration
+		timeout               time.Duration
 		maxAttempts           int32
 		nextAttemptAtFunc     NextAttemptAtFunc
 		hooksBeforeProcessing []HookBeforeProcessing
@@ -44,64 +42,74 @@ type (
 
 // GoqueProcessor manages task fetching, processing, and worker pool coordination.
 type GoqueProcessor struct {
+	gracefulStoppedCh chan struct{}
 	gracefulCtxCancel context.CancelFunc
 
-	taskStorage     TaskStorage
-	taskProcessor   TaskProcessor
-	fetcherConfig   *fetcherConfig
-	processorConfig *processorConfig
+	taskStorage TaskStorage
+
+	fetcher   *taskFetcher
+	processor *taskProcessor
 }
 
 // NewGoqueProcessor creates a new processor instance with the specified configuration.
 func NewGoqueProcessor(
-	taskRepo TaskStorage,
+	taskStorage TaskStorage,
 	taskType entity.TaskType,
-	taskProcessor TaskProcessor,
+	processor TaskProcessor,
 	opts ...GoqueProcessorOpts,
 ) *GoqueProcessor {
 	p := &GoqueProcessor{
-		taskStorage:   taskRepo,
-		taskProcessor: taskProcessor,
+		gracefulStoppedCh: make(chan struct{}),
+		taskStorage:       taskStorage,
 	}
 
-	p.fetcherConfig = &fetcherConfig{
-		taskType: taskType,
-		maxTasks: defaultFetchMaxTasks,
-		tick:     defaultTick,
+	p.fetcher = &taskFetcher{
+		taskFetcher: TaskFetcherFunc(p.defaultFetchTasks),
+		taskType:    taskType,
+		maxTasks:    defaultFetchMaxTasks,
+		tick:        defaultFetchTick,
+		timeout:     defaultFetchTimeout,
 	}
-	p.processorConfig = &processorConfig{
-		workers:           defaultWorkers,
-		taskTimeout:       defaultTaskTimeout,
-		maxAttempts:       defaultMaxAttempts,
-		nextAttemptAtFunc: StaticNextAttemptAtFunc(defaultStaticNextAttemptPeriod),
+	p.processor = &taskProcessor{
+		taskProcessor:     processor,
+		workers:           defaultProcessorWorkers,
+		timeout:           defaultProcessorTimeout,
+		maxAttempts:       defaultProcessorMaxAttempts,
+		nextAttemptAtFunc: StaticNextAttemptAtFunc(defaultProcessorStaticNextAttemptPeriod),
 		hooksBeforeProcessing: []HookBeforeProcessing{
-			loggingBeforeProcessing,
+			LoggingBeforeProcessing,
 			p.updateTaskStateBeforeProcessing,
 		},
 		hooksAfterProcessing: []HookAfterProcessing{
-			loggingAfterProcessing,
+			LoggingAfterProcessing,
 			p.updateTaskAfterProcessing,
 		},
 	}
 
-	for _, opt := range opts {
-		opt(p)
-	}
+	p.Tune(opts)
 
 	return p
 }
 
+// Tune reconfigures the processor with new options.
+func (p *GoqueProcessor) Tune(opts []GoqueProcessorOpts) {
+	for _, opt := range opts {
+		opt(p)
+	}
+}
+
 // Name returns the processor's name based on its task type.
 func (p *GoqueProcessor) Name() string {
-	return fmt.Sprintf("goque-processor-%s", p.fetcherConfig.taskType)
+	return fmt.Sprintf("goque-processor-%s", p.fetcher.taskType)
 }
 
 // Run starts the processor, fetching and processing tasks until the context is canceled.
 func (p *GoqueProcessor) Run(ctx context.Context) error {
-	ctx, cancel := context.WithCancel(ctx)
-	p.gracefulCtxCancel = cancel
+	slog.InfoContext(ctx, "start processor", slog.String("processor", p.Name()))
 
-	workerPool, err := ants.NewPool(p.processorConfig.workers)
+	ctx, p.gracefulCtxCancel = context.WithCancel(ctx)
+
+	workerPool, err := ants.NewPool(p.processor.workers)
 	if err != nil {
 		slog.ErrorContext(ctx, "failed to create pool", slog.Any("err", err))
 		return err
@@ -112,16 +120,25 @@ func (p *GoqueProcessor) Run(ctx context.Context) error {
 	return nil
 }
 
+// Stop gracefully shuts down the processor by canceling its context.
+func (p *GoqueProcessor) Stop() {
+	slog.Info("start graceful shutdown", slog.String("processor", p.Name()))
+	p.gracefulCtxCancel()
+	<-p.gracefulStoppedCh
+	slog.Info("graceful shutdown successful finished", slog.String("processor", p.Name()))
+}
+
 func (p *GoqueProcessor) runWithWorkerPool(ctx context.Context, workerPool *ants.Pool) {
+	defer func() { p.gracefulStoppedCh <- struct{}{} }()
 	defer workerPool.Release()
 
-	ticker := time.NewTicker(p.fetcherConfig.tick)
+	ticker := time.NewTicker(p.fetcher.tick)
 	defer ticker.Stop()
 
 	for {
 		select {
 		case <-ctx.Done():
-			err := workerPool.ReleaseTimeout(time.Duration(workerPool.Running()) * p.processorConfig.taskTimeout)
+			err := workerPool.ReleaseTimeout(time.Duration(workerPool.Running())*p.processor.timeout + time.Millisecond)
 			if err != nil {
 				slog.ErrorContext(ctx, "failed to release workers", slog.Any("err", err))
 			}
@@ -135,26 +152,16 @@ func (p *GoqueProcessor) runWithWorkerPool(ctx context.Context, workerPool *ants
 	}
 }
 
-// Stop gracefully shuts down the processor by canceling its context.
-func (p *GoqueProcessor) Stop() {
-	p.gracefulCtxCancel()
-}
-
 func (p *GoqueProcessor) fetchAndProcess(ctx context.Context, workerPool *ants.Pool) error {
-	tasks, err := p.taskStorage.GetTasksForProcessing(ctx, p.fetcherConfig.taskType, p.fetcherConfig.maxTasks)
-	if err != nil {
-		slog.ErrorContext(ctx, "failed to fetch tasks", slog.Any("err", err))
-		return err
-	}
-	for _, task := range tasks {
+	for _, task := range p.fetchTasks(ctx) {
 		err := workerPool.Submit(func() {
-			lo.ForEach(p.processorConfig.hooksBeforeProcessing, func(item HookBeforeProcessing, _ int) {
+			lo.ForEach(p.processor.hooksBeforeProcessing, func(item HookBeforeProcessing, _ int) {
 				item(ctx, task)
 			})
 
 			taskErr := p.processTask(ctx, task)
 
-			lo.ForEach(p.processorConfig.hooksAfterProcessing, func(item HookAfterProcessing, _ int) {
+			lo.ForEach(p.processor.hooksAfterProcessing, func(item HookAfterProcessing, _ int) {
 				item(ctx, task, taskErr)
 			})
 		})
@@ -166,52 +173,31 @@ func (p *GoqueProcessor) fetchAndProcess(ctx context.Context, workerPool *ants.P
 	return nil
 }
 
-func (p *GoqueProcessor) processTask(ctx context.Context, task *entity.Task) error {
-	ctx, cancel := context.WithTimeout(ctx, p.processorConfig.taskTimeout)
+func (p *GoqueProcessor) fetchTasks(ctx context.Context) []*entity.Task {
+	ctx, cancel := context.WithTimeout(ctx, p.fetcher.timeout)
 	defer cancel()
 
-	err := p.taskProcessor.ProcessTask(ctx, task.Payload)
+	tasks, err := p.fetcher.taskFetcher.FetchTasks(ctx)
+	if err != nil {
+		slog.ErrorContext(ctx, "failed to fetch tasks", slog.Any("err", err))
+		return []*entity.Task{}
+	}
+
+	return tasks
+}
+
+func (p *GoqueProcessor) processTask(ctx context.Context, task *entity.Task) error {
+	ctx, cancel := context.WithTimeout(ctx, p.processor.timeout)
+	defer cancel()
+
+	err := p.processor.taskProcessor.ProcessTask(ctx, task)
 	switch {
 	case errors.Is(err, context.DeadlineExceeded):
-		return fmt.Errorf("%w: %s", ErrTaskTimeout, p.processorConfig.taskTimeout)
+		return fmt.Errorf("%w: %s", ErrTaskTimeout, p.processor.timeout)
 	case err != nil:
+		slog.ErrorContext(ctx, "failed to process task", slog.Any("err", err))
 		return err
 	}
 
 	return nil
-}
-
-func (p *GoqueProcessor) updateTaskStateBeforeProcessing(ctx context.Context, task *entity.Task) {
-	task.Status = entity.TaskStatusProcessing
-
-	err := p.taskStorage.UpdateTask(ctx, task.ID, task)
-	if err != nil {
-		slog.ErrorContext(ctx, "failed to update task state", slog.Any("err", err))
-	}
-}
-
-func (p *GoqueProcessor) updateTaskAfterProcessing(ctx context.Context, task *entity.Task, taskErr error) {
-	switch {
-	case errors.Is(taskErr, ErrTaskCancel):
-		task.Status = entity.TaskStatusCanceled
-	case errors.Is(taskErr, context.Canceled):
-		slog.InfoContext(ctx, "graceful shutdown: return task to queue", slog.String("taskID", task.ID.String()))
-		task.Status = entity.TaskStatusNew
-	case taskErr != nil:
-		task.Attempts = lo.Ternary(task.Attempts == 0, 1, task.Attempts+1)
-		task.AddError(taskErr)
-
-		if task.Attempts >= p.processorConfig.maxAttempts {
-			task.Status = entity.TaskStatusAttemptsLeft
-		} else {
-			task.Status = entity.TaskStatusError
-			task.NextAttemptAt = p.processorConfig.nextAttemptAtFunc(task.Attempts)
-		}
-	default:
-		task.Status = entity.TaskStatusDone
-	}
-	err := p.taskStorage.UpdateTask(ctx, task.ID, task)
-	if err != nil {
-		slog.ErrorContext(ctx, "failed to update task state", slog.Any("err", err))
-	}
 }
