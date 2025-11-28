@@ -15,6 +15,7 @@ import (
 	time "time"
 
 	uuid "github.com/google/uuid"
+	sqlx "github.com/jmoiron/sqlx"
 	entity "github.com/ruko1202/goque/internal/entity"
 	dbentity "github.com/ruko1202/goque/internal/storages/dbentity"
 	gomock "go.uber.org/mock/gomock"
@@ -277,6 +278,44 @@ func (c *MockTaskGetTasksForProcessingCall) DoAndReturn(f func(context.Context, 
 	return c
 }
 
+// ResetAttempts mocks base method.
+func (m *MockTask) ResetAttempts(ctx context.Context, taskID uuid.UUID) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ResetAttempts", ctx, taskID)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// ResetAttempts indicates an expected call of ResetAttempts.
+func (mr *MockTaskMockRecorder) ResetAttempts(ctx, taskID any) *MockTaskResetAttemptsCall {
+	mr.mock.ctrl.T.Helper()
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ResetAttempts", reflect.TypeOf((*MockTask)(nil).ResetAttempts), ctx, taskID)
+	return &MockTaskResetAttemptsCall{Call: call}
+}
+
+// MockTaskResetAttemptsCall wrap *gomock.Call
+type MockTaskResetAttemptsCall struct {
+	*gomock.Call
+}
+
+// Return rewrite *gomock.Call.Return
+func (c *MockTaskResetAttemptsCall) Return(arg0 error) *MockTaskResetAttemptsCall {
+	c.Call = c.Call.Return(arg0)
+	return c
+}
+
+// Do rewrite *gomock.Call.Do
+func (c *MockTaskResetAttemptsCall) Do(f func(context.Context, uuid.UUID) error) *MockTaskResetAttemptsCall {
+	c.Call = c.Call.Do(f)
+	return c
+}
+
+// DoAndReturn rewrite *gomock.Call.DoAndReturn
+func (c *MockTaskResetAttemptsCall) DoAndReturn(f func(context.Context, uuid.UUID) error) *MockTaskResetAttemptsCall {
+	c.Call = c.Call.DoAndReturn(f)
+	return c
+}
+
 // UpdateTask mocks base method.
 func (m *MockTask) UpdateTask(ctx context.Context, taskID uuid.UUID, task *entity.Task) error {
 	m.ctrl.T.Helper()
@@ -455,6 +494,44 @@ func (c *MockAdvancedTaskStorageDeleteTasksCall) DoAndReturn(f func(context.Cont
 	return c
 }
 
+// GetDB mocks base method.
+func (m *MockAdvancedTaskStorage) GetDB() *sqlx.DB {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetDB")
+	ret0, _ := ret[0].(*sqlx.DB)
+	return ret0
+}
+
+// GetDB indicates an expected call of GetDB.
+func (mr *MockAdvancedTaskStorageMockRecorder) GetDB() *MockAdvancedTaskStorageGetDBCall {
+	mr.mock.ctrl.T.Helper()
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetDB", reflect.TypeOf((*MockAdvancedTaskStorage)(nil).GetDB))
+	return &MockAdvancedTaskStorageGetDBCall{Call: call}
+}
+
+// MockAdvancedTaskStorageGetDBCall wrap *gomock.Call
+type MockAdvancedTaskStorageGetDBCall struct {
+	*gomock.Call
+}
+
+// Return rewrite *gomock.Call.Return
+func (c *MockAdvancedTaskStorageGetDBCall) Return(arg0 *sqlx.DB) *MockAdvancedTaskStorageGetDBCall {
+	c.Call = c.Call.Return(arg0)
+	return c
+}
+
+// Do rewrite *gomock.Call.Do
+func (c *MockAdvancedTaskStorageGetDBCall) Do(f func() *sqlx.DB) *MockAdvancedTaskStorageGetDBCall {
+	c.Call = c.Call.Do(f)
+	return c
+}
+
+// DoAndReturn rewrite *gomock.Call.DoAndReturn
+func (c *MockAdvancedTaskStorageGetDBCall) DoAndReturn(f func() *sqlx.DB) *MockAdvancedTaskStorageGetDBCall {
+	c.Call = c.Call.DoAndReturn(f)
+	return c
+}
+
 // GetTask mocks base method.
 func (m *MockAdvancedTaskStorage) GetTask(ctx context.Context, id uuid.UUID) (*entity.Task, error) {
 	m.ctrl.T.Helper()
@@ -606,6 +683,44 @@ func (c *MockAdvancedTaskStorageHardUpdateTaskCall) Do(f func(context.Context, u
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
 func (c *MockAdvancedTaskStorageHardUpdateTaskCall) DoAndReturn(f func(context.Context, uuid.UUID, *entity.Task) error) *MockAdvancedTaskStorageHardUpdateTaskCall {
+	c.Call = c.Call.DoAndReturn(f)
+	return c
+}
+
+// ResetAttempts mocks base method.
+func (m *MockAdvancedTaskStorage) ResetAttempts(ctx context.Context, taskID uuid.UUID) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ResetAttempts", ctx, taskID)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// ResetAttempts indicates an expected call of ResetAttempts.
+func (mr *MockAdvancedTaskStorageMockRecorder) ResetAttempts(ctx, taskID any) *MockAdvancedTaskStorageResetAttemptsCall {
+	mr.mock.ctrl.T.Helper()
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ResetAttempts", reflect.TypeOf((*MockAdvancedTaskStorage)(nil).ResetAttempts), ctx, taskID)
+	return &MockAdvancedTaskStorageResetAttemptsCall{Call: call}
+}
+
+// MockAdvancedTaskStorageResetAttemptsCall wrap *gomock.Call
+type MockAdvancedTaskStorageResetAttemptsCall struct {
+	*gomock.Call
+}
+
+// Return rewrite *gomock.Call.Return
+func (c *MockAdvancedTaskStorageResetAttemptsCall) Return(arg0 error) *MockAdvancedTaskStorageResetAttemptsCall {
+	c.Call = c.Call.Return(arg0)
+	return c
+}
+
+// Do rewrite *gomock.Call.Do
+func (c *MockAdvancedTaskStorageResetAttemptsCall) Do(f func(context.Context, uuid.UUID) error) *MockAdvancedTaskStorageResetAttemptsCall {
+	c.Call = c.Call.Do(f)
+	return c
+}
+
+// DoAndReturn rewrite *gomock.Call.DoAndReturn
+func (c *MockAdvancedTaskStorageResetAttemptsCall) DoAndReturn(f func(context.Context, uuid.UUID) error) *MockAdvancedTaskStorageResetAttemptsCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }

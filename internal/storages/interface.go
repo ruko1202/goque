@@ -21,6 +21,7 @@ type Task interface {
 	UpdateTask(ctx context.Context, taskID uuid.UUID, task *entity.Task) error
 	DeleteTasks(ctx context.Context, taskType entity.TaskType, statuses []entity.TaskStatus, updatedAtTimeAgo time.Duration) ([]*entity.Task, error)
 	CureTasks(ctx context.Context, taskType entity.TaskType, unhealthStatuses []entity.TaskStatus, updatedAtTimeAgo time.Duration, comment string) ([]*entity.Task, error)
+	ResetAttempts(ctx context.Context, taskID uuid.UUID) error
 }
 
 // AdvancedTaskStorage is used only for tests.
