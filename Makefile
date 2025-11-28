@@ -34,6 +34,8 @@ bin-deps: bin-deps-db
 .PHONY: tloc
 tloc:
 	go test -p 2 -count 2 ./...
+	#cd ./test/via_pkg/ && go test -p 2 -count 2 ./...
+
 
 .PHONY: test-cov
 test-cov:
@@ -84,7 +86,7 @@ db-down: ## call `make install-db-tools` before
 
 .PHONY: db-models
 db-models:
-	go run ./internal/pkg/dbmodels/generate.go --dsn=$(DB_MIGRATION_DSN) --dest="internal/pkg/generated/"
+	go run ./scripts/dbmodels/generate.go --dsn=$(DB_MIGRATION_DSN) --dest="internal/pkg/generated/"
 
 # -------------------------------------
 # Local dev commands
@@ -92,6 +94,6 @@ db-models:
 .PHONY: mocks
 mocks:
 	rm -rf ./internal/pkg/generated/mocks
-	$(GOBIN)/mockgen -typed -destination ./internal/pkg/generated/mocks/mock_processor/goque_processor.go -source ./internal/processor/goque_processor.go
-	$(GOBIN)/mockgen -typed -destination ./internal/pkg/generated/mocks/mock_processor/task_processor.go -source ./internal/processor/task_processor.go
+	$(GOBIN)/mockgen -typed -destination ./internal/pkg/generated/mocks/mock_processors/queueprocessor/processor.go -source ./internal/processors/queueprocessor/processor.go
+	$(GOBIN)/mockgen -typed -destination ./internal/pkg/generated/mocks/mock_processors/queueprocessor/task_processor.go -source ./internal/processors/queueprocessor/task_processor.go
 

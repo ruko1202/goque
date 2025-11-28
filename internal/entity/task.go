@@ -59,8 +59,10 @@ func NewTaskWithExternalID(taskType, payload, externalID string) *Task {
 
 // AddError appends an error message to the task's error log.
 func (t *Task) AddError(err error) {
+	if err == nil {
+		return
+	}
 	taskErr := lo.FromPtr(t.Errors)
-	//nolint:revive,staticcheck,errorlint
-	taskErr += fmt.Errorf("attempt %d: %v\n", t.Attempts, err).Error()
+	taskErr += fmt.Sprintf("attempt %d: %v\n", t.Attempts, err)
 	t.Errors = &taskErr
 }

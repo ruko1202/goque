@@ -6,6 +6,7 @@ toolchain go1.24.9
 
 require (
 	github.com/go-jet/jet/v2 v2.14.0
+	github.com/goccy/go-json v0.10.5
 	github.com/google/uuid v1.6.0
 	github.com/jmoiron/sqlx v1.4.0
 	github.com/lib/pq v1.10.9

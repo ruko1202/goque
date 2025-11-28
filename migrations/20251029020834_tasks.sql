@@ -17,8 +17,8 @@ create table task (
 );
 
 create unique index task_type_external_id_idx on task (type, external_id);
-create index task_type_next_attempt_at_idx on task (type, status, next_attempt_at asc );
-create index task_status_updated_at_idx on task (status, created_at asc );
+create index task_type_status_next_attempt_at_idx on task (type, status, next_attempt_at asc );
+create index task_type_status_updated_at_idx on task (type, status, updated_at asc );
 -- +goose StatementEnd
 
 -- +goose Down
