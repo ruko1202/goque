@@ -8,6 +8,8 @@ import (
 	"github.com/samber/lo"
 	"go.uber.org/zap"
 
+	"github.com/ruko1202/goque/internal/metrics"
+
 	"github.com/ruko1202/goque/internal/entity"
 )
 
@@ -62,7 +64,7 @@ func (p *GoqueProcessor) updateTaskState(ctx context.Context, task *entity.Task,
 	ctx = context.WithoutCancel(ctx)
 
 	switch {
-	case errors.Is(taskErr, ErrTaskCancel):
+	case errors.Is(taskErr, entity.ErrTaskCancel):
 		task.Status = entity.TaskStatusCanceled
 	case errors.Is(taskErr, context.Canceled):
 		p.returnTaskWhenGracefulShutdown(ctx, task)
@@ -95,5 +97,20 @@ func (p *GoqueProcessor) returnTaskWhenGracefulShutdown(ctx context.Context, tas
 	err := p.taskStorage.UpdateTask(ctx, task.ID, task)
 	if err != nil {
 		xlog.Error(ctx, "failed to update task state", zap.Error(err))
+	}
+}
+
+// metricsBeforeProcessing is a placeholder hook for future extensions.
+// OperationProcessing start time is captured directly in processTask method.
+func (p *GoqueProcessor) metricsBeforeProcessing(_ context.Context, task *entity.Task) {
+	metrics.IncProcessingTasks(task.Type, task.Status)
+}
+
+// metricsAfterProcessing collects metrics after task processing completes.
+func (p *GoqueProcessor) metricsAfterProcessing(_ context.Context, task *entity.Task, _ error) {
+	metrics.IncProcessingTasks(task.Type, task.Status)
+
+	if task.Attempts > 0 {
+		metrics.SetTaskRetryAttempts(task.Type, task.Attempts)
 	}
 }

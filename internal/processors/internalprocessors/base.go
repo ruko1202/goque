@@ -1,3 +1,4 @@
+// Package internalprocessors provides internal task processors for queue management including cleaning and healing operations.
 package internalprocessors
 
 import (
@@ -6,30 +7,39 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/ruko1202/xlog"
 	"go.uber.org/zap"
+
+	"github.com/ruko1202/goque/internal/entity"
+	"github.com/ruko1202/goque/internal/metrics"
 )
+
+type processQueueFunc func(ctx context.Context, taskType entity.TaskType) ([]*entity.Task, error)
 
 type baseProcessor struct {
 	globalCtx         context.Context
 	gracefulStoppedCh chan struct{}
 	gracefulCtxCancel context.CancelFunc
 
-	name             string
-	processQueueFunc func(ctx context.Context) error
+	processorName    string
+	processTaskType  entity.TaskType
+	processQueueFunc processQueueFunc
 	processTimeout   time.Duration
 	processPeriod    time.Duration
 	processTicker    *time.Ticker
 }
 
 func newBaseProcessor(
-	name string,
+	processorName string,
+	processingTaskType entity.TaskType,
 	processTimeout time.Duration,
 	processPeriod time.Duration,
-	processQueueFunc func(ctx context.Context) error,
+	processQueueFunc processQueueFunc,
 ) *baseProcessor {
 	return &baseProcessor{
-		name:              name,
+		processorName:     processorName,
+		processTaskType:   processingTaskType,
 		processTimeout:    processTimeout,
 		processPeriod:     processPeriod,
 		processQueueFunc:  processQueueFunc,
@@ -49,14 +59,9 @@ func (p *baseProcessor) SetProcessTimeout(timeout time.Duration) {
 	p.processTimeout = timeout
 }
 
-// Name returns the processor's name based on its task type.
-func (p *baseProcessor) Name() string {
-	return fmt.Sprintf("goque-internal-processor-%s", p.name)
-}
-
 // Run starts the processor, fetching and processing tasks until the context is canceled.
 func (p *baseProcessor) Run(ctx context.Context) {
-	ctx = xlog.WithOperation(ctx, p.Name())
+	ctx = xlog.WithOperation(ctx, fmt.Sprintf("internal.processor.%s", p.processorName))
 	p.globalCtx = ctx
 
 	xlog.Info(ctx, "start processor")
@@ -99,11 +104,41 @@ func (p *baseProcessor) Stop() {
 }
 
 func (p *baseProcessor) doProcessQueue(ctx context.Context) error {
+	if p.processQueueFunc == nil {
+		return errors.New("not implemented")
+	}
+
+	xlog.WithFields(ctx,
+		zap.String("action", p.processorName),
+		zap.Duration("timeout", p.processTimeout),
+	)
+
 	ctx, cancel := context.WithTimeout(ctx, p.processTimeout)
 	defer cancel()
 
-	if p.processQueueFunc != nil {
-		return p.processQueueFunc(ctx)
+	promTimer := prometheus.NewTimer(metrics.TaskProcessingDurationSecondsObserver(p.processTaskType, p.processorName))
+	defer promTimer.ObserveDuration()
+
+	processedTasks, err := p.processQueueFunc(ctx, p.processTaskType)
+	if err != nil {
+		xlog.Error(ctx, "process queue failed", zap.Error(err))
+		return fmt.Errorf("process queue failed: %w", err)
 	}
-	return errors.New("not implemented")
+
+	metrics.SetOperationsTotal(p.processTaskType, p.processorName, len(processedTasks))
+
+	xlog.Infof(ctx, "processed queue: %d tasks", len(processedTasks))
+
+	for _, task := range processedTasks {
+		xlog.Info(ctx, "processed queue task",
+			zap.String("taskID", task.ID.String()),
+			zap.String("externalID", task.ExternalID),
+			zap.String("type", task.Type),
+			zap.String("status", task.Status),
+			zap.Any("errors", task.Errors),
+			zap.Time("createdAt", task.CreatedAt),
+			zap.Any("updatedAt", task.UpdatedAt),
+		)
+	}
+	return nil
 }

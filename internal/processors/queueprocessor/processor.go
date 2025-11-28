@@ -9,9 +9,12 @@ import (
 	"time"
 
 	"github.com/panjf2000/ants/v2"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/ruko1202/xlog"
 	"github.com/samber/lo"
 	"go.uber.org/zap"
+
+	"github.com/ruko1202/goque/internal/metrics"
 
 	"github.com/ruko1202/goque/internal/entity"
 	"github.com/ruko1202/goque/internal/processors/internalprocessors"
@@ -80,10 +83,12 @@ func NewGoqueProcessor(
 		nextAttemptAtFunc:  StaticNextAttemptAtFunc(defaultProcessorStaticNextAttemptPeriod),
 		hooksBeforeProcessing: []HookBeforeProcessing{
 			p.updateTaskStateBeforeProcessing,
+			p.metricsBeforeProcessing,
 			LoggingBeforeProcessing,
 		},
 		hooksAfterProcessing: []HookAfterProcessing{
 			p.updateTaskState,
+			p.metricsAfterProcessing,
 			LoggingAfterProcessing,
 		},
 	}
@@ -111,6 +116,8 @@ func (p *GoqueProcessor) Run(ctx context.Context) error {
 	p.queueHealer.Run(ctx)
 
 	ctx, p.gracefulCtxCancel = context.WithCancel(ctx)
+
+	metrics.SetTasksWorkersTotal(p.fetcher.taskType, p.processor.workers)
 
 	workerPool, err := ants.NewPool(p.processor.workers,
 		ants.WithPanicHandler(p.processor.workerPanicHandler(ctx)),
@@ -201,9 +208,12 @@ func (p *GoqueProcessor) fetchTasks(ctx context.Context) []*entity.Task {
 
 	tasks, err := p.taskStorage.GetTasksForProcessing(ctx, p.fetcher.taskType, p.fetcher.maxTasks)
 	if err != nil {
+		metrics.SetOperationsTotal(p.fetcher.taskType, entity.OperationFetch, 0)
 		xlog.Error(ctx, "failed to fetch tasks", zap.Error(err))
 		return []*entity.Task{}
 	}
+
+	metrics.SetOperationsTotal(p.fetcher.taskType, entity.OperationFetch, len(tasks))
 
 	return tasks
 }
@@ -233,10 +243,13 @@ func (p *GoqueProcessor) processTask(ctx context.Context, task *entity.Task) err
 	ctx, cancel := context.WithTimeout(ctx, p.processor.timeout)
 	defer cancel()
 
+	promTimer := prometheus.NewTimer(metrics.TaskProcessingDurationSecondsObserver(task.Type, entity.OperationProcessing))
+	defer promTimer.ObserveDuration()
+
 	err := p.processor.taskProcessor.ProcessTask(ctx, task)
 	switch {
 	case errors.Is(err, context.DeadlineExceeded):
-		return fmt.Errorf("%w: %s. %w", ErrTaskTimeout, p.processor.timeout, err)
+		return fmt.Errorf("%w: %s. %w", entity.ErrTaskTimeout, p.processor.timeout, err)
 	case err != nil:
 		xlog.Error(ctx, "failed to process task", zap.Error(err))
 		return err

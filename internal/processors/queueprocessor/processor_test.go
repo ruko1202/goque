@@ -223,7 +223,7 @@ func TestGoqueProcessor(t *testing.T) {
 			task.Type,
 			TaskProcessorFunc(func(_ context.Context, _ *entity.Task) error {
 				processedTasks.Add(1)
-				return ErrTaskCancel
+				return entity.ErrTaskCancel
 			}),
 			WithTaskFetcherTick(100*time.Millisecond),
 			WithTaskProcessingMaxAttempts(1),
@@ -278,7 +278,7 @@ func TestGoqueProcessor(t *testing.T) {
 			task.Type,
 			TaskProcessorFunc(func(_ context.Context, _ *entity.Task) error {
 				processedTasks.Add(1)
-				return ErrTaskCancel
+				return entity.ErrTaskCancel
 			}),
 			WithTaskFetcherTick(100*time.Millisecond),
 			WithTaskProcessingNextAttemptAtFunc(RoundStepNextAttemptAtFunc([]time.Duration{time.Minute})),

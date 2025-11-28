@@ -1,4 +1,3 @@
-// Package internalprocessors provides internal task processors for queue management including cleaning and healing operations.
 package internalprocessors
 
 import (
@@ -6,14 +5,10 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/ruko1202/xlog"
-	"go.uber.org/zap"
-
 	"github.com/ruko1202/goque/internal/entity"
 )
 
 const (
-	queueCleaner                   = "cleaner"
 	defaultCleanerTickPeriod       = 5 * time.Minute
 	defaultCleanerTimeout          = 30 * time.Second
 	defaultCleanerUpdatedAtTimeAgo = 3 * time.Hour
@@ -29,19 +24,18 @@ type QueueCleaner struct {
 	*baseProcessor
 	taskStorage CleanerTaskStorage
 
-	taskType         entity.TaskType
 	updatedAtTimeAgo time.Duration
 }
 
 // NewQueueCleaner creates a new queue cleaner with the specified storage and options.
-func NewQueueCleaner(taskStorage CleanerTaskStorage, taskType string) *QueueCleaner {
+func NewQueueCleaner(taskStorage CleanerTaskStorage, taskType entity.TaskType) *QueueCleaner {
 	q := &QueueCleaner{
 		taskStorage:      taskStorage,
-		taskType:         taskType,
 		updatedAtTimeAgo: defaultCleanerUpdatedAtTimeAgo,
 	}
 	q.baseProcessor = newBaseProcessor(
-		queueCleaner,
+		entity.OperationCleanup,
+		taskType,
 		defaultCleanerTimeout,
 		defaultCleanerTickPeriod,
 		q.CleanTasksQueue,
@@ -56,34 +50,15 @@ func (q *QueueCleaner) SetUpdatedAtTimeAgo(updatedAtTimeAgo time.Duration) {
 }
 
 // CleanTasksQueue removes old tasks with done, canceled, or attempts_left status from the queue.
-func (q *QueueCleaner) CleanTasksQueue(ctx context.Context) error {
-	ctx = xlog.WithFields(ctx,
-		zap.String("internal.processor.action", "CleanTasksQueue"),
-		zap.Duration("timeout", q.processTimeout),
-	)
-
-	tasks, err := q.taskStorage.DeleteTasks(ctx, q.taskType, []entity.TaskStatus{
+func (q *QueueCleaner) CleanTasksQueue(ctx context.Context, taskType entity.TaskType) ([]*entity.Task, error) {
+	tasks, err := q.taskStorage.DeleteTasks(ctx, taskType, []entity.TaskStatus{
 		entity.TaskStatusDone,
 		entity.TaskStatusCanceled,
 		entity.TaskStatusAttemptsLeft,
 	}, q.updatedAtTimeAgo)
 	if err != nil {
-		xlog.Error(ctx, "failed to clean the queue", zap.Error(err))
-		return err
+		return nil, fmt.Errorf("failed to clean the queue: %w", err)
 	}
 
-	xlog.Info(ctx, fmt.Sprintf("cleaned the queue: %d tasks", len(tasks)))
-	for _, task := range tasks {
-		xlog.Info(ctx, "removed task from queue",
-			zap.String("taskID", task.ID.String()),
-			zap.String("externalID", task.ExternalID),
-			zap.String("type", task.Type),
-			zap.String("status", task.Status),
-			zap.Any("errors", task.Errors),
-			zap.Time("createdAt", task.CreatedAt),
-			zap.Any("updatedAt", task.UpdatedAt),
-		)
-	}
-
-	return nil
+	return tasks, nil
 }
