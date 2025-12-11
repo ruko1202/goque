@@ -49,7 +49,7 @@ func (s *Storage) DeleteTasks(
 		return nil, err
 	}
 
-	return fromDBModels(tasks)
+	return fromDBModels(ctx, tasks)
 }
 
 func (s *Storage) deleteTasksTx(ctx context.Context, tx dbutils.DBTx, tasks []*model.Task) error {

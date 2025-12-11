@@ -19,6 +19,7 @@ type Task struct {
 	Status        string     `db:"task.status"`
 	Attempts      int32      `db:"task.attempts"`
 	Errors        *string    `db:"task.errors"`
+	Metadata      *string    `db:"task.metadata"`
 	CreatedAt     time.Time  `db:"task.created_at"`
 	UpdatedAt     *time.Time `db:"task.updated_at"`
 	NextAttemptAt time.Time  `db:"task.next_attempt_at"`
