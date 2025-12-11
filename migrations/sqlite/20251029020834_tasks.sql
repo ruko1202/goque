@@ -9,6 +9,7 @@ CREATE TABLE task (
     status          TEXT        NOT NULL,
     attempts        INTEGER     NOT NULL,
     errors          TEXT,
+    metadata        TEXT,
     created_at      TEXT        NOT NULL DEFAULT (datetime('now')),
     updated_at      TEXT,
     next_attempt_at TEXT        NOT NULL DEFAULT (datetime('now'))

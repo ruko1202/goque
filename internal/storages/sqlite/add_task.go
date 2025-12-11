@@ -23,7 +23,7 @@ func (s *Storage) AddTask(ctx context.Context, task *entity.Task) error {
 		return entity.ErrInvalidPayloadFormat
 	}
 
-	dbTask := toDBModel(task)
+	dbTask := toDBModel(ctx, task)
 
 	stmt := table.Task.
 		INSERT(table.Task.AllColumns).
