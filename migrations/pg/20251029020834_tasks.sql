@@ -11,6 +11,7 @@ CREATE TABLE task  (
     status          TEXT        NOT NULL,
     attempts        INT         NOT NULL,
     errors          TEXT,
+    metadata        JSONB,
     created_at      TIMESTAMPTZ NOT NULL    DEFAULT now(),
     updated_at      TIMESTAMPTZ,
     next_attempt_at TIMESTAMPTZ NOT NULL    DEFAULT now()

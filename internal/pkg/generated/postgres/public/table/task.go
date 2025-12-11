@@ -24,6 +24,7 @@ type taskTable struct {
 	Status        postgres.ColumnString
 	Attempts      postgres.ColumnInteger
 	Errors        postgres.ColumnString
+	Metadata      postgres.ColumnString
 	CreatedAt     postgres.ColumnTimestampz
 	UpdatedAt     postgres.ColumnTimestampz
 	NextAttemptAt postgres.ColumnTimestampz
@@ -75,11 +76,12 @@ func newTaskTableImpl(schemaName, tableName, alias string) taskTable {
 		StatusColumn        = postgres.StringColumn("status")
 		AttemptsColumn      = postgres.IntegerColumn("attempts")
 		ErrorsColumn        = postgres.StringColumn("errors")
+		MetadataColumn      = postgres.StringColumn("metadata")
 		CreatedAtColumn     = postgres.TimestampzColumn("created_at")
 		UpdatedAtColumn     = postgres.TimestampzColumn("updated_at")
 		NextAttemptAtColumn = postgres.TimestampzColumn("next_attempt_at")
-		allColumns          = postgres.ColumnList{IDColumn, TypeColumn, ExternalIDColumn, PayloadColumn, StatusColumn, AttemptsColumn, ErrorsColumn, CreatedAtColumn, UpdatedAtColumn, NextAttemptAtColumn}
-		mutableColumns      = postgres.ColumnList{TypeColumn, ExternalIDColumn, PayloadColumn, StatusColumn, AttemptsColumn, ErrorsColumn, CreatedAtColumn, UpdatedAtColumn, NextAttemptAtColumn}
+		allColumns          = postgres.ColumnList{IDColumn, TypeColumn, ExternalIDColumn, PayloadColumn, StatusColumn, AttemptsColumn, ErrorsColumn, MetadataColumn, CreatedAtColumn, UpdatedAtColumn, NextAttemptAtColumn}
+		mutableColumns      = postgres.ColumnList{TypeColumn, ExternalIDColumn, PayloadColumn, StatusColumn, AttemptsColumn, ErrorsColumn, MetadataColumn, CreatedAtColumn, UpdatedAtColumn, NextAttemptAtColumn}
 		defaultColumns      = postgres.ColumnList{CreatedAtColumn, NextAttemptAtColumn}
 	)
 
@@ -94,6 +96,7 @@ func newTaskTableImpl(schemaName, tableName, alias string) taskTable {
 		Status:        StatusColumn,
 		Attempts:      AttemptsColumn,
 		Errors:        ErrorsColumn,
+		Metadata:      MetadataColumn,
 		CreatedAt:     CreatedAtColumn,
 		UpdatedAt:     UpdatedAtColumn,
 		NextAttemptAt: NextAttemptAtColumn,

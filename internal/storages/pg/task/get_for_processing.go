@@ -36,7 +36,7 @@ func (s *Storage) GetTasksForProcessing(ctx context.Context, taskType entity.Tas
 		return nil, err
 	}
 
-	return fromDBModels(tasks), nil
+	return fromDBModels(ctx, tasks), nil
 }
 
 func (s *Storage) getTasksForProcessingTx(ctx context.Context, tx *sqlx.Tx, taskType entity.TaskType, limit int64) ([]*model.Task, error) {

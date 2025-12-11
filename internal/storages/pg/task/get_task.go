@@ -21,7 +21,7 @@ func (s *Storage) GetTask(ctx context.Context, id uuid.UUID) (*entity.Task, erro
 	if err != nil {
 		return nil, err
 	}
-	return fromDBModel(task), nil
+	return fromDBModel(ctx, task), nil
 }
 
 func (s *Storage) getTaskTx(ctx context.Context, tx dbutils.DBTx, id uuid.UUID) (*model.Task, error) {
