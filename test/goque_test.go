@@ -58,6 +58,36 @@ func testGoque(t *testing.T, storage storages.AdvancedTaskStorage) {
 		}, time.Second, time.Millisecond*50)
 	})
 
+	t.Run("ok[metadata]", func(t *testing.T) {
+		t.Parallel()
+		ctx := xlog.ContextWithLogger(ctx, zaptest.NewLogger(t))
+		ctx = goquectx.ContextWithValue(ctx, "testname", t.Name())
+
+		task := goque.NewTask(
+			"test push and process type"+uuid.NewString(),
+			testutils.ToJSON(t, "test payload: "+uuid.NewString()),
+		)
+		pushToQueue(ctx, t, queueManager, task)
+
+		goq := goque.NewGoque(storage)
+		goq.RegisterProcessor(
+			task.Type,
+			goque.TaskProcessorFunc(func(ctx context.Context, task *goque.Task) error {
+				require.Equal(t, goque.Metadata{"testname": t.Name()}, task.Metadata)
+				require.Equal(t, goque.Metadata{"testname": t.Name()}, goque.ValuesFromContext(ctx))
+				return nil
+			}),
+			goque.WithTaskFetcherTick(10*time.Millisecond),
+		)
+		err := goq.Run(ctx)
+		require.NoError(t, err)
+		defer goq.Stop()
+
+		require.Eventually(t, func() bool {
+			task, err := queueManager.GetTask(ctx, task.ID)
+			require.NoError(t, err)
+			t.Log("wait task status:", goque.TaskStatusDone, "actual status:", task.Status)
+			return task.Status == goque.TaskStatusDone
 		}, time.Second, time.Millisecond*50)
 	})
 
