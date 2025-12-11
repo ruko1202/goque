@@ -9,8 +9,10 @@ import (
 	"go.uber.org/zap"
 )
 
+// Metadata represents arbitrary key-value data associated with a task for tracking and context.
 type Metadata map[string]any
 
+// NewMetadataFromJSON deserializes a JSON string into a Metadata map.
 func NewMetadataFromJSON(ctx context.Context, metadata *string) Metadata {
 	metadataMap := make(map[string]any)
 
@@ -22,10 +24,12 @@ func NewMetadataFromJSON(ctx context.Context, metadata *string) Metadata {
 	return metadataMap
 }
 
+// Merge combines the current metadata with another metadata map, with values from the parameter taking precedence.
 func (m Metadata) Merge(metadata Metadata) Metadata {
 	return lo.Assign(m, metadata)
 }
 
+// ToJSON serializes the metadata map into a JSON string.
 func (m Metadata) ToJSON(ctx context.Context) string {
 	metadata, err := json.Marshal(m)
 	if err != nil {

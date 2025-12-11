@@ -185,7 +185,7 @@ func (p *GoqueProcessor) fetchAndProcess(ctx context.Context, workerPool *ants.P
 			default:
 			}
 
-			ctx := goquectx.ContextWithValues(ctx, task.Metadata)
+			ctx := goquectx.WithValues(ctx, task.Metadata)
 
 			p.callHooksBefore(ctx, task)
 

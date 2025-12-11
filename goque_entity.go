@@ -25,7 +25,8 @@ const (
 
 type (
 	// Task represents a unit of work to be processed by the queue system.
-	Task     = entity.Task
+	Task = entity.Task
+	// Metadata represents arbitrary key-value data associated with a task for tracking and context.
 	Metadata = entity.Metadata
 )
 

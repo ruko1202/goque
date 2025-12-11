@@ -11,7 +11,7 @@ import (
 )
 
 func toDBModel(ctx context.Context, task *entity.Task) *model.Task {
-	metadata := task.Metadata.Merge(goquectx.ValuesFromContext(ctx))
+	metadata := task.Metadata.Merge(goquectx.Values(ctx))
 	return &model.Task{
 		ID:            task.ID,
 		Type:          task.Type,
