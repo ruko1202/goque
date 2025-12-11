@@ -44,6 +44,7 @@ type Task struct {
 	Status        TaskStatus
 	Attempts      int32
 	Errors        *string
+	Metadata      Metadata
 	CreatedAt     time.Time
 	UpdatedAt     *time.Time
 	NextAttemptAt time.Time

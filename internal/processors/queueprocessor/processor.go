@@ -14,6 +14,8 @@ import (
 	"github.com/samber/lo"
 	"go.uber.org/zap"
 
+	"github.com/ruko1202/goque/internal/utils/goquectx"
+
 	"github.com/ruko1202/goque/internal/metrics"
 
 	"github.com/ruko1202/goque/internal/entity"
@@ -182,6 +184,8 @@ func (p *GoqueProcessor) fetchAndProcess(ctx context.Context, workerPool *ants.P
 				return
 			default:
 			}
+
+			ctx := goquectx.ContextWithValues(ctx, task.Metadata)
 
 			p.callHooksBefore(ctx, task)
 
