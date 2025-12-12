@@ -1,6 +1,6 @@
 # Goque
 [![pipeline](https://github.com/ruko1202/goque/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/ruko1202/goque/actions/workflows/ci.yml)
-![Coverage](https://img.shields.io/badge/Coverage-87.3%25-brightgreen)
+![Coverage](https://img.shields.io/badge/Coverage-86.5%25-brightgreen)
 
 A robust, database-backed task queue system for Go with built-in worker pools, retry logic, and graceful shutdown support. Supports PostgreSQL, MySQL, and SQLite.
 
