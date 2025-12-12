@@ -1,4 +1,4 @@
-// Package goque provides a robust, PostgreSQL-backed task queue system for Go applications.
+// Package goque provides a robust, SQL-backed task queue system for Go applications.
 package goque
 
 import (
@@ -23,8 +23,12 @@ const (
 	TaskStatusAttemptsLeft = entity.TaskStatusAttemptsLeft // Task failed and exhausted all retries
 )
 
-// Task represents a unit of work to be processed by the queue system.
-type Task = entity.Task
+type (
+	// Task represents a unit of work to be processed by the queue system.
+	Task = entity.Task
+	// Metadata represents arbitrary key-value data associated with a task for tracking and context.
+	Metadata = entity.Metadata
+)
 
 // TaskFilter represents filtering criteria for querying tasks from the queue.
 type TaskFilter = dbentity.GetTasksFilter

@@ -6,7 +6,6 @@ import (
 	"testing"
 
 	"github.com/ruko1202/goque"
-	"github.com/ruko1202/goque/internal/entity"
 	"github.com/ruko1202/goque/internal/storages"
 	"github.com/ruko1202/goque/test/testutils"
 
@@ -28,7 +27,7 @@ func TestMain(m *testing.M) {
 	os.Exit(code)
 }
 
-func pushToQueue(ctx context.Context, t *testing.T, queueManager goque.TaskQueueManager, task *entity.Task) {
+func pushToQueue(ctx context.Context, t *testing.T, queueManager goque.TaskQueueManager, task *goque.Task) {
 	t.Helper()
 
 	err := queueManager.AddTaskToQueue(ctx, task)

@@ -12,8 +12,9 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap/zaptest"
 
+	"github.com/ruko1202/goque/internal/utils/goquectx"
+
 	"github.com/ruko1202/goque"
-	"github.com/ruko1202/goque/internal/entity"
 	"github.com/ruko1202/goque/internal/storages"
 	"github.com/ruko1202/goque/internal/storages/dbentity"
 	"github.com/ruko1202/goque/internal/utils/xtime"
@@ -33,15 +34,16 @@ func testHealer(t *testing.T, storage storages.AdvancedTaskStorage) {
 	t.Run("ok", func(t *testing.T) {
 		t.Parallel()
 		ctx := xlog.ContextWithLogger(ctx, zaptest.NewLogger(t))
+		ctx = goquectx.WithValue(ctx, "testname", t.Name())
 
 		taskType := "test healer" + uuid.NewString()
 
 		expectedCurredTaskIDs := make([]uuid.UUID, 0)
-		for _, status := range []entity.TaskStatus{
-			entity.TaskStatusPending,
-			entity.TaskStatusProcessing,
+		for _, status := range []goque.TaskStatus{
+			goque.TaskStatusPending,
+			goque.TaskStatusProcessing,
 		} {
-			task := entity.NewTask(
+			task := goque.NewTask(
 				taskType,
 				testutils.ToJSON(t, "test payload: "+uuid.NewString()),
 			)
@@ -69,7 +71,7 @@ func testHealer(t *testing.T, storage storages.AdvancedTaskStorage) {
 			tasks, err := queueManager.GetTasks(ctx, &dbentity.GetTasksFilter{
 				IDs:      expectedCurredTaskIDs,
 				TaskType: lo.ToPtr(taskType),
-				Status:   lo.ToPtr(entity.TaskStatusError),
+				Status:   lo.ToPtr(goque.TaskStatusError),
 			}, 100)
 			require.NoError(t, err)
 			return len(expectedCurredTaskIDs) == len(tasks)

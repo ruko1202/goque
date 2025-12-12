@@ -24,6 +24,7 @@ type taskTable struct {
 	Status        sqlite.ColumnString
 	Attempts      sqlite.ColumnInteger
 	Errors        sqlite.ColumnString
+	Metadata      sqlite.ColumnString
 	CreatedAt     sqlite.ColumnString
 	UpdatedAt     sqlite.ColumnString
 	NextAttemptAt sqlite.ColumnString
@@ -75,11 +76,12 @@ func newTaskTableImpl(schemaName, tableName, alias string) taskTable {
 		StatusColumn        = sqlite.StringColumn("status")
 		AttemptsColumn      = sqlite.IntegerColumn("attempts")
 		ErrorsColumn        = sqlite.StringColumn("errors")
+		MetadataColumn      = sqlite.StringColumn("metadata")
 		CreatedAtColumn     = sqlite.StringColumn("created_at")
 		UpdatedAtColumn     = sqlite.StringColumn("updated_at")
 		NextAttemptAtColumn = sqlite.StringColumn("next_attempt_at")
-		allColumns          = sqlite.ColumnList{IDColumn, TypeColumn, ExternalIDColumn, PayloadColumn, StatusColumn, AttemptsColumn, ErrorsColumn, CreatedAtColumn, UpdatedAtColumn, NextAttemptAtColumn}
-		mutableColumns      = sqlite.ColumnList{TypeColumn, ExternalIDColumn, PayloadColumn, StatusColumn, AttemptsColumn, ErrorsColumn, CreatedAtColumn, UpdatedAtColumn, NextAttemptAtColumn}
+		allColumns          = sqlite.ColumnList{IDColumn, TypeColumn, ExternalIDColumn, PayloadColumn, StatusColumn, AttemptsColumn, ErrorsColumn, MetadataColumn, CreatedAtColumn, UpdatedAtColumn, NextAttemptAtColumn}
+		mutableColumns      = sqlite.ColumnList{TypeColumn, ExternalIDColumn, PayloadColumn, StatusColumn, AttemptsColumn, ErrorsColumn, MetadataColumn, CreatedAtColumn, UpdatedAtColumn, NextAttemptAtColumn}
 		defaultColumns      = sqlite.ColumnList{CreatedAtColumn, NextAttemptAtColumn}
 	)
 
@@ -94,6 +96,7 @@ func newTaskTableImpl(schemaName, tableName, alias string) taskTable {
 		Status:        StatusColumn,
 		Attempts:      AttemptsColumn,
 		Errors:        ErrorsColumn,
+		Metadata:      MetadataColumn,
 		CreatedAt:     CreatedAtColumn,
 		UpdatedAt:     UpdatedAtColumn,
 		NextAttemptAt: NextAttemptAtColumn,

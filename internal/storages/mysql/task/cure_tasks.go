@@ -52,7 +52,7 @@ func (s *Storage) CureTasks(
 		return nil, err
 	}
 
-	return fromDBModels(tasks)
+	return fromDBModels(ctx, tasks)
 }
 
 func (s *Storage) cureTaskTx(ctx context.Context, tx dbutils.DBTx, tasks []*model.Task, comment string) error {

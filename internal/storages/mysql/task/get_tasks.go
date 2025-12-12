@@ -23,7 +23,7 @@ func (s *Storage) GetTasks(ctx context.Context, filter *dbentity.GetTasksFilter,
 	if err != nil {
 		return nil, err
 	}
-	return fromDBModels(tasks)
+	return fromDBModels(ctx, tasks)
 }
 
 func (s *Storage) getTasksByFilterTx(ctx context.Context, tx dbutils.DBTx, filter *dbentity.GetTasksFilter, limit int64) ([]*model.Task, error) {

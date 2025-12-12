@@ -22,7 +22,7 @@ func (s *Storage) GetTask(ctx context.Context, id uuid.UUID) (*entity.Task, erro
 		return nil, err
 	}
 
-	return fromDBModel(task)
+	return fromDBModel(ctx, task)
 }
 
 func (s *Storage) getTaskTx(ctx context.Context, tx dbutils.DBTx, id uuid.UUID) (*model.Task, error) {

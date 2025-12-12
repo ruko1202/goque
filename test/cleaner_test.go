@@ -12,8 +12,9 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap/zaptest"
 
+	"github.com/ruko1202/goque/internal/utils/goquectx"
+
 	"github.com/ruko1202/goque"
-	"github.com/ruko1202/goque/internal/entity"
 	"github.com/ruko1202/goque/internal/storages"
 	"github.com/ruko1202/goque/test/testutils"
 )
@@ -31,8 +32,9 @@ func testCleaner(t *testing.T, storage storages.AdvancedTaskStorage) {
 	t.Run("ok", func(t *testing.T) {
 		t.Parallel()
 		ctx := xlog.ContextWithLogger(ctx, zaptest.NewLogger(t))
+		ctx = goquectx.WithValue(ctx, "testname", t.Name())
 
-		task := entity.NewTask(
+		task := goque.NewTask(
 			"test healer"+uuid.NewString(),
 			testutils.ToJSON(t, "test payload: "+uuid.NewString()),
 		)

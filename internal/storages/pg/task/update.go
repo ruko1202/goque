@@ -19,12 +19,12 @@ import (
 // UpdateTask updates an existing task in the database with the provided data.
 func (s *Storage) UpdateTask(ctx context.Context, taskID uuid.UUID, task *entity.Task) error {
 	task.UpdatedAt = lo.ToPtr(xtime.Now())
-	return s.updateTaskTx(ctx, s.db, taskID, toDBModel(task))
+	return s.updateTaskTx(ctx, s.db, taskID, toDBModel(ctx, task))
 }
 
 // HardUpdateTask updates a task without automatically setting the updated_at timestamp.
 func (s *Storage) HardUpdateTask(ctx context.Context, taskID uuid.UUID, task *entity.Task) error {
-	return s.updateTaskTx(ctx, s.db, taskID, toDBModel(task))
+	return s.updateTaskTx(ctx, s.db, taskID, toDBModel(ctx, task))
 }
 
 func (s *Storage) updateTaskTx(ctx context.Context, tx dbutils.DBTx, taskID uuid.UUID, task *model.Task) error {

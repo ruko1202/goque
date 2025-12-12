@@ -24,6 +24,7 @@ type taskTable struct {
 	Status        mysql.ColumnString
 	Attempts      mysql.ColumnInteger
 	Errors        mysql.ColumnString
+	Metadata      mysql.ColumnString
 	CreatedAt     mysql.ColumnTimestamp
 	UpdatedAt     mysql.ColumnTimestamp
 	NextAttemptAt mysql.ColumnTimestamp
@@ -75,11 +76,12 @@ func newTaskTableImpl(schemaName, tableName, alias string) taskTable {
 		StatusColumn        = mysql.StringColumn("status")
 		AttemptsColumn      = mysql.IntegerColumn("attempts")
 		ErrorsColumn        = mysql.StringColumn("errors")
+		MetadataColumn      = mysql.StringColumn("metadata")
 		CreatedAtColumn     = mysql.TimestampColumn("created_at")
 		UpdatedAtColumn     = mysql.TimestampColumn("updated_at")
 		NextAttemptAtColumn = mysql.TimestampColumn("next_attempt_at")
-		allColumns          = mysql.ColumnList{IDColumn, TypeColumn, ExternalIDColumn, PayloadColumn, StatusColumn, AttemptsColumn, ErrorsColumn, CreatedAtColumn, UpdatedAtColumn, NextAttemptAtColumn}
-		mutableColumns      = mysql.ColumnList{TypeColumn, ExternalIDColumn, PayloadColumn, StatusColumn, AttemptsColumn, ErrorsColumn, CreatedAtColumn, UpdatedAtColumn, NextAttemptAtColumn}
+		allColumns          = mysql.ColumnList{IDColumn, TypeColumn, ExternalIDColumn, PayloadColumn, StatusColumn, AttemptsColumn, ErrorsColumn, MetadataColumn, CreatedAtColumn, UpdatedAtColumn, NextAttemptAtColumn}
+		mutableColumns      = mysql.ColumnList{TypeColumn, ExternalIDColumn, PayloadColumn, StatusColumn, AttemptsColumn, ErrorsColumn, MetadataColumn, CreatedAtColumn, UpdatedAtColumn, NextAttemptAtColumn}
 		defaultColumns      = mysql.ColumnList{CreatedAtColumn, NextAttemptAtColumn}
 	)
 
@@ -94,6 +96,7 @@ func newTaskTableImpl(schemaName, tableName, alias string) taskTable {
 		Status:        StatusColumn,
 		Attempts:      AttemptsColumn,
 		Errors:        ErrorsColumn,
+		Metadata:      MetadataColumn,
 		CreatedAt:     CreatedAtColumn,
 		UpdatedAt:     UpdatedAtColumn,
 		NextAttemptAt: NextAttemptAtColumn,

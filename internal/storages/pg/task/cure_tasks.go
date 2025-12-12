@@ -67,5 +67,5 @@ func (s *Storage) CureTasks(
 		return nil, err
 	}
 
-	return fromDBModels(dbTasks), nil
+	return fromDBModels(ctx, dbTasks), nil
 }

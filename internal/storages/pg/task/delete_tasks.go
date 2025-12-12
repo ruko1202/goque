@@ -49,5 +49,5 @@ func (s *Storage) DeleteTasks(
 		xlog.Error(ctx, "failed to delete tasks", zap.Error(err))
 		return nil, err
 	}
-	return fromDBModels(dbTasks), nil
+	return fromDBModels(ctx, dbTasks), nil
 }
