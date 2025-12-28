@@ -20,10 +20,13 @@ type DBTx interface {
 
 	Exec(query string, args ...any) (sql.Result, error)
 	ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error)
+
+	Query(query string, args ...interface{}) (*sql.Rows, error)
+	QueryContext(ctx context.Context, query string, args ...interface{}) (*sql.Rows, error)
 }
 
 // DoInTransaction executes a function within a database transaction with automatic commit/rollback handling.
-func DoInTransaction(ctx context.Context, db *sqlx.DB, fn func(tx *sqlx.Tx) error) error {
+func DoInTransaction(ctx context.Context, db *sqlx.DB, fn func(tx DBTx) error) error {
 	tx, err := db.BeginTxx(ctx, &sql.TxOptions{Isolation: sql.LevelDefault})
 	if err != nil {
 		return err

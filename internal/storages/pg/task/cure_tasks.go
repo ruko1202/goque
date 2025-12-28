@@ -58,10 +58,8 @@ func (s *Storage) CureTasks(
 			),
 		).RETURNING(table.Task.AllColumns)
 
-	query, args := stmt.Sql()
-
 	dbTasks := make([]*model.Task, 0)
-	err := s.db.SelectContext(ctx, &dbTasks, query, args...)
+	err := stmt.QueryContext(ctx, s.db, &dbTasks)
 	if err != nil {
 		xlog.Error(ctx, "failed to update task", zap.Error(err))
 		return nil, err
