@@ -39,14 +39,12 @@ func (s *Storage) getTaskTx(ctx context.Context, tx dbutils.DBTx, id uuid.UUID) 
 		SELECT(table.Task.AllColumns).
 		WHERE(table.Task.ID.EQ(sqlite.String(id.String())))
 
-	query, args := stmt.Sql()
-
-	task := new(model.Task)
-	err := tx.GetContext(ctx, task, query, args...)
+	dbTask := new(model.Task)
+	err := stmt.QueryContext(ctx, tx, dbTask)
 	if err != nil {
 		xlog.Error(ctx, "failed to get task", xfield.Error(err))
 		return nil, err
 	}
 
-	return task, nil
+	return dbTask, nil
 }
