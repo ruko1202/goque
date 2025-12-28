@@ -49,9 +49,7 @@ func (s *Storage) updateTaskTx(ctx context.Context, tx dbutils.DBTx, taskID stri
 		).
 		WHERE(table.Task.ID.EQ(sqlite.String(taskID)))
 
-	query, args := stmt.Sql()
-
-	_, err := tx.ExecContext(ctx, query, args...)
+	_, err := stmt.ExecContext(ctx, tx)
 	if err != nil {
 		xlog.Error(ctx, "failed to update task", zap.Error(err))
 		return err
@@ -79,9 +77,7 @@ func (s *Storage) batchUpdateTasksStatusTx(ctx context.Context, tx dbutils.DBTx,
 			lo.Map(tasks, func(task *model.Task, _ int) sqlite.Expression { return sqlite.String(lo.FromPtr(task.ID)) })...,
 		))
 
-	query, args := stmt.Sql()
-
-	_, err := tx.ExecContext(ctx, query, args...)
+	_, err := stmt.ExecContext(ctx, tx)
 	if err != nil {
 		xlog.Error(ctx, "failed to update task", zap.Error(err))
 		return err

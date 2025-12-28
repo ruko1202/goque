@@ -2,10 +2,10 @@ package test
 
 import (
 	"context"
-	"database/sql"
 	"testing"
 	"time"
 
+	"github.com/go-jet/jet/v2/qrm"
 	"github.com/google/uuid"
 	"github.com/ruko1202/xlog"
 	"github.com/samber/lo"
@@ -46,7 +46,7 @@ func testDeleteTasks(t *testing.T, storage storages.AdvancedTaskStorage) {
 		require.Len(t, tasks, 1)
 
 		_, err = storage.GetTask(ctx, taskShouldDeleted.ID)
-		require.EqualError(t, err, sql.ErrNoRows.Error())
+		require.EqualError(t, err, qrm.ErrNoRows.Error())
 
 		_, err = storage.GetTask(ctx, taskShouldNotDeleted.ID)
 		require.NoError(t, err)
