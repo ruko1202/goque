@@ -4,7 +4,6 @@ import (
 	"context"
 
 	"github.com/go-jet/jet/v2/postgres"
-	"github.com/jmoiron/sqlx"
 	"github.com/ruko1202/xlog"
 	"go.uber.org/zap"
 
@@ -22,7 +21,7 @@ func (s *Storage) GetTasksForProcessing(ctx context.Context, taskType entity.Tas
 	)
 
 	var tasks []*model.Task
-	err := dbutils.DoInTransaction(ctx, s.db, func(tx *sqlx.Tx) error {
+	err := dbutils.DoInTransaction(ctx, s.db, func(tx dbutils.DBTx) error {
 		var err error
 		tasks, err = s.getTasksForProcessingTx(ctx, tx, taskType, limit)
 		if err != nil {
@@ -39,7 +38,7 @@ func (s *Storage) GetTasksForProcessing(ctx context.Context, taskType entity.Tas
 	return fromDBModels(ctx, tasks), nil
 }
 
-func (s *Storage) getTasksForProcessingTx(ctx context.Context, tx *sqlx.Tx, taskType entity.TaskType, limit int64) ([]*model.Task, error) {
+func (s *Storage) getTasksForProcessingTx(ctx context.Context, tx dbutils.DBTx, taskType entity.TaskType, limit int64) ([]*model.Task, error) {
 	stmt := table.Task.
 		SELECT(table.Task.AllColumns).
 		WHERE(
@@ -58,14 +57,12 @@ func (s *Storage) getTasksForProcessingTx(ctx context.Context, tx *sqlx.Tx, task
 		).
 		LIMIT(limit)
 
-	query, args := stmt.Sql()
-
-	tasks := make([]*model.Task, 0)
-	err := tx.SelectContext(ctx, &tasks, query, args...)
+	dbTasks := make([]*model.Task, 0)
+	err := stmt.QueryContext(ctx, tx, &dbTasks)
 	if err != nil {
 		xlog.Error(ctx, "failed to get task for processing", zap.Error(err))
 		return nil, err
 	}
 
-	return tasks, nil
+	return dbTasks, nil
 }

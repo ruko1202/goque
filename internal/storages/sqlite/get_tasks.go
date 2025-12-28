@@ -38,14 +38,12 @@ func (s *Storage) getTasksByFilterTx(ctx context.Context, tx dbutils.DBTx, filte
 		WHERE(whereExpr).
 		LIMIT(limit)
 
-	query, args := stmt.Sql()
-
-	tasks := make([]*model.Task, 0)
-	err = tx.SelectContext(ctx, &tasks, query, args...)
+	dbTasks := make([]*model.Task, 0)
+	err = stmt.QueryContext(ctx, tx, &dbTasks)
 	if err != nil {
 		xlog.Error(ctx, "failed to get tasks", zap.Error(err))
 		return nil, err
 	}
 
-	return tasks, nil
+	return dbTasks, nil
 }

@@ -29,9 +29,7 @@ func (s *Storage) AddTask(ctx context.Context, task *entity.Task) error {
 		INSERT(table.Task.AllColumns).
 		MODEL(dbTask)
 
-	query, args := stmt.Sql()
-
-	_, err := s.db.ExecContext(ctx, query, args...)
+	_, err := stmt.ExecContext(ctx, s.db)
 	if err := handleError(err); err != nil {
 		xlog.Error(ctx, "failed to add task", zap.Error(err))
 		return err

@@ -2,9 +2,9 @@ package test
 
 import (
 	"context"
-	"database/sql"
 	"testing"
 
+	"github.com/go-jet/jet/v2/qrm"
 	"github.com/google/uuid"
 	"github.com/ruko1202/xlog"
 	"github.com/stretchr/testify/require"
@@ -29,6 +29,6 @@ func testGet(t *testing.T, storage storages.AdvancedTaskStorage) {
 
 		task, err := storage.GetTask(ctx, uuid.New())
 		require.Nil(t, task)
-		require.EqualError(t, err, sql.ErrNoRows.Error())
+		require.EqualError(t, err, qrm.ErrNoRows.Error())
 	})
 }
