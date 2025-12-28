@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/go-jet/jet/v2/sqlite"
-	"github.com/jmoiron/sqlx"
 	"github.com/ruko1202/xlog"
 	"github.com/ruko1202/xlog/xfield"
 	"github.com/samber/lo"
@@ -35,7 +34,7 @@ func (s *Storage) CureTasks(
 	defer span.End()
 
 	tasks := make([]*model.Task, 0)
-	err := dbutils.DoInTransaction(ctx, s.db, func(tx *sqlx.Tx) error {
+	err := dbutils.DoInTransaction(ctx, s.db, func(tx dbutils.DBTx) error {
 		var err error
 		tasks, err = s.getTasksByFilterTx(ctx, tx, &dbentity.GetTasksFilter{
 			TaskType:         lo.ToPtr(taskType),
@@ -66,7 +65,7 @@ func (s *Storage) cureTaskTx(ctx context.Context, tx dbutils.DBTx, tasks []*mode
 	}
 
 	// SQLite uses || for concatenation and CAST(x AS TEXT) for type conversion
-	updateStmt := table.Task.
+	stmt := table.Task.
 		UPDATE(
 			table.Task.Status,
 			table.Task.Errors,
@@ -89,8 +88,7 @@ func (s *Storage) cureTaskTx(ctx context.Context, tx dbutils.DBTx, tasks []*mode
 			})...),
 		)
 
-	query, args := updateStmt.Sql()
-	_, err := tx.ExecContext(ctx, query, args...)
+	_, err := stmt.ExecContext(ctx, tx)
 	if err != nil {
 		xlog.Error(ctx, "failed to update task", xfield.Error(err))
 		return err
