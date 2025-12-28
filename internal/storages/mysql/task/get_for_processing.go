@@ -4,7 +4,6 @@ import (
 	"context"
 
 	"github.com/go-jet/jet/v2/mysql"
-	"github.com/jmoiron/sqlx"
 	"github.com/ruko1202/xlog"
 	"github.com/ruko1202/xlog/xfield"
 
@@ -24,7 +23,7 @@ func (s *Storage) GetTasksForProcessing(ctx context.Context, taskType entity.Tas
 	defer span.End()
 
 	var tasks []*model.Task
-	err := dbutils.DoInTransaction(ctx, s.db, func(tx *sqlx.Tx) error {
+	err := dbutils.DoInTransaction(ctx, s.db, func(tx dbutils.DBTx) error {
 		var err error
 		tasks, err = s.getTasksForProcessingTx(ctx, tx, taskType, limit)
 		if err != nil {
@@ -41,7 +40,7 @@ func (s *Storage) GetTasksForProcessing(ctx context.Context, taskType entity.Tas
 	return fromDBModels(ctx, tasks)
 }
 
-func (s *Storage) getTasksForProcessingTx(ctx context.Context, tx *sqlx.Tx, taskType entity.TaskType, limit int64) ([]*model.Task, error) {
+func (s *Storage) getTasksForProcessingTx(ctx context.Context, tx dbutils.DBTx, taskType entity.TaskType, limit int64) ([]*model.Task, error) {
 	ctx, span := xlog.WithOperationSpan(ctx, "storage.getTasksForProcessingTx")
 	defer span.End()
 
@@ -63,14 +62,12 @@ func (s *Storage) getTasksForProcessingTx(ctx context.Context, tx *sqlx.Tx, task
 		).
 		LIMIT(limit)
 
-	query, args := stmt.Sql()
-
-	tasks := make([]*model.Task, 0)
-	err := tx.SelectContext(ctx, &tasks, query, args...)
+	dbTasks := make([]*model.Task, 0)
+	err := stmt.QueryContext(ctx, tx, &dbTasks)
 	if err != nil {
 		xlog.Error(ctx, "failed to get task for processing", xfield.Error(err))
 		return nil, err
 	}
 
-	return tasks, nil
+	return dbTasks, nil
 }
