@@ -5,7 +5,6 @@ import (
 	"fmt"
 
 	"github.com/google/uuid"
-	"github.com/jmoiron/sqlx"
 	"github.com/ruko1202/xlog"
 	"github.com/samber/lo"
 	"go.uber.org/zap"
@@ -21,7 +20,7 @@ func (s *Storage) ResetAttempts(ctx context.Context, id uuid.UUID) error {
 		zap.String("task_id", id.String()),
 	)
 
-	err := dbutils.DoInTransaction(ctx, s.db, func(tx *sqlx.Tx) error {
+	err := dbutils.DoInTransaction(ctx, s.db, func(tx dbutils.DBTx) error {
 		task, err := s.getTaskTx(ctx, tx, id)
 		if err != nil {
 			return err

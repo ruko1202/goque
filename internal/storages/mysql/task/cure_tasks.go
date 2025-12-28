@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/go-jet/jet/v2/mysql"
-	"github.com/jmoiron/sqlx"
 	"github.com/ruko1202/xlog"
 	"github.com/samber/lo"
 	"go.uber.org/zap"
@@ -33,7 +32,7 @@ func (s *Storage) CureTasks(
 	)
 
 	tasks := make([]*model.Task, 0)
-	err := dbutils.DoInTransaction(ctx, s.db, func(tx *sqlx.Tx) error {
+	err := dbutils.DoInTransaction(ctx, s.db, func(tx dbutils.DBTx) error {
 		var err error
 		tasks, err = s.getTasksByFilterTx(ctx, tx, &dbentity.GetTasksFilter{
 			TaskType:         lo.ToPtr(taskType),
@@ -59,7 +58,7 @@ func (s *Storage) cureTaskTx(ctx context.Context, tx dbutils.DBTx, tasks []*mode
 	if len(tasks) == 0 {
 		return nil
 	}
-	updateStmt := table.Task.
+	stmt := table.Task.
 		UPDATE(
 			table.Task.Status,
 			table.Task.Errors,
@@ -84,8 +83,7 @@ func (s *Storage) cureTaskTx(ctx context.Context, tx dbutils.DBTx, tasks []*mode
 			})...),
 		)
 
-	query, args := updateStmt.Sql()
-	_, err := tx.ExecContext(ctx, query, args...)
+	_, err := stmt.ExecContext(ctx, tx)
 	if err != nil {
 		return err
 	}

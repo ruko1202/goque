@@ -5,7 +5,6 @@ import (
 	"time"
 
 	"github.com/go-jet/jet/v2/mysql"
-	"github.com/jmoiron/sqlx"
 	"github.com/ruko1202/xlog"
 	"github.com/samber/lo"
 	"go.uber.org/zap"
@@ -30,7 +29,7 @@ func (s *Storage) DeleteTasks(
 	)
 
 	tasks := make([]*model.Task, 0)
-	err := dbutils.DoInTransaction(ctx, s.db, func(tx *sqlx.Tx) error {
+	err := dbutils.DoInTransaction(ctx, s.db, func(tx dbutils.DBTx) error {
 		var err error
 		tasks, err = s.getTasksByFilterTx(ctx, tx, &dbentity.GetTasksFilter{
 			TaskType:         lo.ToPtr(taskType),
@@ -63,8 +62,7 @@ func (s *Storage) deleteTasksTx(ctx context.Context, tx dbutils.DBTx, tasks []*m
 			})...),
 		)
 
-	query, args := stmt.Sql()
-	_, err := tx.ExecContext(ctx, query, args...)
+	_, err := stmt.ExecContext(ctx, tx)
 	if err != nil {
 		return err
 	}

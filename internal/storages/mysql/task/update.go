@@ -49,9 +49,7 @@ func (s *Storage) updateTaskTx(ctx context.Context, tx dbutils.DBTx, taskID stri
 		).
 		WHERE(table.Task.ID.EQ(mysql.String(taskID)))
 
-	query, args := stmt.Sql()
-
-	_, err := tx.ExecContext(ctx, query, args...)
+	_, err := stmt.ExecContext(ctx, tx)
 	if err != nil {
 		xlog.Error(ctx, "failed to update task", zap.Error(err))
 		return err
@@ -81,9 +79,7 @@ func (s *Storage) batchUpdateTasksStatusTx(ctx context.Context, tx dbutils.DBTx,
 			})...,
 		))
 
-	query, args := stmt.Sql()
-
-	_, err := tx.ExecContext(ctx, query, args...)
+	_, err := stmt.ExecContext(ctx, tx)
 	if err != nil {
 		xlog.Error(ctx, "failed to update task", zap.Error(err))
 		return err

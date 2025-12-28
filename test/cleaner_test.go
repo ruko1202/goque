@@ -2,11 +2,11 @@ package test
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"testing"
 	"time"
 
+	"github.com/go-jet/jet/v2/qrm"
 	"github.com/google/uuid"
 	"github.com/ruko1202/xlog"
 	"github.com/stretchr/testify/require"
@@ -57,7 +57,7 @@ func testCleaner(t *testing.T, storage storages.AdvancedTaskStorage) {
 			t.Log("wait removing the task", task.ID)
 
 			_, err := queueManager.GetTask(ctx, task.ID)
-			return errors.Is(err, sql.ErrNoRows)
+			return errors.Is(err, qrm.ErrNoRows)
 		}, time.Second, time.Millisecond*50)
 	})
 }
