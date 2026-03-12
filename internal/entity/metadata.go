@@ -5,8 +5,8 @@ import (
 
 	"github.com/goccy/go-json"
 	"github.com/ruko1202/xlog"
+	"github.com/ruko1202/xlog/xfield"
 	"github.com/samber/lo"
-	"go.uber.org/zap"
 )
 
 // Metadata represents arbitrary key-value data associated with a task for tracking and context.
@@ -18,7 +18,7 @@ func NewMetadataFromJSON(ctx context.Context, metadata *string) Metadata {
 
 	err := json.Unmarshal([]byte(lo.FromPtr(metadata)), &metadataMap)
 	if err != nil {
-		xlog.Error(ctx, "unmarshal metadata", zap.Error(err))
+		xlog.Error(ctx, "unmarshal metadata", xfield.Error(err))
 	}
 
 	return metadataMap
@@ -33,7 +33,7 @@ func (m Metadata) Merge(metadata Metadata) Metadata {
 func (m Metadata) ToJSON(ctx context.Context) string {
 	metadata, err := json.Marshal(m)
 	if err != nil {
-		xlog.Error(ctx, "marshaling metadata", zap.Error(err))
+		xlog.Error(ctx, "marshaling metadata", xfield.Error(err))
 		return ""
 	}
 

@@ -9,7 +9,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/ruko1202/xlog"
-	"go.uber.org/zap"
+	"github.com/ruko1202/xlog/xfield"
 
 	"example/internal/config"
 	"example/internal/models"
@@ -37,9 +37,9 @@ func NewTaskGenerator(
 
 func (g *TaskGenerator) Run(ctx context.Context) {
 	xlog.Info(ctx, "Starting task generator",
-		zap.Duration("interval", g.cfg.Interval),
-		zap.Int("min_tasks", g.cfg.MinTasks),
-		zap.Int("max_tasks", g.cfg.MaxTasks),
+		xfield.Duration("interval", g.cfg.Interval),
+		xfield.Int("min_tasks", g.cfg.MinTasks),
+		xfield.Int("max_tasks", g.cfg.MaxTasks),
 	)
 
 	ticker := time.NewTicker(g.cfg.Interval)
@@ -64,8 +64,8 @@ func (g *TaskGenerator) generateTasks(ctx context.Context) {
 			payload, err := generatePayload(taskType)
 			if err != nil {
 				xlog.Error(ctx, "Failed to generate payload",
-					zap.String("taskType", taskType),
-					zap.Error(err),
+					xfield.String("taskType", taskType),
+					xfield.Error(err),
 				)
 				continue
 			}

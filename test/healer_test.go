@@ -33,12 +33,12 @@ func testHealer(t *testing.T, storage storages.AdvancedTaskStorage) {
 
 	t.Run("ok", func(t *testing.T) {
 		t.Parallel()
-		ctx := xlog.ContextWithLogger(ctx, zaptest.NewLogger(t))
+		ctx := xlog.ContextWithLogger(ctx, xlog.NewZapAdapter(zaptest.NewLogger(t)))
 		ctx = goquectx.WithValue(ctx, "testname", t.Name())
 
 		taskType := "test healer" + uuid.NewString()
 
-		expectedCurredTaskIDs := make([]uuid.UUID, 0)
+		expectedCurredTaskIDs := make([]uuid.UUID, 0, 2)
 		for _, status := range []goque.TaskStatus{
 			goque.TaskStatusPending,
 			goque.TaskStatusProcessing,

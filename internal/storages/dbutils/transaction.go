@@ -8,7 +8,7 @@ import (
 
 	"github.com/jmoiron/sqlx"
 	"github.com/ruko1202/xlog"
-	"go.uber.org/zap"
+	"github.com/ruko1202/xlog/xfield"
 )
 
 // DBTx defines the interface for database transaction operations.
@@ -32,12 +32,12 @@ func DoInTransaction(ctx context.Context, db *sqlx.DB, fn func(tx *sqlx.Tx) erro
 	var txErr error
 	defer func() {
 		if recErr := recover(); recErr != nil {
-			xlog.Error(ctx, "panic recovery when execute the transaction", zap.Any("panic", recErr))
+			xlog.Error(ctx, "panic recovery when execute the transaction", xfield.Any("panic", recErr))
 			txErr = errors.Join(txErr, rollback(ctx, tx))
 			return
 		}
 		if txErr != nil {
-			xlog.Error(ctx, "raise error when execute the transaction", zap.Error(txErr))
+			xlog.Error(ctx, "raise error when execute the transaction", xfield.Error(txErr))
 			txErr = errors.Join(txErr, rollback(ctx, tx))
 			return
 		}
@@ -52,7 +52,7 @@ func DoInTransaction(ctx context.Context, db *sqlx.DB, fn func(tx *sqlx.Tx) erro
 
 func rollback(ctx context.Context, tx *sqlx.Tx) error {
 	if err := tx.Rollback(); err != nil {
-		xlog.Error(ctx, "failed to rollback the transaction", zap.Error(err))
+		xlog.Error(ctx, "failed to rollback the transaction", xfield.Error(err))
 		return err
 	}
 	return nil
@@ -60,7 +60,7 @@ func rollback(ctx context.Context, tx *sqlx.Tx) error {
 
 func commit(ctx context.Context, tx *sqlx.Tx) error {
 	if err := tx.Commit(); err != nil {
-		xlog.Error(ctx, "failed to commit the transaction", zap.Error(err))
+		xlog.Error(ctx, "failed to commit the transaction", xfield.Error(err))
 		return err
 	}
 	return nil

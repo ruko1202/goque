@@ -59,7 +59,7 @@ bin-deps-db:
 #   - mockgen: mock code generator for testing
 .PHONY: bin-deps
 bin-deps: bin-deps-db
-	GOBIN=$(GOBIN) go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.3.0 && \
+	GOBIN=$(GOBIN) go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.11.2 && \
 	GOBIN=$(GOBIN) go install go.uber.org/mock/mockgen@v0.6.0
 	
 # -------------------------------------

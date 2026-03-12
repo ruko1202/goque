@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/ruko1202/xlog"
-	"go.uber.org/zap"
+	"github.com/ruko1202/xlog/xfield"
 )
 
 func mockProcess(ctx context.Context, process string, processingTime time.Duration, errorRatePercent int64) error {
@@ -17,7 +17,7 @@ func mockProcess(ctx context.Context, process string, processingTime time.Durati
 			return fmt.Errorf("%s processing timed out", process)
 		}
 		xlog.Info(ctx, "process finish successfully",
-			zap.Duration("processingTime", processingTime),
+			xfield.Duration("processingTime", processingTime),
 		)
 		return nil
 	case <-ctx.Done():

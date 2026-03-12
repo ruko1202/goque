@@ -2,12 +2,10 @@ package config
 
 import (
 	"log"
-
-	"go.uber.org/zap"
 )
 
-func InitLogger() *zap.Logger {
-	logger, err := zap.NewProduction()
+func InitLogger() *xfield.Logger {
+	logger, err := xfield.NewProduction()
 	if err != nil {
 		log.Fatalf("Failed to initialize logger: %v", err)
 	}

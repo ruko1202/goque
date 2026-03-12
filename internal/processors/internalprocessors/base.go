@@ -9,7 +9,7 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/ruko1202/xlog"
-	"go.uber.org/zap"
+	"github.com/ruko1202/xlog/xfield"
 
 	"github.com/ruko1202/goque/internal/entity"
 	"github.com/ruko1202/goque/internal/metrics"
@@ -87,7 +87,7 @@ func (p *baseProcessor) run(ctx context.Context) {
 			xlog.Info(ctx, "start processing")
 			err := p.doProcessQueue(ctx)
 			if err != nil {
-				xlog.Error(ctx, "process failed", zap.Error(err))
+				xlog.Error(ctx, "process failed", xfield.Error(err))
 			}
 
 			xlog.Info(ctx, "stop processing")
@@ -109,8 +109,8 @@ func (p *baseProcessor) doProcessQueue(ctx context.Context) error {
 	}
 
 	xlog.WithFields(ctx,
-		zap.String("action", p.processorName),
-		zap.Duration("timeout", p.processTimeout),
+		xfield.String("action", p.processorName),
+		xfield.Duration("timeout", p.processTimeout),
 	)
 
 	ctx, cancel := context.WithTimeout(ctx, p.processTimeout)
@@ -121,7 +121,7 @@ func (p *baseProcessor) doProcessQueue(ctx context.Context) error {
 
 	processedTasks, err := p.processQueueFunc(ctx, p.processTaskType)
 	if err != nil {
-		xlog.Error(ctx, "process queue failed", zap.Error(err))
+		xlog.Error(ctx, "process queue failed", xfield.Error(err))
 		return fmt.Errorf("process queue failed: %w", err)
 	}
 
@@ -131,13 +131,13 @@ func (p *baseProcessor) doProcessQueue(ctx context.Context) error {
 
 	for _, task := range processedTasks {
 		xlog.Info(ctx, "processed queue task",
-			zap.String("taskID", task.ID.String()),
-			zap.String("externalID", task.ExternalID),
-			zap.String("type", task.Type),
-			zap.String("status", task.Status),
-			zap.Any("errors", task.Errors),
-			zap.Time("createdAt", task.CreatedAt),
-			zap.Any("updatedAt", task.UpdatedAt),
+			xfield.String("taskID", task.ID.String()),
+			xfield.String("externalID", task.ExternalID),
+			xfield.String("type", task.Type),
+			xfield.String("status", task.Status),
+			xfield.Any("errors", task.Errors),
+			xfield.Time("createdAt", task.CreatedAt),
+			xfield.Any("updatedAt", task.UpdatedAt),
 		)
 	}
 	return nil

@@ -10,7 +10,7 @@ import (
 	"example/internal/models"
 
 	"github.com/ruko1202/xlog"
-	"go.uber.org/zap"
+	"github.com/ruko1202/xlog/xfield"
 
 	"github.com/ruko1202/goque"
 )
@@ -26,7 +26,7 @@ func NewEmailProcessor() *EmailProcessor {
 // ProcessTask implements the TaskProcessor interface for email tasks.
 func (p *EmailProcessor) ProcessTask(ctx context.Context, task *goque.Task) error {
 	ctx = xlog.WithOperation(ctx, "EmailProcessor",
-		zap.String("task_id", task.ID.String()),
+		xfield.String("task_id", task.ID.String()),
 	)
 	var payload models.EmailPayload
 	if err := json.Unmarshal([]byte(task.Payload), &payload); err != nil {
@@ -34,9 +34,9 @@ func (p *EmailProcessor) ProcessTask(ctx context.Context, task *goque.Task) erro
 	}
 
 	ctx = xlog.WithFields(ctx,
-		zap.Any("payload", payload),
-		zap.String("subject", payload.Subject),
-		zap.String("to", payload.To),
+		xfield.Any("payload", payload),
+		xfield.String("subject", payload.Subject),
+		xfield.String("to", payload.To),
 	)
 
 	xlog.Info(ctx, "Processing email task")

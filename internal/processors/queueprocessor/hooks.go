@@ -5,8 +5,8 @@ import (
 	"errors"
 
 	"github.com/ruko1202/xlog"
+	"github.com/ruko1202/xlog/xfield"
 	"github.com/samber/lo"
-	"go.uber.org/zap"
 
 	"github.com/ruko1202/goque/internal/metrics"
 
@@ -23,12 +23,12 @@ type (
 // LoggingBeforeProcessing default log before processing the task.
 func LoggingBeforeProcessing(ctx context.Context, task *entity.Task) {
 	xlog.Info(ctx, "processing task",
-		zap.String("externalID", task.ExternalID),
-		zap.String("type", task.Type),
-		zap.String("status", task.Status),
-		zap.String("errors", lo.FromPtr(task.Errors)),
-		zap.Time("createdAt", task.CreatedAt),
-		zap.Any("updatedAt", task.UpdatedAt),
+		xfield.String("externalID", task.ExternalID),
+		xfield.String("type", task.Type),
+		xfield.String("status", task.Status),
+		xfield.String("errors", lo.FromPtr(task.Errors)),
+		xfield.Time("createdAt", task.CreatedAt),
+		xfield.Any("updatedAt", task.UpdatedAt),
 	)
 }
 
@@ -36,13 +36,13 @@ func LoggingBeforeProcessing(ctx context.Context, task *entity.Task) {
 func LoggingAfterProcessing(ctx context.Context, task *entity.Task, err error) {
 	if err != nil {
 		xlog.Error(ctx, "failed to process task",
-			zap.String("externalID", task.ExternalID),
-			zap.String("type", task.Type),
-			zap.String("status", task.Status),
-			zap.String("errors", lo.FromPtr(task.Errors)),
-			zap.Time("createdAt", task.CreatedAt),
-			zap.Any("updatedAt", task.UpdatedAt),
-			zap.Error(err),
+			xfield.String("externalID", task.ExternalID),
+			xfield.String("type", task.Type),
+			xfield.String("status", task.Status),
+			xfield.String("errors", lo.FromPtr(task.Errors)),
+			xfield.Time("createdAt", task.CreatedAt),
+			xfield.Any("updatedAt", task.UpdatedAt),
+			xfield.Error(err),
 		)
 		return
 	}
@@ -55,12 +55,12 @@ func (p *GoqueProcessor) updateTaskStateBeforeProcessing(ctx context.Context, ta
 
 	err := p.taskStorage.UpdateTask(ctx, task.ID, task)
 	if err != nil {
-		xlog.Error(ctx, "failed to update task state", zap.Error(err))
+		xlog.Error(ctx, "failed to update task state", xfield.Error(err))
 	}
 }
 
 func (p *GoqueProcessor) updateTaskState(ctx context.Context, task *entity.Task, taskErr error) {
-	xlog.WithFields(ctx, zap.String("processor.action", "updateTaskState"))
+	xlog.WithFields(ctx, xfield.String("processor.action", "updateTaskState"))
 	ctx = context.WithoutCancel(ctx)
 
 	switch {
@@ -84,7 +84,7 @@ func (p *GoqueProcessor) updateTaskState(ctx context.Context, task *entity.Task,
 	}
 	err := p.taskStorage.UpdateTask(ctx, task.ID, task)
 	if err != nil {
-		xlog.Error(ctx, "failed to update task state", zap.Error(err))
+		xlog.Error(ctx, "failed to update task state", xfield.Error(err))
 	}
 }
 
@@ -96,7 +96,7 @@ func (p *GoqueProcessor) returnTaskWhenGracefulShutdown(ctx context.Context, tas
 
 	err := p.taskStorage.UpdateTask(ctx, task.ID, task)
 	if err != nil {
-		xlog.Error(ctx, "failed to update task state", zap.Error(err))
+		xlog.Error(ctx, "failed to update task state", xfield.Error(err))
 	}
 }
 

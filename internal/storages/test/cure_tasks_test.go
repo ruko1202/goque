@@ -29,7 +29,7 @@ func testCureTasks(t *testing.T, storage storages.AdvancedTaskStorage) {
 
 	t.Run("ok", func(t *testing.T) {
 		t.Parallel()
-		ctx := xlog.ContextWithLogger(ctx, zaptest.NewLogger(t))
+		ctx := xlog.ContextWithLogger(ctx, xlog.NewZapAdapter(zaptest.NewLogger(t)))
 
 		task := makeTaskWithStatus(ctx, t, storage, "test cure task"+uuid.NewString(), entity.TaskStatusPending)
 		task.UpdatedAt = lo.ToPtr(xtime.Now().Add(-time.Minute))

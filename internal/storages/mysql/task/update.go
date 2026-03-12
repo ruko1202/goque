@@ -6,8 +6,8 @@ import (
 	"github.com/go-jet/jet/v2/mysql"
 	"github.com/google/uuid"
 	"github.com/ruko1202/xlog"
+	"github.com/ruko1202/xlog/xfield"
 	"github.com/samber/lo"
-	"go.uber.org/zap"
 
 	"github.com/ruko1202/goque/internal/entity"
 	"github.com/ruko1202/goque/internal/pkg/generated/mysql/goque/model"
@@ -29,7 +29,7 @@ func (s *Storage) HardUpdateTask(ctx context.Context, taskID uuid.UUID, task *en
 
 func (s *Storage) updateTaskTx(ctx context.Context, tx dbutils.DBTx, taskID string, task *model.Task) error {
 	ctx = xlog.WithOperation(ctx, "storage.UpdateTask",
-		zap.String("task_id", taskID),
+		xfield.String("task_id", taskID),
 	)
 
 	stmt := table.Task.
@@ -53,7 +53,7 @@ func (s *Storage) updateTaskTx(ctx context.Context, tx dbutils.DBTx, taskID stri
 
 	_, err := tx.ExecContext(ctx, query, args...)
 	if err != nil {
-		xlog.Error(ctx, "failed to update task", zap.Error(err))
+		xlog.Error(ctx, "failed to update task", xfield.Error(err))
 		return err
 	}
 
@@ -85,7 +85,7 @@ func (s *Storage) batchUpdateTasksStatusTx(ctx context.Context, tx dbutils.DBTx,
 
 	_, err := tx.ExecContext(ctx, query, args...)
 	if err != nil {
-		xlog.Error(ctx, "failed to update task", zap.Error(err))
+		xlog.Error(ctx, "failed to update task", xfield.Error(err))
 		return err
 	}
 

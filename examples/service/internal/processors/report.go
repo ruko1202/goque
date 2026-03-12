@@ -10,7 +10,7 @@ import (
 	"example/internal/models"
 
 	"github.com/ruko1202/xlog"
-	"go.uber.org/zap"
+	"github.com/ruko1202/xlog/xfield"
 
 	"github.com/ruko1202/goque"
 )
@@ -26,7 +26,7 @@ func NewReportProcessor() *ReportProcessor {
 // ProcessTask implements the TaskProcessor interface for report tasks.
 func (p *ReportProcessor) ProcessTask(ctx context.Context, task *goque.Task) error {
 	ctx = xlog.WithOperation(ctx, "ReportProcessor",
-		zap.String("task_id", task.ID.String()),
+		xfield.String("task_id", task.ID.String()),
 	)
 
 	var payload models.ReportPayload
@@ -35,8 +35,8 @@ func (p *ReportProcessor) ProcessTask(ctx context.Context, task *goque.Task) err
 	}
 
 	ctx = xlog.WithFields(ctx,
-		zap.String("report_type", payload.ReportType),
-		zap.String("format", payload.Format),
+		xfield.String("report_type", payload.ReportType),
+		xfield.String("format", payload.Format),
 	)
 
 	xlog.Info(ctx, "Processing report task")

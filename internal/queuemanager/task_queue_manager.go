@@ -8,7 +8,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/ruko1202/xlog"
-	"go.uber.org/zap"
+	"github.com/ruko1202/xlog/xfield"
 
 	"github.com/ruko1202/goque/internal/metrics"
 
@@ -46,9 +46,9 @@ func (m *TaskQueueManager) AddTaskToQueue(ctx context.Context, task *entity.Task
 
 	if len(task.Payload) > bigPayloadSize {
 		xlog.Warn(ctx, "big payload size detected - may cause performance problems",
-			zap.Int("payload_size", len(task.Payload)),
-			zap.String("task_id", task.ID.String()),
-			zap.String("task_type", task.Type))
+			xfield.Int("payload_size", len(task.Payload)),
+			xfield.String("task_id", task.ID.String()),
+			xfield.String("task_type", task.Type))
 	}
 
 	err := m.taskStorage.AddTask(ctx, task)

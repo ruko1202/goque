@@ -6,7 +6,7 @@ import (
 	"github.com/jmoiron/sqlx"
 	_ "github.com/lib/pq"
 	"github.com/ruko1202/xlog"
-	"go.uber.org/zap"
+	"github.com/ruko1202/xlog/xfield"
 )
 
 // NewDB creates a new sqlx database connection based on configuration.
@@ -14,12 +14,12 @@ import (
 func NewDB(ctx context.Context, driver, dsn string) *sqlx.DB {
 	db, err := sqlx.Open(driver, dsn)
 	if err != nil {
-		xlog.Fatal(ctx, "Failed to open database", zap.Error(err))
+		xlog.Fatal(ctx, "Failed to open database", xfield.Error(err))
 	}
 
 	if err := db.Ping(); err != nil {
 		db.Close()
-		xlog.Fatal(ctx, "Failed to ping database", zap.Error(err))
+		xlog.Fatal(ctx, "Failed to ping database", xfield.Error(err))
 	}
 
 	return db

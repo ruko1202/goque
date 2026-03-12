@@ -7,8 +7,8 @@ import (
 	"github.com/go-jet/jet/v2/mysql"
 	"github.com/jmoiron/sqlx"
 	"github.com/ruko1202/xlog"
+	"github.com/ruko1202/xlog/xfield"
 	"github.com/samber/lo"
-	"go.uber.org/zap"
 
 	"github.com/ruko1202/goque/internal/entity"
 	"github.com/ruko1202/goque/internal/pkg/generated/mysql/goque/model"
@@ -25,8 +25,8 @@ func (s *Storage) DeleteTasks(
 	updatedAtTimeAgo time.Duration,
 ) ([]*entity.Task, error) {
 	ctx = xlog.WithOperation(ctx, "storage.DeleteTasks",
-		zap.Any("statuses", statuses),
-		zap.Duration("updated_at_time_ago", updatedAtTimeAgo),
+		xfield.Any("statuses", statuses),
+		xfield.Duration("updated_at_time_ago", updatedAtTimeAgo),
 	)
 
 	tasks := make([]*model.Task, 0)
@@ -38,14 +38,14 @@ func (s *Storage) DeleteTasks(
 			UpdatedAtTimeAgo: lo.ToPtr(updatedAtTimeAgo),
 		}, 1000)
 		if err != nil {
-			xlog.Error(ctx, "failed to select tasks for deletion", zap.Error(err))
+			xlog.Error(ctx, "failed to select tasks for deletion", xfield.Error(err))
 			return err
 		}
 
 		return s.deleteTasksTx(ctx, tx, tasks)
 	})
 	if err != nil {
-		xlog.Error(ctx, "failed to delete tasks", zap.Error(err))
+		xlog.Error(ctx, "failed to delete tasks", xfield.Error(err))
 		return nil, err
 	}
 

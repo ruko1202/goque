@@ -16,7 +16,7 @@ import (
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
 	"github.com/ruko1202/xlog"
-	"go.uber.org/zap"
+	"github.com/ruko1202/xlog/xfield"
 
 	"github.com/ruko1202/goque"
 )
@@ -30,7 +30,7 @@ func main() {
 	xlog.Info(ctx, "Starting Goque example service")
 	cfg, err := config.Load()
 	if err != nil {
-		xlog.Fatal(ctx, "Failed to load configuration", zap.Error(err))
+		xlog.Fatal(ctx, "Failed to load configuration", xfield.Error(err))
 	}
 
 	// Configure metrics
@@ -44,7 +44,7 @@ func main() {
 	goqueInst := initGoque(cfg, storage)
 	if err := goqueInst.Run(ctx); err != nil {
 		cancel()
-		xlog.Fatal(ctx, "Failed to run goque", zap.Error(err))
+		xlog.Fatal(ctx, "Failed to run goque", xfield.Error(err))
 	}
 
 	queueManager := goque.NewTaskQueueManager(storage)
@@ -63,10 +63,10 @@ func main() {
 	server := initHTTPServer(application)
 	go func() {
 		addr := fmt.Sprintf("%s:%d", cfg.Server.Host, cfg.Server.Port)
-		xlog.Info(ctx, "Starting HTTP server", zap.String("address", addr))
+		xlog.Info(ctx, "Starting HTTP server", xfield.String("address", addr))
 		if err := server.Start(addr); err != nil {
 			cancel()
-			xlog.Fatal(ctx, "Server error", zap.Error(err))
+			xlog.Fatal(ctx, "Server error", xfield.Error(err))
 		}
 	}()
 
@@ -76,7 +76,7 @@ func main() {
 func initStorage(ctx context.Context, db *sqlx.DB) goque.TaskStorage {
 	storage, err := goque.NewStorage(db)
 	if err != nil {
-		xlog.Fatal(ctx, "Failed to create storage", zap.Error(err))
+		xlog.Fatal(ctx, "Failed to create storage", xfield.Error(err))
 	}
 	return storage
 }
@@ -150,7 +150,7 @@ func waitForShutdown(ctx context.Context, server *echo.Echo) {
 	xlog.Info(ctx, "Shutting down server...")
 
 	if err := server.Shutdown(ctx); err != nil {
-		xlog.Error(ctx, "Error shutting down HTTP server", zap.Error(err))
+		xlog.Error(ctx, "Error shutting down HTTP server", xfield.Error(err))
 	}
 
 	xlog.Info(ctx, "Server stopped successfully")

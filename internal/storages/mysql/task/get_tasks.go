@@ -4,7 +4,7 @@ import (
 	"context"
 
 	"github.com/ruko1202/xlog"
-	"go.uber.org/zap"
+	"github.com/ruko1202/xlog/xfield"
 
 	"github.com/ruko1202/goque/internal/entity"
 	"github.com/ruko1202/goque/internal/pkg/generated/mysql/goque/model"
@@ -16,7 +16,7 @@ import (
 // GetTasks retrieves tasks matching the filter criteria with a specified limit.
 func (s *Storage) GetTasks(ctx context.Context, filter *dbentity.GetTasksFilter, limit int64) ([]*entity.Task, error) {
 	ctx = xlog.WithOperation(ctx, "storage.GetTasks",
-		zap.Any("filter", filter),
+		xfield.Any("filter", filter),
 	)
 
 	tasks, err := s.getTasksByFilterTx(ctx, s.db, filter, limit)
@@ -29,7 +29,7 @@ func (s *Storage) GetTasks(ctx context.Context, filter *dbentity.GetTasksFilter,
 func (s *Storage) getTasksByFilterTx(ctx context.Context, tx dbutils.DBTx, filter *dbentity.GetTasksFilter, limit int64) ([]*model.Task, error) {
 	whereExpr, err := filter.BindMysqlWhereExpr()
 	if err != nil {
-		xlog.Error(ctx, "failed to bind filter", zap.Error(err))
+		xlog.Error(ctx, "failed to bind filter", xfield.Error(err))
 		return nil, err
 	}
 
@@ -43,7 +43,7 @@ func (s *Storage) getTasksByFilterTx(ctx context.Context, tx dbutils.DBTx, filte
 	tasks := make([]*model.Task, 0)
 	err = tx.SelectContext(ctx, &tasks, query, args...)
 	if err != nil {
-		xlog.Error(ctx, "failed to get tasks", zap.Error(err))
+		xlog.Error(ctx, "failed to get tasks", xfield.Error(err))
 		return nil, err
 	}
 
