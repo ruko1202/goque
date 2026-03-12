@@ -17,9 +17,11 @@ import (
 
 // GetTasksForProcessing retrieves and locks tasks ready for processing, updating their status to pending.
 func (s *Storage) GetTasksForProcessing(ctx context.Context, taskType entity.TaskType, limit int64) ([]*entity.Task, error) {
-	ctx = xlog.WithOperation(ctx, "storage.GetTasksForProcessing",
+	ctx, span := xlog.WithOperationSpan(ctx, "storage.GetTasksForProcessing",
+		xfield.String("db.type", "postgres"),
 		xfield.String("task_type", taskType),
 	)
+	defer span.End()
 
 	var tasks []*model.Task
 	err := dbutils.DoInTransaction(ctx, s.db, func(tx *sqlx.Tx) error {
@@ -40,6 +42,9 @@ func (s *Storage) GetTasksForProcessing(ctx context.Context, taskType entity.Tas
 }
 
 func (s *Storage) getTasksForProcessingTx(ctx context.Context, tx *sqlx.Tx, taskType entity.TaskType, limit int64) ([]*model.Task, error) {
+	ctx, span := xlog.WithOperationSpan(ctx, "storage.getTasksForProcessingTx")
+	defer span.End()
+
 	stmt := table.Task.
 		SELECT(table.Task.AllColumns).
 		WHERE(

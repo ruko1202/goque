@@ -5,7 +5,6 @@ import (
 	"fmt"
 
 	"github.com/google/uuid"
-	"github.com/ruko1202/xlog"
 	"github.com/samber/lo"
 
 	"github.com/ruko1202/goque/internal/utils/goquectx"
@@ -15,8 +14,6 @@ import (
 )
 
 func toDBModel(ctx context.Context, task *entity.Task) *model.Task {
-	xlog.AddSpanEvent(ctx, "toDBModel")
-
 	metadata := task.Metadata.Merge(goquectx.Values(ctx))
 	return &model.Task{
 		ID:            task.ID.String(),
@@ -34,8 +31,6 @@ func toDBModel(ctx context.Context, task *entity.Task) *model.Task {
 }
 
 func fromDBModel(ctx context.Context, task *model.Task) (*entity.Task, error) {
-	xlog.AddSpanEvent(ctx, "fromDBModel")
-
 	id, err := uuid.Parse(task.ID)
 	if err != nil {
 		return nil, fmt.Errorf("parse task id: %w", err)
@@ -56,8 +51,6 @@ func fromDBModel(ctx context.Context, task *model.Task) (*entity.Task, error) {
 }
 
 func fromDBModels(ctx context.Context, dbTasks []*model.Task) ([]*entity.Task, error) {
-	xlog.AddSpanEvent(ctx, "fromDBModels")
-
 	tasks := make([]*entity.Task, 0, len(dbTasks))
 	for _, dbTask := range dbTasks {
 		task, err := fromDBModel(ctx, dbTask)

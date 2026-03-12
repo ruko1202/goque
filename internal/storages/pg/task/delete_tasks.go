@@ -22,10 +22,12 @@ func (s *Storage) DeleteTasks(
 	statuses []entity.TaskStatus,
 	updatedAtTimeAgo time.Duration,
 ) ([]*entity.Task, error) {
-	ctx = xlog.WithOperation(ctx, "storage.DeleteTasks",
+	ctx, span := xlog.WithOperationSpan(ctx, "storage.DeleteTasks",
+		xfield.String("db.type", "postgres"),
 		xfield.Any("statuses", statuses),
 		xfield.Duration("updated_at_time_ago", updatedAtTimeAgo),
 	)
+	defer span.End()
 
 	stmt := table.Task.DELETE().
 		WHERE(

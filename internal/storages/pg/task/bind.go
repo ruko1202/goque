@@ -3,11 +3,10 @@ package task
 import (
 	"context"
 
-	"github.com/samber/lo"
-
 	"github.com/ruko1202/goque/internal/entity"
 	"github.com/ruko1202/goque/internal/pkg/generated/postgres/public/model"
 	"github.com/ruko1202/goque/internal/utils/goquectx"
+	"github.com/samber/lo"
 )
 
 func toDBModel(ctx context.Context, task *entity.Task) *model.Task {

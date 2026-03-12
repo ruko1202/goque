@@ -24,10 +24,12 @@ func (s *Storage) CureTasks(
 	updatedAtTimeAgo time.Duration,
 	comment string,
 ) ([]*entity.Task, error) {
-	ctx = xlog.WithOperation(ctx, "storage.CureTasks",
+	ctx, span := xlog.WithOperationSpan(ctx, "storage.CureTasks",
+		xfield.String("db.type", "postgres"),
 		xfield.Any("statuses", statuses),
 		xfield.Duration("updated_at_time_ago", updatedAtTimeAgo),
 	)
+	defer span.End()
 
 	stmt := table.Task.
 		UPDATE(
