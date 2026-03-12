@@ -17,6 +17,12 @@ import (
 
 // GetTask retrieves a single task by its ID from the database.
 func (s *Storage) GetTask(ctx context.Context, id uuid.UUID) (*entity.Task, error) {
+	ctx, span := xlog.WithOperationSpan(ctx, "storage.GetTask",
+		xfield.String("db.type", "mysql"),
+		xfield.String("task_id", id.String()),
+	)
+	defer span.End()
+
 	task, err := s.getTaskTx(ctx, s.db, id)
 	if err != nil {
 		return nil, err
@@ -26,9 +32,8 @@ func (s *Storage) GetTask(ctx context.Context, id uuid.UUID) (*entity.Task, erro
 }
 
 func (s *Storage) getTaskTx(ctx context.Context, tx dbutils.DBTx, id uuid.UUID) (*model.Task, error) {
-	ctx = xlog.WithOperation(ctx, "storage.GetTask",
-		xfield.String("task_id", id.String()),
-	)
+	ctx, span := xlog.WithOperationSpan(ctx, "storage.getTaskTx")
+	defer span.End()
 
 	stmt := table.Task.
 		SELECT(table.Task.AllColumns).

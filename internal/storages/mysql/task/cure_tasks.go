@@ -27,10 +27,12 @@ func (s *Storage) CureTasks(
 	updatedAtTimeAgo time.Duration,
 	comment string,
 ) ([]*entity.Task, error) {
-	ctx = xlog.WithOperation(ctx, "storage.CureTasks",
+	ctx, span := xlog.WithOperationSpan(ctx, "storage.CureTasks",
+		xfield.String("db.type", "mysql"),
 		xfield.Any("statuses", statuses),
 		xfield.Duration("updated_at_time_ago", updatedAtTimeAgo),
 	)
+	defer span.End()
 
 	tasks := make([]*model.Task, 0)
 	err := dbutils.DoInTransaction(ctx, s.db, func(tx *sqlx.Tx) error {
@@ -56,6 +58,9 @@ func (s *Storage) CureTasks(
 }
 
 func (s *Storage) cureTaskTx(ctx context.Context, tx dbutils.DBTx, tasks []*model.Task, comment string) error {
+	ctx, span := xlog.WithOperationSpan(ctx, "storage.cureTaskTx")
+	defer span.End()
+
 	if len(tasks) == 0 {
 		return nil
 	}

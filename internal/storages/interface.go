@@ -28,5 +28,5 @@ type Task interface {
 type AdvancedTaskStorage interface {
 	Task
 	HardUpdateTask(ctx context.Context, taskID uuid.UUID, task *entity.Task) error
-	GetDB() *sqlx.DB
+	GetDB(ctx context.Context) *sqlx.DB
 }

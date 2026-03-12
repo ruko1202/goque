@@ -2,7 +2,11 @@
 package mysqltask
 
 import (
+	"context"
+
 	"github.com/jmoiron/sqlx"
+	"github.com/ruko1202/xlog"
+	"github.com/ruko1202/xlog/xfield"
 
 	"github.com/ruko1202/goque/internal/storages"
 )
@@ -20,6 +24,9 @@ func NewStorage(db *sqlx.DB) *Storage {
 }
 
 // GetDB returns the underlying database connection.
-func (s *Storage) GetDB() *sqlx.DB {
+func (s *Storage) GetDB(ctx context.Context) *sqlx.DB {
+	ctx, span := xlog.WithOperationSpan(ctx, "storage.GetDB", xfield.String("db.type", "mysql"))
+	defer span.End()
+
 	return s.db
 }
