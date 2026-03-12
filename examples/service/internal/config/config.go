@@ -1,3 +1,4 @@
+// Package config holds application configuration.
 package config
 
 import (
@@ -5,16 +6,17 @@ import (
 	"strings"
 	"time"
 
-	_ "github.com/lib/pq"
 	"github.com/spf13/viper"
 )
 
 // Config holds the application configuration.
 type Config struct {
+	AppName       string
 	Server        ServerConfig
 	Database      DatabaseConfig
 	Queue         QueueConfig
 	TaskGenerator TaskGeneratorConfig
+	TracerConfig  TracerConfig
 }
 
 // ServerConfig holds server-related configuration.
@@ -32,7 +34,7 @@ type DatabaseConfig struct {
 // QueueConfig holds queue processing configuration.
 type QueueConfig struct {
 	Workers           int
-	MaxAttempts       int
+	MaxAttempts       int32
 	TaskTimeout       time.Duration
 	HealerInterval    time.Duration
 	CleanerInterval   time.Duration
@@ -46,6 +48,11 @@ type TaskGeneratorConfig struct {
 	Interval time.Duration
 	MinTasks int
 	MaxTasks int
+}
+
+type TracerConfig struct {
+	Host string
+	Port int
 }
 
 // Load loads configuration from environment variables and config file.
@@ -67,18 +74,17 @@ func Load() (*Config, error) {
 	v.AddConfigPath("./config")
 
 	if err := v.ReadInConfig(); err != nil {
-		// Config file is optional
-		if _, ok := err.(viper.ConfigFileNotFoundError); !ok {
-			return nil, fmt.Errorf("error reading config file: %w", err)
-		}
+		return nil, fmt.Errorf("error reading config file: %w", err)
 	}
 
-	var cfg Config
-	if err := v.Unmarshal(&cfg); err != nil {
+	cfg := &Config{
+		AppName: "goque-example-service",
+	}
+	if err := v.Unmarshal(cfg); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal config: %w", err)
 	}
 
-	return &cfg, nil
+	return cfg, nil
 }
 
 func setDefaults(v *viper.Viper) {
@@ -104,4 +110,8 @@ func setDefaults(v *viper.Viper) {
 	v.SetDefault("taskgenerator.interval", 10*time.Second)
 	v.SetDefault("taskgenerator.mintasks", 1)
 	v.SetDefault("taskgenerator.maxtasks", 5)
+
+	// Task generator defaults
+	v.SetDefault("tracerconfig.host", "localhost")
+	v.SetDefault("tracerconfig.port", 4317)
 }

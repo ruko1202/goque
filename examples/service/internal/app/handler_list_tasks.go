@@ -17,7 +17,8 @@ import (
 // Note: This is a simplified version for the example. In production, you would want to
 // implement proper filtering at the database level for better performance.
 func (a *Application) ListTasksHandler(c echo.Context) error {
-	ctx := c.Request().Context()
+	ctx, span := xlog.WithOperationSpan(c.Request().Context(), "app.ListTasksHandler")
+	defer span.End()
 
 	// Parse query parameters
 	page, _ := strconv.Atoi(c.QueryParam("page"))
@@ -43,12 +44,12 @@ func (a *Application) ListTasksHandler(c echo.Context) error {
 	filter := &goque.TaskFilter{}
 
 	if statusFilter != "" {
-		status := goque.TaskStatus(statusFilter)
+		status := statusFilter
 		filter.Status = &status
 	}
 
 	if typeFilter != "" {
-		taskType := goque.TaskType(typeFilter)
+		taskType := typeFilter
 		filter.TaskType = &taskType
 	}
 

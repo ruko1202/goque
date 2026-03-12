@@ -15,7 +15,8 @@ import (
 
 // CreateTaskHandler handles POST /api/tasks requests.
 func (a *Application) CreateTaskHandler(c echo.Context) error {
-	ctx := c.Request().Context()
+	ctx, span := xlog.WithOperationSpan(c.Request().Context(), "app.CreateTaskHandler")
+	defer span.End()
 
 	var req models.CreateTaskRequest
 	if err := c.Bind(&req); err != nil {

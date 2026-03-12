@@ -17,6 +17,7 @@ import (
 	"github.com/labstack/echo/v4/middleware"
 	"github.com/ruko1202/xlog"
 	"github.com/ruko1202/xlog/xfield"
+	"golang.org/x/sync/errgroup"
 
 	"github.com/ruko1202/goque"
 )
@@ -25,7 +26,9 @@ func main() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	ctx = xlog.ContextWithLogger(ctx, config.InitLogger())
+	logger := config.InitLogger()
+	xlog.ReplaceGlobalLogger(logger)
+	ctx = xlog.ContextWithLogger(ctx, logger)
 
 	xlog.Info(ctx, "Starting Goque example service")
 	cfg, err := config.Load()
@@ -34,10 +37,13 @@ func main() {
 	}
 
 	// Configure metrics
-	goque.SetMetricsServiceName("goque-example-service")
+	stop := initExporters(ctx, cfg)
+	defer stop()
 
 	db := config.NewDB(ctx, cfg.Database.Driver, cfg.Database.DSN)
-	defer db.Close()
+	defer func() {
+		_ = db.Close()
+	}()
 
 	storage := initStorage(ctx, db)
 
@@ -60,7 +66,7 @@ func main() {
 
 	application := app.New(cfg, queueManager)
 
-	server := initHTTPServer(application)
+	server := initHTTPServer(ctx, application)
 	go func() {
 		addr := fmt.Sprintf("%s:%d", cfg.Server.Host, cfg.Server.Port)
 		xlog.Info(ctx, "Starting HTTP server", xfield.String("address", addr))
@@ -89,7 +95,7 @@ func initGoque(cfg *config.Config, storage goque.TaskStorage) *goque.Goque {
 		models.TaskTypeEmail,
 		emailProcessor,
 		goque.WithWorkersCount(cfg.Queue.Workers),
-		goque.WithTaskProcessingMaxAttempts(int32(cfg.Queue.MaxAttempts)),
+		goque.WithTaskProcessingMaxAttempts(cfg.Queue.MaxAttempts),
 		goque.WithTaskProcessingTimeout(cfg.Queue.TaskTimeout),
 	)
 
@@ -98,7 +104,7 @@ func initGoque(cfg *config.Config, storage goque.TaskStorage) *goque.Goque {
 		models.TaskTypeNotification,
 		notificationProcessor,
 		goque.WithWorkersCount(cfg.Queue.Workers),
-		goque.WithTaskProcessingMaxAttempts(int32(cfg.Queue.MaxAttempts)),
+		goque.WithTaskProcessingMaxAttempts(cfg.Queue.MaxAttempts),
 		goque.WithTaskProcessingTimeout(cfg.Queue.TaskTimeout),
 	)
 
@@ -107,7 +113,7 @@ func initGoque(cfg *config.Config, storage goque.TaskStorage) *goque.Goque {
 		models.TaskTypeReport,
 		reportProcessor,
 		goque.WithWorkersCount(cfg.Queue.Workers),
-		goque.WithTaskProcessingMaxAttempts(int32(cfg.Queue.MaxAttempts)),
+		goque.WithTaskProcessingMaxAttempts(cfg.Queue.MaxAttempts),
 		goque.WithTaskProcessingTimeout(cfg.Queue.TaskTimeout),
 	)
 
@@ -116,20 +122,20 @@ func initGoque(cfg *config.Config, storage goque.TaskStorage) *goque.Goque {
 		models.TaskTypeWebhook,
 		webhookProcessor,
 		goque.WithWorkersCount(cfg.Queue.Workers),
-		goque.WithTaskProcessingMaxAttempts(int32(cfg.Queue.MaxAttempts)),
+		goque.WithTaskProcessingMaxAttempts(cfg.Queue.MaxAttempts),
 		goque.WithTaskProcessingTimeout(cfg.Queue.TaskTimeout),
 	)
 
 	return goqueInst
 }
 
-func initHTTPServer(application *app.Application) *echo.Echo {
+func initHTTPServer(ctx context.Context, application *app.Application) *echo.Echo {
 	e := echo.New()
 	e.HidePort = true
 	e.HideBanner = true
 
 	// Middleware
-	logger := xlog.LoggerFromContext(context.Background())
+	logger := xlog.LoggerFromContext(ctx)
 	e.Use(middleware.RequestID())
 	e.Use(app.XlogMiddleware(logger))
 	e.Use(middleware.Logger())
@@ -154,4 +160,31 @@ func waitForShutdown(ctx context.Context, server *echo.Echo) {
 	}
 
 	xlog.Info(ctx, "Server stopped successfully")
+}
+
+func initExporters(ctx context.Context, cfg *config.Config) func() {
+	xlog.ReplaceTracerName(cfg.AppName)
+	goque.SetMetricsServiceName(cfg.AppName)
+
+	otelRes, tracerProvider, err := config.InitTracerProvider(ctx, cfg)
+	if err != nil {
+		xlog.Panic(ctx, "failed to initialize OpenTelemetry", xfield.Error(err))
+	}
+
+	meterProvider, err := config.InitMetricExporter(otelRes)
+	if err != nil {
+		xlog.Panic(ctx, "failed to initialize OpenTelemetry metric exporter", xfield.Error(err))
+	}
+
+	return func() {
+		eg := errgroup.Group{}
+		eg.Go(func() error {
+			return tracerProvider.Shutdown(ctx)
+		})
+		eg.Go(func() error {
+			return meterProvider.Shutdown(ctx)
+		})
+
+		_ = eg.Wait()
+	}
 }

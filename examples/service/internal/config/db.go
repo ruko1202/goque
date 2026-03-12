@@ -4,7 +4,7 @@ import (
 	"context"
 
 	"github.com/jmoiron/sqlx"
-	_ "github.com/lib/pq"
+	_ "github.com/lib/pq" // PostgreSQL driver
 	"github.com/ruko1202/xlog"
 	"github.com/ruko1202/xlog/xfield"
 )
@@ -18,7 +18,7 @@ func NewDB(ctx context.Context, driver, dsn string) *sqlx.DB {
 	}
 
 	if err := db.Ping(); err != nil {
-		db.Close()
+		_ = db.Close()
 		xlog.Fatal(ctx, "Failed to ping database", xfield.Error(err))
 	}
 

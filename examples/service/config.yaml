@@ -22,3 +22,7 @@ taskgenerator:
   interval: 10s
   mintasks: 1
   maxtasks: 5
+
+tracerconfig:
+  host: otel-collector
+  port: 4317

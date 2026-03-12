@@ -3,10 +3,11 @@ package app
 import (
 	"github.com/labstack/echo/v4"
 	"github.com/ruko1202/xlog"
+	"github.com/ruko1202/xlog/xfield"
 )
 
 // XlogMiddleware adds the xlog logger to the request context.
-func XlogMiddleware(logger *xfield.Logger) echo.MiddlewareFunc {
+func XlogMiddleware(logger xlog.Logger) echo.MiddlewareFunc {
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
 		return func(c echo.Context) error {
 			// Get request ID if available

@@ -11,7 +11,8 @@ import (
 
 // GetTaskHandler handles GET /api/tasks/:id requests.
 func (a *Application) GetTaskHandler(c echo.Context) error {
-	ctx := c.Request().Context()
+	ctx, span := xlog.WithOperationSpan(c.Request().Context(), "app.GetTaskHandler")
+	defer span.End()
 
 	taskIDStr := c.Param("id")
 	taskID, err := uuid.Parse(taskIDStr)
@@ -30,8 +31,8 @@ func (a *Application) GetTaskHandler(c echo.Context) error {
 
 	xlog.Debug(ctx, "task retrieved successfully",
 		xfield.String("task_id", taskID.String()),
-		xfield.String("type", string(task.Type)),
-		xfield.String("status", string(task.Status)))
+		xfield.String("type", task.Type),
+		xfield.String("status", task.Status))
 
 	return c.JSON(http.StatusOK, toTaskResponse(task))
 }

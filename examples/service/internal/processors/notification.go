@@ -1,3 +1,4 @@
+//nolint:dupl
 package processors
 
 import (
@@ -25,9 +26,10 @@ func NewNotificationProcessor() *NotificationProcessor {
 
 // ProcessTask implements the TaskProcessor interface for notification tasks.
 func (p *NotificationProcessor) ProcessTask(ctx context.Context, task *goque.Task) error {
-	ctx = xlog.WithOperation(ctx, "NotificationProcessor",
+	ctx, span := xlog.WithOperationSpan(ctx, "NotificationProcessor",
 		xfield.String("task_id", task.ID.String()),
 	)
+	defer span.End()
 
 	var payload models.NotificationPayload
 	if err := json.Unmarshal([]byte(task.Payload), &payload); err != nil {
@@ -41,6 +43,6 @@ func (p *NotificationProcessor) ProcessTask(ctx context.Context, task *goque.Tas
 
 	xlog.Info(ctx, "Processing notification task")
 	// Simulate notification sending with random processing time (500ms-3s)
-	processingTime := time.Duration(500+rand.Intn(2_500)) * time.Millisecond
+	processingTime := time.Duration(500+rand.Intn(2_500)) * time.Millisecond //nolint:gosec
 	return mockProcess(ctx, "notification", processingTime, 15)
 }

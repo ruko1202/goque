@@ -1,3 +1,4 @@
+// Package processors
 package processors
 
 import (
@@ -13,6 +14,7 @@ import (
 func mockProcess(ctx context.Context, process string, processingTime time.Duration, errorRatePercent int64) error {
 	select {
 	case <-time.After(processingTime):
+		//nolint:gosec
 		if rand.Int63n(100) < errorRatePercent {
 			return fmt.Errorf("%s processing timed out", process)
 		}

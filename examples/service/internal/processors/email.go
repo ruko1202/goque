@@ -25,9 +25,11 @@ func NewEmailProcessor() *EmailProcessor {
 
 // ProcessTask implements the TaskProcessor interface for email tasks.
 func (p *EmailProcessor) ProcessTask(ctx context.Context, task *goque.Task) error {
-	ctx = xlog.WithOperation(ctx, "EmailProcessor",
+	ctx, span := xlog.WithOperationSpan(ctx, "EmailProcessor",
 		xfield.String("task_id", task.ID.String()),
 	)
+	defer span.End()
+
 	var payload models.EmailPayload
 	if err := json.Unmarshal([]byte(task.Payload), &payload); err != nil {
 		return fmt.Errorf("failed to unmarshal email payload: %w", err)
@@ -41,6 +43,6 @@ func (p *EmailProcessor) ProcessTask(ctx context.Context, task *goque.Task) erro
 
 	xlog.Info(ctx, "Processing email task")
 	// Simulate email sending with random processing time (100ms-3 seconds)
-	processingTime := time.Duration(100+rand.Intn(2_900)) * time.Millisecond
+	processingTime := time.Duration(100+rand.Intn(2_900)) * time.Millisecond //nolint:gosec
 	return mockProcess(ctx, "email notification", processingTime, 25)
 }

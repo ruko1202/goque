@@ -17,12 +17,10 @@ func SetupRoutes(e *echo.Echo, app *Application) {
 
 	// API routes
 	api := e.Group("/api")
-	{
-		// Tasks
-		api.POST("/tasks", app.CreateTaskHandler)
-		api.GET("/tasks", app.ListTasksHandler)
-		api.GET("/tasks/:id", app.GetTaskHandler)
-	}
+	// Tasks
+	api.POST("/tasks", app.CreateTaskHandler)
+	api.GET("/tasks", app.ListTasksHandler)
+	api.GET("/tasks/:id", app.GetTaskHandler)
 
 	// Serve static files
 	e.Static("/static", "web/static")
