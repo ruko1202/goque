@@ -1,7 +1,6 @@
 package testutils
 
 import (
-	"context"
 	"testing"
 
 	"github.com/ruko1202/goque/internal/storages"
@@ -17,7 +16,7 @@ func RunMultiDBTests(
 	t.Helper()
 
 	for _, storage := range taskStorages {
-		t.Run(storage.GetDB(context.Background()).DriverName(), func(t *testing.T) {
+		t.Run(storage.GetDB().DriverName(), func(t *testing.T) {
 			test(t, storage)
 		})
 	}

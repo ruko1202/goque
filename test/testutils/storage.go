@@ -46,6 +46,6 @@ func setupStorage(ctx context.Context, driver string) storages.AdvancedTaskStora
 // TearDownStorages closes all database connections for test cleanup.
 func TearDownStorages(taskStorages []storages.AdvancedTaskStorage) {
 	for _, storage := range taskStorages {
-		_ = storage.GetDB(context.Background()).Close()
+		_ = storage.GetDB().Close()
 	}
 }
