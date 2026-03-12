@@ -5,8 +5,9 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/ruko1202/goque/internal/entity"
 	"github.com/ruko1202/xlog"
+
+	"github.com/ruko1202/goque/internal/entity"
 )
 
 const (

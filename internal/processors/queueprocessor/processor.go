@@ -174,6 +174,9 @@ func (p *GoqueProcessor) runWithWorkerPool(ctx context.Context, workerPool *ants
 }
 
 func (p *GoqueProcessor) fetchAndProcess(ctx context.Context, workerPool *ants.Pool) error {
+	ctx, span := xlog.WithOperationSpan(ctx, "queue_processor.fetchAndProcess")
+	defer span.End()
+
 	for _, task := range p.fetchTasks(ctx) {
 		ctx := xlog.WithFields(ctx, xfield.String("taskID", task.ID.String()))
 
@@ -202,10 +205,10 @@ func (p *GoqueProcessor) fetchAndProcess(ctx context.Context, workerPool *ants.P
 }
 
 func (p *GoqueProcessor) fetchTasks(ctx context.Context) []*entity.Task {
-	ctx = xlog.WithFields(ctx,
-		xfield.String("processor.action", "fetchTasks"),
+	ctx, span := xlog.WithOperationSpan(ctx, "queue_processor.fetchTasks",
 		xfield.Duration("timeout", p.fetcher.timeout),
 	)
+	defer span.End()
 
 	ctx, cancel := context.WithTimeout(ctx, p.fetcher.timeout)
 	defer cancel()
@@ -223,26 +226,30 @@ func (p *GoqueProcessor) fetchTasks(ctx context.Context) []*entity.Task {
 }
 
 func (p *GoqueProcessor) callHooksBefore(ctx context.Context, task *entity.Task) {
-	ctx = xlog.WithFields(ctx, xfield.String("processor.action", "hooks before"))
+	ctx, span := xlog.WithOperationSpan(ctx, "queue_processor.callHooksBefore")
+	defer span.End()
 
 	lo.ForEach(p.processor.hooksBeforeProcessing, func(item HookBeforeProcessing, _ int) {
+		xlog.AddSpanEvent(ctx, getHookFuncName(item))
 		item(ctx, task)
 	})
 }
 
 func (p *GoqueProcessor) callHooksAfter(ctx context.Context, task *entity.Task, err error) {
-	ctx = xlog.WithFields(ctx, xfield.String("processor.action", "hooks after"))
+	ctx, span := xlog.WithOperationSpan(ctx, "queue_processor.callHooksAfter")
+	defer span.End()
 
 	lo.ForEach(p.processor.hooksAfterProcessing, func(item HookAfterProcessing, _ int) {
+		xlog.AddSpanEvent(ctx, getHookFuncName(item))
 		item(ctx, task, err)
 	})
 }
 
 func (p *GoqueProcessor) processTask(ctx context.Context, task *entity.Task) error {
-	ctx = xlog.WithFields(ctx,
-		xfield.String("processor.action", "processTask"),
+	ctx, span := xlog.WithOperationSpan(ctx, "queue_processor.processTask",
 		xfield.Duration("timeout", p.processor.timeout),
 	)
+	defer span.End()
 
 	ctx, cancel := context.WithTimeout(ctx, p.processor.timeout)
 	defer cancel()
