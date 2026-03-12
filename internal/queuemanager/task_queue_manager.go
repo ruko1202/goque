@@ -37,9 +37,10 @@ func NewTaskQueueManager(taskStorage storages.Task) *TaskQueueManager {
 // AsyncAddTaskToQueue adds a task to the queue asynchronously without waiting for completion.
 func (m *TaskQueueManager) AsyncAddTaskToQueue(ctx context.Context, task *entity.Task) {
 	ctx, span := xlog.WithOperationSpan(ctx, "task_queue_manager.AsyncAddTaskToQueue")
-	defer span.End()
-
-	go m.AddTaskToQueue(ctx, task) //nolint:errcheck
+	go func() {
+		defer span.End()
+		_ = m.AddTaskToQueue(ctx, task)
+	}()
 }
 
 // AddTaskToQueue adds a task to the queue and returns an error if the operation fails.
