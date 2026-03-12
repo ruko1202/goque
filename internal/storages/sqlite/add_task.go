@@ -13,10 +13,12 @@ import (
 
 // AddTask inserts a new task into the database.
 func (s *Storage) AddTask(ctx context.Context, task *entity.Task) error {
-	ctx = xlog.WithOperation(ctx, "storage.AddTask",
+	ctx, span := xlog.WithOperationSpan(ctx, "storage.AddTask",
+		xfield.String("db.type", "sqlite"),
 		xfield.String("task_id", task.ID.String()),
 		xfield.String("task_type", task.Type),
 	)
+	defer span.End()
 
 	// Validate JSON payload before insertion
 	if !dbutils.IsValidJSON(task.Payload) {

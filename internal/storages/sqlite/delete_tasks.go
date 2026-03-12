@@ -25,10 +25,12 @@ func (s *Storage) DeleteTasks(
 	statuses []entity.TaskStatus,
 	updatedAtTimeAgo time.Duration,
 ) ([]*entity.Task, error) {
-	ctx = xlog.WithOperation(ctx, "storage.DeleteTasks",
+	ctx, span := xlog.WithOperationSpan(ctx, "storage.DeleteTasks",
+		xfield.String("db.type", "sqlite"),
 		xfield.Any("statuses", statuses),
 		xfield.Duration("updated_at_time_ago", updatedAtTimeAgo),
 	)
+	defer span.End()
 
 	tasks := make([]*model.Task, 0)
 	err := dbutils.DoInTransaction(ctx, s.db, func(tx *sqlx.Tx) error {
@@ -54,6 +56,9 @@ func (s *Storage) DeleteTasks(
 }
 
 func (s *Storage) deleteTasksTx(ctx context.Context, tx dbutils.DBTx, tasks []*model.Task) error {
+	ctx, span := xlog.WithOperationSpan(ctx, "storage.deleteTasksTx")
+	defer span.End()
+
 	if len(tasks) == 0 {
 		return nil
 	}

@@ -17,9 +17,11 @@ import (
 
 // ResetAttempts resets the retry attempts counter for a task and sets its status back to new.
 func (s *Storage) ResetAttempts(ctx context.Context, id uuid.UUID) error {
-	ctx = xlog.WithOperation(ctx, "storage.ResetAttempts",
+	ctx, span := xlog.WithOperationSpan(ctx, "storage.ResetAttempts",
+		xfield.String("db.type", "sqlite"),
 		xfield.String("task_id", id.String()),
 	)
+	defer span.End()
 
 	err := dbutils.DoInTransaction(ctx, s.db, func(tx *sqlx.Tx) error {
 		task, err := s.getTaskTx(ctx, tx, id)

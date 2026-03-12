@@ -18,19 +18,30 @@ import (
 
 // UpdateTask updates an existing task in the database with the provided data.
 func (s *Storage) UpdateTask(ctx context.Context, taskID uuid.UUID, task *entity.Task) error {
+	ctx, span := xlog.WithOperationSpan(ctx, "storage.UpdateTask",
+		xfield.String("db.type", "sqlite"),
+		xfield.String("task_id", taskID.String()),
+	)
+	defer span.End()
+
 	task.UpdatedAt = lo.ToPtr(xtime.Now())
 	return s.updateTaskTx(ctx, s.db, taskID.String(), toDBModel(ctx, task))
 }
 
 // HardUpdateTask updates a task without automatically setting the updated_at timestamp.
 func (s *Storage) HardUpdateTask(ctx context.Context, taskID uuid.UUID, task *entity.Task) error {
+	ctx, span := xlog.WithOperationSpan(ctx, "storage.HardUpdateTask",
+		xfield.String("db.type", "sqlite"),
+		xfield.String("task_id", taskID.String()),
+	)
+	defer span.End()
+
 	return s.updateTaskTx(ctx, s.db, taskID.String(), toDBModel(ctx, task))
 }
 
 func (s *Storage) updateTaskTx(ctx context.Context, tx dbutils.DBTx, taskID string, task *model.Task) error {
-	ctx = xlog.WithOperation(ctx, "storage.UpdateTask",
-		xfield.String("task_id", taskID),
-	)
+	ctx, span := xlog.WithOperationSpan(ctx, "storage.updateTaskTx")
+	defer span.End()
 
 	stmt := table.Task.
 		UPDATE(
@@ -61,6 +72,9 @@ func (s *Storage) updateTaskTx(ctx context.Context, tx dbutils.DBTx, taskID stri
 }
 
 func (s *Storage) batchUpdateTasksStatusTx(ctx context.Context, tx dbutils.DBTx, tasks []*model.Task, newStatus string) error {
+	ctx, span := xlog.WithOperationSpan(ctx, "storage.batchUpdateTasksStatusTx")
+	defer span.End()
+
 	if len(tasks) == 0 {
 		return nil
 	}
