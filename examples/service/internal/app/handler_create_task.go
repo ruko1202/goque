@@ -6,7 +6,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
 	"github.com/ruko1202/xlog"
-	"go.uber.org/zap"
+	"github.com/ruko1202/xlog/xfield"
 
 	"example/internal/models"
 
@@ -15,19 +15,20 @@ import (
 
 // CreateTaskHandler handles POST /api/tasks requests.
 func (a *Application) CreateTaskHandler(c echo.Context) error {
-	ctx := c.Request().Context()
+	ctx, span := xlog.WithOperationSpan(c.Request().Context(), "app.CreateTaskHandler")
+	defer span.End()
 
 	var req models.CreateTaskRequest
 	if err := c.Bind(&req); err != nil {
-		xlog.Warn(ctx, "failed to bind request body", zap.Error(err))
+		xlog.Warn(ctx, "failed to bind request body", xfield.Error(err))
 		return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid request body"})
 	}
 
-	xlog.Info(ctx, "creating task", zap.String("type", req.Type), zap.String("external_id", req.ExternalID))
+	xlog.Info(ctx, "creating task", xfield.String("type", req.Type), xfield.String("external_id", req.ExternalID))
 
 	// Validate task type
 	if err := models.ValidateTaskType(req.Type); err != nil {
-		xlog.Warn(ctx, "invalid task type", zap.String("type", req.Type), zap.Error(err))
+		xlog.Warn(ctx, "invalid task type", xfield.String("type", req.Type), xfield.Error(err))
 		return c.JSON(http.StatusBadRequest, map[string]string{"error": err.Error()})
 	}
 
@@ -42,16 +43,16 @@ func (a *Application) CreateTaskHandler(c echo.Context) error {
 	// Add task to queue using TaskQueueManager
 	if err := a.queueManager.AddTaskToQueue(ctx, task); err != nil {
 		xlog.Error(ctx, "failed to create task",
-			zap.String("type", req.Type),
-			zap.String("external_id", req.ExternalID),
-			zap.Error(err))
+			xfield.String("type", req.Type),
+			xfield.String("external_id", req.ExternalID),
+			xfield.Error(err))
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "failed to create task"})
 	}
 
 	xlog.Info(ctx, "task created successfully",
-		zap.String("task_id", task.ID.String()),
-		zap.String("type", req.Type),
-		zap.String("external_id", req.ExternalID))
+		xfield.String("task_id", task.ID.String()),
+		xfield.String("type", req.Type),
+		xfield.String("external_id", req.ExternalID))
 
 	return c.JSON(http.StatusCreated, toTaskResponse(task))
 }

@@ -25,7 +25,7 @@ func testGet(t *testing.T, storage storages.AdvancedTaskStorage) {
 
 	t.Run("not found", func(t *testing.T) {
 		t.Parallel()
-		ctx := xlog.ContextWithLogger(ctx, zaptest.NewLogger(t))
+		ctx := xlog.ContextWithLogger(ctx, xlog.NewZapAdapter(zaptest.NewLogger(t)))
 
 		task, err := storage.GetTask(ctx, uuid.New())
 		require.Nil(t, task)

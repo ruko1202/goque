@@ -21,19 +21,23 @@ dev: ## Run the service in development mode
 	@echo "Starting service in development mode..."
 	@go run ./cmd/service
 
+docker-up: docker-down
+docker-up: args=
 docker-up: ## Start all services with docker-compose
+	@cp ./../../migrations/pg/* ./migrations/*
 	@echo "Starting services with Docker Compose..."
-	@docker-compose up -d --build
+	docker-compose up -d ${args}
 	@echo "✓ Services started"
 	@echo ""
 	@echo "Dashboard: http://localhost:8080"
 	@echo "API: http://localhost:8080/api/tasks"
 	@echo "Health: http://localhost:8080/health"
 	@echo "Grafana: http://localhost:3000"
+	@echo "Jaeger: http://localhost:16686"
 
 docker-down: ## Stop all services
 	@echo "Stopping services..."
-	@docker-compose down
+	@docker-compose down -v --remove-orphans
 	@echo "✓ Services stopped"
 
 docker-logs: ## Show logs from all services
@@ -42,8 +46,7 @@ docker-logs: ## Show logs from all services
 docker-rebuild: ## Rebuild and restart services
 	@echo "Rebuilding services..."
 	@docker-compose down
-	@docker-compose build --no-cache
-	@docker-compose up -d
+	@make docker-up args="--build"
 	@echo "✓ Services rebuilt and started"
 
 clean: ## Clean build artifacts
@@ -58,7 +61,7 @@ deps: ## Download dependencies
 
 bin-deps: ## Download binary dependencies
 	@echo "Downloading binary dependencies..."
-	GOBIN=$(GOBIN) go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.3.0
+	GOBIN=$(GOBIN) go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.11.2
 	@echo "✓ Dependencies binary downloaded"
 
 test: ## Run tests

@@ -6,8 +6,9 @@ import (
 
 	"github.com/go-jet/jet/v2/postgres"
 	"github.com/ruko1202/xlog"
+	"github.com/ruko1202/xlog/xfield"
 	"github.com/samber/lo"
-	"go.uber.org/zap"
+	semconv "go.opentelemetry.io/otel/semconv/v1.40.0"
 
 	"github.com/ruko1202/goque/internal/entity"
 	"github.com/ruko1202/goque/internal/pkg/generated/postgres/public/model"
@@ -22,10 +23,12 @@ func (s *Storage) DeleteTasks(
 	statuses []entity.TaskStatus,
 	updatedAtTimeAgo time.Duration,
 ) ([]*entity.Task, error) {
-	ctx = xlog.WithOperation(ctx, "storage.DeleteTasks",
-		zap.Any("statuses", statuses),
-		zap.Duration("updated_at_time_ago", updatedAtTimeAgo),
+	ctx, span := xlog.WithOperationSpan(ctx, "storage.DeleteTasks",
+		xfield.Any("statuses", statuses),
+		xfield.Duration("updated_at_time_ago", updatedAtTimeAgo),
 	)
+	span.SetAttributes(semconv.DBSystemNamePostgreSQL)
+	defer span.End()
 
 	stmt := table.Task.DELETE().
 		WHERE(
@@ -46,7 +49,7 @@ func (s *Storage) DeleteTasks(
 	dbTasks := make([]*model.Task, 0)
 	err := s.db.SelectContext(ctx, &dbTasks, query, args...)
 	if err != nil {
-		xlog.Error(ctx, "failed to delete tasks", zap.Error(err))
+		xlog.Error(ctx, "failed to delete tasks", xfield.Error(err))
 		return nil, err
 	}
 	return fromDBModels(ctx, dbTasks), nil

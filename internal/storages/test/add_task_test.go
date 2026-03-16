@@ -28,7 +28,7 @@ func testAdd(t *testing.T, storage storages.AdvancedTaskStorage) {
 
 	t.Run("ok", func(t *testing.T) {
 		t.Parallel()
-		ctx := xlog.ContextWithLogger(ctx, zaptest.NewLogger(t))
+		ctx := xlog.ContextWithLogger(ctx, xlog.NewZapAdapter(zaptest.NewLogger(t)))
 		ctx = goquectx.WithValue(ctx, "testname", t.Name())
 
 		payload := testutils.TestPayload{Data: "test"}
@@ -45,7 +45,7 @@ func testAdd(t *testing.T, storage storages.AdvancedTaskStorage) {
 
 	t.Run("failed payload", func(t *testing.T) {
 		t.Parallel()
-		ctx := xlog.ContextWithLogger(ctx, zaptest.NewLogger(t))
+		ctx := xlog.ContextWithLogger(ctx, xlog.NewZapAdapter(zaptest.NewLogger(t)))
 		ctx = goquectx.WithValue(ctx, "testname", t.Name())
 
 		task := entity.NewTask("test", "invalid payload")
@@ -56,7 +56,7 @@ func testAdd(t *testing.T, storage storages.AdvancedTaskStorage) {
 
 	t.Run("several externalID", func(t *testing.T) {
 		t.Parallel()
-		ctx := xlog.ContextWithLogger(ctx, zaptest.NewLogger(t))
+		ctx := xlog.ContextWithLogger(ctx, xlog.NewZapAdapter(zaptest.NewLogger(t)))
 		ctx = goquectx.WithValue(ctx, "testname", t.Name())
 
 		task := entity.NewTaskWithExternalID("test", testutils.ToJSON(t, "payload"), uuid.NewString())

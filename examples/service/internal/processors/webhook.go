@@ -10,7 +10,7 @@ import (
 	"example/internal/models"
 
 	"github.com/ruko1202/xlog"
-	"go.uber.org/zap"
+	"github.com/ruko1202/xlog/xfield"
 
 	"github.com/ruko1202/goque"
 )
@@ -25,9 +25,8 @@ func NewWebhookProcessor() *WebhookProcessor {
 
 // ProcessTask implements the TaskProcessor interface for webhook tasks.
 func (p *WebhookProcessor) ProcessTask(ctx context.Context, task *goque.Task) error {
-	ctx = xlog.WithOperation(ctx, "WebhookProcessor",
-		zap.String("task_id", task.ID.String()),
-	)
+	ctx, span := xlog.WithOperationSpan(ctx, "WebhookProcessor")
+	defer span.End()
 
 	var payload models.WebhookPayload
 	if err := json.Unmarshal([]byte(task.Payload), &payload); err != nil {
@@ -35,12 +34,12 @@ func (p *WebhookProcessor) ProcessTask(ctx context.Context, task *goque.Task) er
 	}
 
 	ctx = xlog.WithFields(ctx,
-		zap.Any("payload", payload),
-		zap.String("url", payload.URL),
+		xfield.Any("payload", payload),
+		xfield.String("url", payload.URL),
 	)
 
 	xlog.Info(ctx, "Processing webhook task")
 	// Simulate webhook call with random processing time (500ms-4 seconds)
-	processingTime := time.Duration(500+rand.Intn(3_500)) * time.Millisecond
+	processingTime := time.Duration(500+rand.Intn(3_500)) * time.Millisecond //nolint:gosec
 	return mockProcess(ctx, "webhook", processingTime, 45)
 }

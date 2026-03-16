@@ -27,19 +27,19 @@ func testGetTask(t *testing.T, storage storages.AdvancedTaskStorage) {
 
 	t.Run("ok", func(t *testing.T) {
 		t.Parallel()
-		ctx := xlog.ContextWithLogger(ctx, zaptest.NewLogger(t))
+		ctx := xlog.ContextWithLogger(ctx, xlog.NewZapAdapter(zaptest.NewLogger(t)))
 
 		taskType := "test GetTask" + uuid.NewString()
 		statuses := []entity.TaskStatus{entity.TaskStatusNew, entity.TaskStatusPending, entity.TaskStatusDone}
 
-		createdTasks := make([]*entity.Task, 0)
+		createdTasks := make([]*entity.Task, 0, 10)
 		for i := range 10 {
 			createdTasks = append(createdTasks, makeTaskWithStatus(ctx, t, storage, taskType, statuses[i%len(statuses)]))
 		}
 
 		t.Run("GetTasks", func(t *testing.T) {
 			t.Parallel()
-			ctx := xlog.ContextWithLogger(ctx, zaptest.NewLogger(t))
+			ctx := xlog.ContextWithLogger(ctx, xlog.NewZapAdapter(zaptest.NewLogger(t)))
 
 			expectedTasks := lo.Filter(createdTasks, func(item *entity.Task, _ int) bool {
 				return item.Status == entity.TaskStatusNew
@@ -64,7 +64,7 @@ func testGetTask(t *testing.T, storage storages.AdvancedTaskStorage) {
 
 	t.Run("empty filter", func(t *testing.T) {
 		t.Parallel()
-		ctx := xlog.ContextWithLogger(ctx, zaptest.NewLogger(t))
+		ctx := xlog.ContextWithLogger(ctx, xlog.NewZapAdapter(zaptest.NewLogger(t)))
 
 		makeTask(ctx, t, storage, "test GetTask: empty filter")
 
@@ -75,7 +75,7 @@ func testGetTask(t *testing.T, storage storages.AdvancedTaskStorage) {
 
 	t.Run("not found", func(t *testing.T) {
 		t.Parallel()
-		ctx := xlog.ContextWithLogger(ctx, zaptest.NewLogger(t))
+		ctx := xlog.ContextWithLogger(ctx, xlog.NewZapAdapter(zaptest.NewLogger(t)))
 
 		tasks, err := storage.GetTasks(ctx, &dbentity.GetTasksFilter{
 			TaskType: lo.ToPtr("not found"),

@@ -7,8 +7,8 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/ruko1202/xlog"
+	"github.com/ruko1202/xlog/xfield"
 	"github.com/samber/lo"
-	"go.uber.org/zap"
 
 	"github.com/ruko1202/goque/internal/utils/goquectx"
 
@@ -85,7 +85,7 @@ func timeToString(t time.Time) string {
 func timeFromString(value string) time.Time {
 	t, err := time.Parse(timeFormat, value)
 	if err != nil {
-		xlog.Error(context.Background(), "parse time error", zap.Error(err), zap.String("time", value))
+		xlog.Error(context.Background(), "parse time error", xfield.Error(err), xfield.String("time", value))
 		return time.Time{}
 	}
 

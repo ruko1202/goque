@@ -28,7 +28,7 @@ func testGetTaskForProcessing(t *testing.T, storage storages.AdvancedTaskStorage
 
 	t.Run("ok", func(t *testing.T) {
 		t.Parallel()
-		ctx := xlog.ContextWithLogger(ctx, zaptest.NewLogger(t))
+		ctx := xlog.ContextWithLogger(ctx, xlog.NewZapAdapter(zaptest.NewLogger(t)))
 
 		taskType := "test GetTaskForProcessing" + uuid.NewString()
 		statuses := []entity.TaskStatus{entity.TaskStatusNew, entity.TaskStatusPending, entity.TaskStatusError}
@@ -62,7 +62,7 @@ func testGetTaskForProcessing(t *testing.T, storage storages.AdvancedTaskStorage
 
 	t.Run("not found", func(t *testing.T) {
 		t.Parallel()
-		ctx := xlog.ContextWithLogger(ctx, zaptest.NewLogger(t))
+		ctx := xlog.ContextWithLogger(ctx, xlog.NewZapAdapter(zaptest.NewLogger(t)))
 
 		tasks, err := storage.GetTasksForProcessing(ctx, "not found", 10)
 		require.NoError(t, err)

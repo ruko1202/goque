@@ -31,7 +31,7 @@ func testCleaner(t *testing.T, storage storages.AdvancedTaskStorage) {
 
 	t.Run("ok", func(t *testing.T) {
 		t.Parallel()
-		ctx := xlog.ContextWithLogger(ctx, zaptest.NewLogger(t))
+		ctx := xlog.ContextWithLogger(ctx, xlog.NewZapAdapter(zaptest.NewLogger(t)))
 		ctx = goquectx.WithValue(ctx, "testname", t.Name())
 
 		task := goque.NewTask(

@@ -4,7 +4,7 @@ import (
 	"context"
 
 	"github.com/ruko1202/xlog"
-	"go.uber.org/zap"
+	"github.com/ruko1202/xlog/xfield"
 
 	"github.com/ruko1202/goque/internal/entity"
 )
@@ -25,7 +25,7 @@ func (f TaskProcessorFunc) ProcessTask(ctx context.Context, task *entity.Task) e
 // NoopTaskProcessor returns a task processor that logs task information without performing any actual processing.
 func NoopTaskProcessor() TaskProcessor {
 	return TaskProcessorFunc(func(ctx context.Context, _ *entity.Task) error {
-		xlog.Info(ctx, "process task", zap.String("processor", "noop"))
+		xlog.Info(ctx, "process task", xfield.String("processor", "noop"))
 		return nil
 	})
 }

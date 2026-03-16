@@ -32,7 +32,7 @@
       "type": "row"
     },
     {
-      "datasource": "VictoriaMetrics",
+      "datasource": "Prometheus",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -88,7 +88,7 @@
       "type": "stat"
     },
     {
-      "datasource": "VictoriaMetrics",
+      "datasource": "Prometheus",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -145,7 +145,7 @@
       "type": "stat"
     },
     {
-      "datasource": "VictoriaMetrics",
+      "datasource": "Prometheus",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -221,7 +221,7 @@
       "type": "stat"
     },
     {
-      "datasource": "VictoriaMetrics",
+      "datasource": "Prometheus",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -278,7 +278,7 @@
       "type": "stat"
     },
     {
-      "datasource": "VictoriaMetrics",
+      "datasource": "Prometheus",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -459,7 +459,7 @@
       "type": "timeseries"
     },
     {
-      "datasource": "VictoriaMetrics",
+      "datasource": "Prometheus",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -563,7 +563,7 @@
       "type": "row"
     },
     {
-      "datasource": "VictoriaMetrics",
+      "datasource": "Prometheus",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -702,7 +702,7 @@
       "type": "bargauge"
     },
     {
-      "datasource": "VictoriaMetrics",
+      "datasource": "Prometheus",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -832,7 +832,7 @@
       "type": "stat"
     },
     {
-      "datasource": "VictoriaMetrics",
+      "datasource": "Prometheus",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -1005,7 +1005,7 @@
       "type": "timeseries"
     },
     {
-      "datasource": "VictoriaMetrics",
+      "datasource": "Prometheus",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -1096,7 +1096,7 @@
       "type": "timeseries"
     },
     {
-      "datasource": "VictoriaMetrics",
+      "datasource": "Prometheus",
       "fieldConfig": {
         "defaults": {
           "color": {

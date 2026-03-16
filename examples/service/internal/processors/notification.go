@@ -1,3 +1,4 @@
+//nolint:dupl
 package processors
 
 import (
@@ -10,7 +11,7 @@ import (
 	"example/internal/models"
 
 	"github.com/ruko1202/xlog"
-	"go.uber.org/zap"
+	"github.com/ruko1202/xlog/xfield"
 
 	"github.com/ruko1202/goque"
 )
@@ -25,9 +26,8 @@ func NewNotificationProcessor() *NotificationProcessor {
 
 // ProcessTask implements the TaskProcessor interface for notification tasks.
 func (p *NotificationProcessor) ProcessTask(ctx context.Context, task *goque.Task) error {
-	ctx = xlog.WithOperation(ctx, "NotificationProcessor",
-		zap.String("task_id", task.ID.String()),
-	)
+	ctx, span := xlog.WithOperationSpan(ctx, "NotificationProcessor")
+	defer span.End()
 
 	var payload models.NotificationPayload
 	if err := json.Unmarshal([]byte(task.Payload), &payload); err != nil {
@@ -35,12 +35,12 @@ func (p *NotificationProcessor) ProcessTask(ctx context.Context, task *goque.Tas
 	}
 
 	ctx = xlog.WithFields(ctx,
-		zap.String("user_id", payload.UserID),
-		zap.String("title", payload.Title),
+		xfield.String("user_id", payload.UserID),
+		xfield.String("title", payload.Title),
 	)
 
 	xlog.Info(ctx, "Processing notification task")
 	// Simulate notification sending with random processing time (500ms-3s)
-	processingTime := time.Duration(500+rand.Intn(2_500)) * time.Millisecond
+	processingTime := time.Duration(500+rand.Intn(2_500)) * time.Millisecond //nolint:gosec
 	return mockProcess(ctx, "notification", processingTime, 15)
 }

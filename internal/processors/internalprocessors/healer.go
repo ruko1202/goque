@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/ruko1202/xlog"
+
 	"github.com/ruko1202/goque/internal/entity"
 )
 
@@ -51,6 +53,9 @@ func (q *QueueHealer) SetUpdatedAtTimeAgo(updatedAtTimeAgo time.Duration) {
 
 // CureTasks marks stuck tasks in pending status as errored based on the configured time threshold.
 func (q *QueueHealer) CureTasks(ctx context.Context, taskType entity.TaskType) ([]*entity.Task, error) {
+	ctx, span := xlog.WithOperationSpan(ctx, "queue_healer.CureTasks")
+	defer span.End()
+
 	comment := "task was stuck"
 	tasks, err := q.taskStorage.CureTasks(ctx, taskType, []entity.TaskStatus{
 		entity.TaskStatusProcessing,

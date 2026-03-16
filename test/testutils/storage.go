@@ -5,9 +5,9 @@ import (
 	"fmt"
 
 	"github.com/ruko1202/xlog"
+	"github.com/ruko1202/xlog/xfield"
 	"github.com/samber/lo"
 	"github.com/spf13/viper"
-	"go.uber.org/zap"
 
 	"github.com/ruko1202/goque/internal/storages"
 	mysqltask "github.com/ruko1202/goque/internal/storages/mysql/task"
@@ -25,7 +25,7 @@ func SetupStorages(ctx context.Context) []storages.AdvancedTaskStorage {
 		return []storages.AdvancedTaskStorage{setupStorage(ctx, dbDriver)}
 	}
 
-	xlog.Info(ctx, "DB_DRIVER doesn't define. Init storages for all DBs", zap.Any("dbs", availableDBs))
+	xlog.Info(ctx, "DB_DRIVER doesn't define. Init storages for all DBs", xfield.Any("dbs", availableDBs))
 	return lo.MapToSlice(availableDBs, func(dbDriver string, _ struct{}) storages.AdvancedTaskStorage {
 		return setupStorage(ctx, dbDriver)
 	})

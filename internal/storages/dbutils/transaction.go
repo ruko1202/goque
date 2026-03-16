@@ -8,7 +8,7 @@ import (
 
 	"github.com/jmoiron/sqlx"
 	"github.com/ruko1202/xlog"
-	"go.uber.org/zap"
+	"github.com/ruko1202/xlog/xfield"
 )
 
 // DBTx defines the interface for database transaction operations.
@@ -24,6 +24,9 @@ type DBTx interface {
 
 // DoInTransaction executes a function within a database transaction with automatic commit/rollback handling.
 func DoInTransaction(ctx context.Context, db *sqlx.DB, fn func(tx *sqlx.Tx) error) error {
+	ctx, span := xlog.WithOperationSpan(ctx, "tx.DoInTransaction")
+	defer span.End()
+
 	tx, err := db.BeginTxx(ctx, &sql.TxOptions{Isolation: sql.LevelDefault})
 	if err != nil {
 		return err
@@ -32,12 +35,12 @@ func DoInTransaction(ctx context.Context, db *sqlx.DB, fn func(tx *sqlx.Tx) erro
 	var txErr error
 	defer func() {
 		if recErr := recover(); recErr != nil {
-			xlog.Error(ctx, "panic recovery when execute the transaction", zap.Any("panic", recErr))
+			xlog.Error(ctx, "panic recovery when execute the transaction", xfield.Any("panic", recErr))
 			txErr = errors.Join(txErr, rollback(ctx, tx))
 			return
 		}
 		if txErr != nil {
-			xlog.Error(ctx, "raise error when execute the transaction", zap.Error(txErr))
+			xlog.Error(ctx, "raise error when execute the transaction", xfield.Error(txErr))
 			txErr = errors.Join(txErr, rollback(ctx, tx))
 			return
 		}
@@ -45,22 +48,27 @@ func DoInTransaction(ctx context.Context, db *sqlx.DB, fn func(tx *sqlx.Tx) erro
 		txErr = errors.Join(txErr, commit(ctx, tx))
 	}()
 
+	xlog.AddSpanEvent(ctx, "beginTx")
 	txErr = fn(tx)
 
 	return txErr
 }
 
 func rollback(ctx context.Context, tx *sqlx.Tx) error {
+	xlog.AddSpanEvent(ctx, "rollback")
+
 	if err := tx.Rollback(); err != nil {
-		xlog.Error(ctx, "failed to rollback the transaction", zap.Error(err))
+		xlog.Error(ctx, "failed to rollback the transaction", xfield.Error(err))
 		return err
 	}
 	return nil
 }
 
 func commit(ctx context.Context, tx *sqlx.Tx) error {
+	xlog.AddSpanEvent(ctx, "commit")
+
 	if err := tx.Commit(); err != nil {
-		xlog.Error(ctx, "failed to commit the transaction", zap.Error(err))
+		xlog.Error(ctx, "failed to commit the transaction", xfield.Error(err))
 		return err
 	}
 	return nil

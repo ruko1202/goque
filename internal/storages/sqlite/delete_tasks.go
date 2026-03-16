@@ -8,8 +8,8 @@ import (
 	"github.com/go-jet/jet/v2/sqlite"
 	"github.com/jmoiron/sqlx"
 	"github.com/ruko1202/xlog"
+	"github.com/ruko1202/xlog/xfield"
 	"github.com/samber/lo"
-	"go.uber.org/zap"
 
 	"github.com/ruko1202/goque/internal/entity"
 	"github.com/ruko1202/goque/internal/pkg/generated/sqlite3/model"
@@ -25,10 +25,12 @@ func (s *Storage) DeleteTasks(
 	statuses []entity.TaskStatus,
 	updatedAtTimeAgo time.Duration,
 ) ([]*entity.Task, error) {
-	ctx = xlog.WithOperation(ctx, "storage.DeleteTasks",
-		zap.Any("statuses", statuses),
-		zap.Duration("updated_at_time_ago", updatedAtTimeAgo),
+	ctx, span := xlog.WithOperationSpan(ctx, "storage.DeleteTasks",
+		xfield.String("db.type", "sqlite"),
+		xfield.Any("statuses", statuses),
+		xfield.Duration("updated_at_time_ago", updatedAtTimeAgo),
 	)
+	defer span.End()
 
 	tasks := make([]*model.Task, 0)
 	err := dbutils.DoInTransaction(ctx, s.db, func(tx *sqlx.Tx) error {
@@ -39,14 +41,14 @@ func (s *Storage) DeleteTasks(
 			UpdatedAtTimeAgo: lo.ToPtr(updatedAtTimeAgo),
 		}, 1000)
 		if err != nil {
-			xlog.Error(ctx, "failed to select tasks for deletion", zap.Error(err))
+			xlog.Error(ctx, "failed to select tasks for deletion", xfield.Error(err))
 			return err
 		}
 
 		return s.deleteTasksTx(ctx, tx, tasks)
 	})
 	if err != nil {
-		xlog.Error(ctx, "failed to delete tasks", zap.Error(err))
+		xlog.Error(ctx, "failed to delete tasks", xfield.Error(err))
 		return nil, err
 	}
 
@@ -54,6 +56,9 @@ func (s *Storage) DeleteTasks(
 }
 
 func (s *Storage) deleteTasksTx(ctx context.Context, tx dbutils.DBTx, tasks []*model.Task) error {
+	ctx, span := xlog.WithOperationSpan(ctx, "storage.deleteTasksTx")
+	defer span.End()
+
 	if len(tasks) == 0 {
 		return nil
 	}
@@ -67,7 +72,7 @@ func (s *Storage) deleteTasksTx(ctx context.Context, tx dbutils.DBTx, tasks []*m
 	query, args := stmt.Sql()
 	_, err := tx.ExecContext(ctx, query, args...)
 	if err != nil {
-		xlog.Error(ctx, "failed to delete tasks", zap.Error(err))
+		xlog.Error(ctx, "failed to delete tasks", xfield.Error(err))
 		return err
 	}
 

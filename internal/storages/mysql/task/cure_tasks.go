@@ -8,8 +8,8 @@ import (
 	"github.com/go-jet/jet/v2/mysql"
 	"github.com/jmoiron/sqlx"
 	"github.com/ruko1202/xlog"
+	"github.com/ruko1202/xlog/xfield"
 	"github.com/samber/lo"
-	"go.uber.org/zap"
 
 	"github.com/ruko1202/goque/internal/entity"
 	"github.com/ruko1202/goque/internal/pkg/generated/mysql/goque/model"
@@ -27,10 +27,12 @@ func (s *Storage) CureTasks(
 	updatedAtTimeAgo time.Duration,
 	comment string,
 ) ([]*entity.Task, error) {
-	ctx = xlog.WithOperation(ctx, "storage.CureTasks",
-		zap.Any("statuses", statuses),
-		zap.Duration("updated_at_time_ago", updatedAtTimeAgo),
+	ctx, span := xlog.WithOperationSpan(ctx, "storage.CureTasks",
+		xfield.String("db.type", "mysql"),
+		xfield.Any("statuses", statuses),
+		xfield.Duration("updated_at_time_ago", updatedAtTimeAgo),
 	)
+	defer span.End()
 
 	tasks := make([]*model.Task, 0)
 	err := dbutils.DoInTransaction(ctx, s.db, func(tx *sqlx.Tx) error {
@@ -41,14 +43,14 @@ func (s *Storage) CureTasks(
 			UpdatedAtTimeAgo: lo.ToPtr(updatedAtTimeAgo),
 		}, 1000)
 		if err != nil {
-			xlog.Error(ctx, "failed to select tasks for deletion", zap.Error(err))
+			xlog.Error(ctx, "failed to select tasks for deletion", xfield.Error(err))
 			return err
 		}
 
 		return s.cureTaskTx(ctx, tx, tasks, comment)
 	})
 	if err != nil {
-		xlog.Error(ctx, "failed to cure tasks", zap.Error(err))
+		xlog.Error(ctx, "failed to cure tasks", xfield.Error(err))
 		return nil, err
 	}
 
@@ -56,6 +58,9 @@ func (s *Storage) CureTasks(
 }
 
 func (s *Storage) cureTaskTx(ctx context.Context, tx dbutils.DBTx, tasks []*model.Task, comment string) error {
+	ctx, span := xlog.WithOperationSpan(ctx, "storage.cureTaskTx")
+	defer span.End()
+
 	if len(tasks) == 0 {
 		return nil
 	}

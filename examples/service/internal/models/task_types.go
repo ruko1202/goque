@@ -1,3 +1,4 @@
+// Package models contains the data structures used in the application.
 package models
 
 import (
@@ -9,10 +10,14 @@ import (
 type TaskType = string
 
 const (
-	TaskTypeEmail        TaskType = "email"
+	// TaskTypeEmail .
+	TaskTypeEmail TaskType = "email"
+	// TaskTypeNotification .
 	TaskTypeNotification TaskType = "notification"
-	TaskTypeReport       TaskType = "report"
-	TaskTypeWebhook      TaskType = "webhook"
+	// TaskTypeReport .
+	TaskTypeReport TaskType = "report"
+	// TaskTypeWebhook .
+	TaskTypeWebhook TaskType = "webhook"
 )
 
 // EmailPayload represents the payload for email tasks.
@@ -77,7 +82,7 @@ type TaskListResponse struct {
 
 // ValidateTaskType checks if the given task type is valid.
 func ValidateTaskType(taskType string) error {
-	switch TaskType(taskType) {
+	switch taskType {
 	case TaskTypeEmail, TaskTypeNotification, TaskTypeReport, TaskTypeWebhook:
 		return nil
 	default:

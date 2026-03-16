@@ -6,7 +6,8 @@ import (
 	"github.com/go-jet/jet/v2/postgres"
 	"github.com/google/uuid"
 	"github.com/ruko1202/xlog"
-	"go.uber.org/zap"
+	"github.com/ruko1202/xlog/xfield"
+	semconv "go.opentelemetry.io/otel/semconv/v1.40.0"
 
 	"github.com/ruko1202/goque/internal/storages/dbutils"
 
@@ -17,6 +18,12 @@ import (
 
 // GetTask retrieves a single task by its ID from the database.
 func (s *Storage) GetTask(ctx context.Context, id uuid.UUID) (*entity.Task, error) {
+	ctx, span := xlog.WithOperationSpan(ctx, "storage.GetTask",
+		xfield.String("task_id", id.String()),
+	)
+	span.SetAttributes(semconv.DBSystemNamePostgreSQL)
+	defer span.End()
+
 	task, err := s.getTaskTx(ctx, s.db, id)
 	if err != nil {
 		return nil, err
@@ -25,9 +32,8 @@ func (s *Storage) GetTask(ctx context.Context, id uuid.UUID) (*entity.Task, erro
 }
 
 func (s *Storage) getTaskTx(ctx context.Context, tx dbutils.DBTx, id uuid.UUID) (*model.Task, error) {
-	ctx = xlog.WithOperation(ctx, "storage.GetTask",
-		zap.String("task_id", id.String()),
-	)
+	ctx, span := xlog.WithOperationSpan(ctx, "storage.getTaskTx")
+	defer span.End()
 
 	stmt := table.Task.
 		SELECT(table.Task.AllColumns).
@@ -38,7 +44,7 @@ func (s *Storage) getTaskTx(ctx context.Context, tx dbutils.DBTx, id uuid.UUID) 
 	task := new(model.Task)
 	err := tx.GetContext(ctx, task, query, args...)
 	if err != nil {
-		xlog.Error(ctx, "failed to get task", zap.Error(err))
+		xlog.Error(ctx, "failed to get task", xfield.Error(err))
 		return nil, err
 	}
 

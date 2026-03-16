@@ -22,3 +22,7 @@ taskgenerator:
   interval: 10s
   mintasks: 1
   maxtasks: 5
+
+tracerconfig:
+  host: localhost
+  port: 4317

@@ -3,7 +3,11 @@ package sqlite
 
 import (
 	"github.com/jmoiron/sqlx"
+
+	"github.com/ruko1202/goque/internal/storages"
 )
+
+var _ storages.Task = (*Storage)(nil)
 
 // Storage handles database operations for tasks.
 type Storage struct {

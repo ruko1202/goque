@@ -6,7 +6,7 @@ import (
 
 	"github.com/labstack/echo/v4"
 	"github.com/ruko1202/xlog"
-	"go.uber.org/zap"
+	"github.com/ruko1202/xlog/xfield"
 
 	"example/internal/models"
 
@@ -17,7 +17,8 @@ import (
 // Note: This is a simplified version for the example. In production, you would want to
 // implement proper filtering at the database level for better performance.
 func (a *Application) ListTasksHandler(c echo.Context) error {
-	ctx := c.Request().Context()
+	ctx, span := xlog.WithOperationSpan(c.Request().Context(), "app.ListTasksHandler")
+	defer span.End()
 
 	// Parse query parameters
 	page, _ := strconv.Atoi(c.QueryParam("page"))
@@ -34,21 +35,21 @@ func (a *Application) ListTasksHandler(c echo.Context) error {
 	typeFilter := c.QueryParam("type")
 
 	xlog.Debug(ctx, "listing tasks",
-		zap.Int("page", page),
-		zap.Int("page_size", pageSize),
-		zap.String("status_filter", statusFilter),
-		zap.String("type_filter", typeFilter))
+		xfield.Int("page", page),
+		xfield.Int("page_size", pageSize),
+		xfield.String("status_filter", statusFilter),
+		xfield.String("type_filter", typeFilter))
 
 	// Build filter for TaskQueueManager
 	filter := &goque.TaskFilter{}
 
 	if statusFilter != "" {
-		status := goque.TaskStatus(statusFilter)
+		status := statusFilter
 		filter.Status = &status
 	}
 
 	if typeFilter != "" {
-		taskType := goque.TaskType(typeFilter)
+		taskType := typeFilter
 		filter.TaskType = &taskType
 	}
 
@@ -57,7 +58,7 @@ func (a *Application) ListTasksHandler(c echo.Context) error {
 	// implement proper pagination at the database level for better performance.
 	filteredTasks, err := a.queueManager.GetTasks(ctx, filter, 10000)
 	if err != nil {
-		xlog.Error(ctx, "failed to get tasks from queue", zap.Error(err))
+		xlog.Error(ctx, "failed to get tasks from queue", xfield.Error(err))
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "failed to list tasks"})
 	}
 
@@ -87,10 +88,10 @@ func (a *Application) ListTasksHandler(c echo.Context) error {
 	}
 
 	xlog.Debug(ctx, "tasks listed successfully",
-		zap.Int("total", total),
-		zap.Int("page", page),
-		zap.Int("page_size", pageSize),
-		zap.Int("returned", len(paginatedTasks)))
+		xfield.Int("total", total),
+		xfield.Int("page", page),
+		xfield.Int("page_size", pageSize),
+		xfield.Int("returned", len(paginatedTasks)))
 
 	response := models.TaskListResponse{
 		Tasks:      taskResponses,

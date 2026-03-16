@@ -31,7 +31,7 @@ func testGoque(t *testing.T, storage storages.AdvancedTaskStorage) {
 
 	t.Run("ok", func(t *testing.T) {
 		t.Parallel()
-		ctx := xlog.ContextWithLogger(ctx, zaptest.NewLogger(t))
+		ctx := xlog.ContextWithLogger(ctx, xlog.NewZapAdapter(zaptest.NewLogger(t)))
 		ctx = goquectx.WithValue(ctx, "testname", t.Name())
 
 		task := goque.NewTask(
@@ -60,7 +60,7 @@ func testGoque(t *testing.T, storage storages.AdvancedTaskStorage) {
 
 	t.Run("ok[metadata]", func(t *testing.T) {
 		t.Parallel()
-		ctx := xlog.ContextWithLogger(ctx, zaptest.NewLogger(t))
+		ctx := xlog.ContextWithLogger(ctx, xlog.NewZapAdapter(zaptest.NewLogger(t)))
 		ctx = goquectx.WithValue(ctx, "testname", t.Name())
 
 		task := goque.NewTask(
@@ -93,7 +93,7 @@ func testGoque(t *testing.T, storage storages.AdvancedTaskStorage) {
 
 	t.Run("stop when in pending a lot of tasks", func(t *testing.T) {
 		t.Parallel()
-		ctx := xlog.ContextWithLogger(ctx, zaptest.NewLogger(t))
+		ctx := xlog.ContextWithLogger(ctx, xlog.NewZapAdapter(zaptest.NewLogger(t)))
 		ctx = goquectx.WithValue(ctx, "testname", t.Name())
 
 		ctx, cancel := context.WithCancel(ctx)

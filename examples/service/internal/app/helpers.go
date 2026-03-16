@@ -19,9 +19,9 @@ func toTaskResponse(task *goque.Task) models.TaskResponse {
 
 	resp := models.TaskResponse{
 		ID:         task.ID.String(),
-		Type:       string(task.Type),
+		Type:       task.Type,
 		ExternalID: task.ExternalID,
-		Status:     string(task.Status),
+		Status:     task.Status,
 		Attempts:   int(task.Attempts),
 		Payload:    task.Payload,
 		CreatedAt:  task.CreatedAt.Format(time.RFC3339),

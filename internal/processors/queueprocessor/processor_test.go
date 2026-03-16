@@ -27,7 +27,7 @@ func TestGoqueProcessor(t *testing.T) {
 
 	t.Run("ok", func(t *testing.T) {
 		t.Parallel()
-		ctx := xlog.ContextWithLogger(ctx, zaptest.NewLogger(t))
+		ctx := xlog.ContextWithLogger(ctx, xlog.NewZapAdapter(zaptest.NewLogger(t)))
 
 		task := &entity.Task{
 			ID:            uuid.New(),
@@ -82,7 +82,7 @@ func TestGoqueProcessor(t *testing.T) {
 
 	t.Run("task process timeout", func(t *testing.T) {
 		t.Parallel()
-		ctx := xlog.ContextWithLogger(ctx, zaptest.NewLogger(t))
+		ctx := xlog.ContextWithLogger(ctx, xlog.NewZapAdapter(zaptest.NewLogger(t)))
 
 		task := &entity.Task{
 			ID:            uuid.New(),
@@ -149,7 +149,7 @@ func TestGoqueProcessor(t *testing.T) {
 
 	t.Run("max attempts", func(t *testing.T) {
 		t.Parallel()
-		ctx := xlog.ContextWithLogger(ctx, zaptest.NewLogger(t))
+		ctx := xlog.ContextWithLogger(ctx, xlog.NewZapAdapter(zaptest.NewLogger(t)))
 
 		task := &entity.Task{
 			ID:            uuid.New(),
@@ -204,7 +204,7 @@ func TestGoqueProcessor(t *testing.T) {
 
 	t.Run("task canceled", func(t *testing.T) {
 		t.Parallel()
-		ctx := xlog.ContextWithLogger(ctx, zaptest.NewLogger(t))
+		ctx := xlog.ContextWithLogger(ctx, xlog.NewZapAdapter(zaptest.NewLogger(t)))
 
 		task := &entity.Task{
 			ID:            uuid.New(),
@@ -259,7 +259,7 @@ func TestGoqueProcessor(t *testing.T) {
 
 	t.Run("hooks", func(t *testing.T) {
 		t.Parallel()
-		ctx := xlog.ContextWithLogger(ctx, zaptest.NewLogger(t))
+		ctx := xlog.ContextWithLogger(ctx, xlog.NewZapAdapter(zaptest.NewLogger(t)))
 
 		task := &entity.Task{
 			ID:            uuid.New(),
@@ -322,7 +322,7 @@ func TestGoqueProcessor(t *testing.T) {
 
 	t.Run("graceful stop", func(t *testing.T) {
 		t.Parallel()
-		ctx := xlog.ContextWithLogger(ctx, zaptest.NewLogger(t))
+		ctx := xlog.ContextWithLogger(ctx, xlog.NewZapAdapter(zaptest.NewLogger(t)))
 
 		task := entity.Task{
 			ID:            uuid.New(),

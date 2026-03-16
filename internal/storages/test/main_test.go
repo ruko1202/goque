@@ -30,7 +30,7 @@ func TestMain(m *testing.M) {
 	if err != nil {
 		panic(err)
 	}
-	xlog.ReplaceGlobal(globalLogger)
+	xlog.ReplaceGlobalLogger(xlog.NewZapAdapter(globalLogger))
 
 	taskStorages = testutils.SetupStorages(context.Background())
 

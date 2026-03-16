@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   postgres:
     image: postgres:16-alpine
@@ -47,38 +45,14 @@ services:
       GOQUE_TASKGENERATOR_INTERVAL: 2m
       GOQUE_TASKGENERATOR_MINTASKS: 10
       GOQUE_TASKGENERATOR_MAXTASKS: 15
+      # OpenTelemetry configuration
+      GOQUE_TRACERCONFIG_HOST: "otel-collector"
+      GOQUE_TRACERCONFIG_PORT: 4317
     depends_on:
       apply-migrations:
         condition: service_completed_successfully
-
-  victoriametrics:
-    image: victoriametrics/victoria-metrics:latest
-    container_name: goque_victoriametrics
-    ports:
-      - "8428:8428"
-    command:
-      - "--storageDataPath=/storage"
-      - "--httpListenAddr=:8428"
-      - "--retentionPeriod=30d"
-    volumes:
-      - victoriametrics_data:/storage
-    restart: unless-stopped
-
-  vmagent:
-    image: victoriametrics/vmagent:latest
-    container_name: goque_vmagent
-    depends_on:
-      - victoriametrics
-      - app
-    ports:
-      - "8429:8429"
-    volumes:
-      - ./monitoring/vmagent.yml:/etc/vmagent/vmagent.yml:ro
-      - vmagent_data:/vmagentdata
-    command:
-      - "--promscrape.config=/etc/vmagent/vmagent.yml"
-      - "--remoteWrite.url=http://victoriametrics:8428/api/v1/write"
-    restart: unless-stopped
+      otel-collector:
+        condition: service_started
 
   grafana:
     image: grafana/grafana:latest
@@ -94,7 +68,7 @@ services:
       - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
       - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
     depends_on:
-      - victoriametrics
+      - prometheus
       - loki
     restart: unless-stopped
 
@@ -122,9 +96,48 @@ services:
       - app
     restart: unless-stopped
 
+  jaeger:
+    image: jaegertracing/all-in-one:latest
+    ports:
+      - "16686:16686" # UI
+      - "4317"        # Внутренний gRPC
+
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:latest
+    container_name: goque_otel_collector
+    command: ["--config=/etc/otel-collector-config.yaml"]
+    volumes:
+      - ./monitoring/otel-collector-config.yaml:/etc/otel-collector-config.yaml:ro
+    ports:
+      - "4317:4317"   # OTLP gRPC receiver
+      - "8888:8888"   # Prometheus metrics exporter
+      - "8889:8889"   # Prometheus metrics scrape endpoint
+    depends_on:
+      - jaeger
+    restart: unless-stopped
+
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: goque_prometheus
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--enable-feature=exemplar-storage" # ВАЖНО! Включаем Exemplars
+      - "--storage.tsdb.path=/prometheus"
+      - "--web.console.libraries=/usr/share/prometheus/console_libraries"
+      - "--web.console.templates=/usr/share/prometheus/consoles"
+    volumes:
+      - ./monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    ports:
+      - "9090:9090"
+    depends_on:
+      - app
+      - otel-collector
+    restart: unless-stopped
+
+
 volumes:
   postgres_data:
-  victoriametrics_data:
-  vmagent_data:
+  prometheus_data:
   grafana_data:
   loki_data:

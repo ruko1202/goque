@@ -1,0 +1,27 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    cluster: 'goque-example'
+
+scrape_configs:
+  # Scrape metrics from the application (via OTEL collector)
+  - job_name: 'goque-app'
+    static_configs:
+      - targets: ['otel-collector:8888']
+        labels:
+          service: 'goque-example'
+
+  # Scrape metrics directly from the application if it exposes /metrics
+  - job_name: 'goque-app-direct'
+    static_configs:
+      - targets: ['app:8080']
+        labels:
+          service: 'goque-example'
+    metrics_path: '/metrics'
+    scrape_interval: 10s
+
+  # Prometheus self-monitoring
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']

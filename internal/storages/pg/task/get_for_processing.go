@@ -6,7 +6,8 @@ import (
 	"github.com/go-jet/jet/v2/postgres"
 	"github.com/jmoiron/sqlx"
 	"github.com/ruko1202/xlog"
-	"go.uber.org/zap"
+	"github.com/ruko1202/xlog/xfield"
+	semconv "go.opentelemetry.io/otel/semconv/v1.40.0"
 
 	"github.com/ruko1202/goque/internal/entity"
 	"github.com/ruko1202/goque/internal/pkg/generated/postgres/public/model"
@@ -17,9 +18,11 @@ import (
 
 // GetTasksForProcessing retrieves and locks tasks ready for processing, updating their status to pending.
 func (s *Storage) GetTasksForProcessing(ctx context.Context, taskType entity.TaskType, limit int64) ([]*entity.Task, error) {
-	ctx = xlog.WithOperation(ctx, "storage.GetTasksForProcessing",
-		zap.String("task_type", taskType),
+	ctx, span := xlog.WithOperationSpan(ctx, "storage.GetTasksForProcessing",
+		xfield.String("task_type", taskType),
 	)
+	span.SetAttributes(semconv.DBSystemNamePostgreSQL)
+	defer span.End()
 
 	var tasks []*model.Task
 	err := dbutils.DoInTransaction(ctx, s.db, func(tx *sqlx.Tx) error {
@@ -32,7 +35,7 @@ func (s *Storage) GetTasksForProcessing(ctx context.Context, taskType entity.Tas
 		return s.batchUpdateTasksStatusTx(ctx, tx, tasks, entity.TaskStatusPending)
 	})
 	if err != nil {
-		xlog.Error(ctx, "failed to get task for processing", zap.Error(err))
+		xlog.Error(ctx, "failed to get task for processing", xfield.Error(err))
 		return nil, err
 	}
 
@@ -40,6 +43,9 @@ func (s *Storage) GetTasksForProcessing(ctx context.Context, taskType entity.Tas
 }
 
 func (s *Storage) getTasksForProcessingTx(ctx context.Context, tx *sqlx.Tx, taskType entity.TaskType, limit int64) ([]*model.Task, error) {
+	ctx, span := xlog.WithOperationSpan(ctx, "storage.getTasksForProcessingTx")
+	defer span.End()
+
 	stmt := table.Task.
 		SELECT(table.Task.AllColumns).
 		WHERE(
@@ -63,7 +69,7 @@ func (s *Storage) getTasksForProcessingTx(ctx context.Context, tx *sqlx.Tx, task
 	tasks := make([]*model.Task, 0)
 	err := tx.SelectContext(ctx, &tasks, query, args...)
 	if err != nil {
-		xlog.Error(ctx, "failed to get task for processing", zap.Error(err))
+		xlog.Error(ctx, "failed to get task for processing", xfield.Error(err))
 		return nil, err
 	}
 

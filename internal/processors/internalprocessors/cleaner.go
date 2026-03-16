@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/ruko1202/xlog"
+
 	"github.com/ruko1202/goque/internal/entity"
 )
 
@@ -51,6 +53,9 @@ func (q *QueueCleaner) SetUpdatedAtTimeAgo(updatedAtTimeAgo time.Duration) {
 
 // CleanTasksQueue removes old tasks with done, canceled, or attempts_left status from the queue.
 func (q *QueueCleaner) CleanTasksQueue(ctx context.Context, taskType entity.TaskType) ([]*entity.Task, error) {
+	ctx, span := xlog.WithOperationSpan(ctx, "queue_cleaner.CleanTasksQueue")
+	defer span.End()
+
 	tasks, err := q.taskStorage.DeleteTasks(ctx, taskType, []entity.TaskStatus{
 		entity.TaskStatusDone,
 		entity.TaskStatusCanceled,

@@ -1,3 +1,4 @@
+//nolint:dupl
 package processors
 
 import (
@@ -10,7 +11,7 @@ import (
 	"example/internal/models"
 
 	"github.com/ruko1202/xlog"
-	"go.uber.org/zap"
+	"github.com/ruko1202/xlog/xfield"
 
 	"github.com/ruko1202/goque"
 )
@@ -25,9 +26,8 @@ func NewReportProcessor() *ReportProcessor {
 
 // ProcessTask implements the TaskProcessor interface for report tasks.
 func (p *ReportProcessor) ProcessTask(ctx context.Context, task *goque.Task) error {
-	ctx = xlog.WithOperation(ctx, "ReportProcessor",
-		zap.String("task_id", task.ID.String()),
-	)
+	ctx, span := xlog.WithOperationSpan(ctx, "ReportProcessor")
+	defer span.End()
 
 	var payload models.ReportPayload
 	if err := json.Unmarshal([]byte(task.Payload), &payload); err != nil {
@@ -35,13 +35,12 @@ func (p *ReportProcessor) ProcessTask(ctx context.Context, task *goque.Task) err
 	}
 
 	ctx = xlog.WithFields(ctx,
-		zap.String("report_type", payload.ReportType),
-		zap.String("format", payload.Format),
+		xfield.String("report_type", payload.ReportType),
+		xfield.String("format", payload.Format),
 	)
 
 	xlog.Info(ctx, "Processing report task")
 	// Simulate long-running report generation (2-10 seconds)
-	processingTime := time.Duration(2_000+rand.Intn(8_000)) * time.Millisecond
+	processingTime := time.Duration(2_000+rand.Intn(8_000)) * time.Millisecond //nolint:gosec
 	return mockProcess(ctx, "report", processingTime, 5)
-
 }

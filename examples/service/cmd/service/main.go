@@ -16,7 +16,9 @@ import (
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
 	"github.com/ruko1202/xlog"
-	"go.uber.org/zap"
+	"github.com/ruko1202/xlog/xfield"
+	"go.opentelemetry.io/contrib/instrumentation/github.com/labstack/echo/otelecho"
+	"golang.org/x/sync/errgroup"
 
 	"github.com/ruko1202/goque"
 )
@@ -25,26 +27,31 @@ func main() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	ctx = xlog.ContextWithLogger(ctx, config.InitLogger())
+	logger := config.InitLogger()
+	xlog.ReplaceGlobalLogger(logger)
+	ctx = xlog.ContextWithLogger(ctx, logger)
 
 	xlog.Info(ctx, "Starting Goque example service")
 	cfg, err := config.Load()
 	if err != nil {
-		xlog.Fatal(ctx, "Failed to load configuration", zap.Error(err))
+		xlog.Fatal(ctx, "Failed to load configuration", xfield.Error(err))
 	}
 
 	// Configure metrics
-	goque.SetMetricsServiceName("goque-example-service")
+	stop := initExporters(ctx, cfg)
+	defer stop()
 
 	db := config.NewDB(ctx, cfg.Database.Driver, cfg.Database.DSN)
-	defer db.Close()
+	defer func() {
+		_ = db.Close()
+	}()
 
 	storage := initStorage(ctx, db)
 
 	goqueInst := initGoque(cfg, storage)
 	if err := goqueInst.Run(ctx); err != nil {
 		cancel()
-		xlog.Fatal(ctx, "Failed to run goque", zap.Error(err))
+		xlog.Fatal(ctx, "Failed to run goque", xfield.Error(err))
 	}
 
 	queueManager := goque.NewTaskQueueManager(storage)
@@ -60,13 +67,13 @@ func main() {
 
 	application := app.New(cfg, queueManager)
 
-	server := initHTTPServer(application)
+	server := initHTTPServer(ctx, application, cfg)
 	go func() {
 		addr := fmt.Sprintf("%s:%d", cfg.Server.Host, cfg.Server.Port)
-		xlog.Info(ctx, "Starting HTTP server", zap.String("address", addr))
+		xlog.Info(ctx, "Starting HTTP server", xfield.String("address", addr))
 		if err := server.Start(addr); err != nil {
 			cancel()
-			xlog.Fatal(ctx, "Server error", zap.Error(err))
+			xlog.Fatal(ctx, "Server error", xfield.Error(err))
 		}
 	}()
 
@@ -76,7 +83,7 @@ func main() {
 func initStorage(ctx context.Context, db *sqlx.DB) goque.TaskStorage {
 	storage, err := goque.NewStorage(db)
 	if err != nil {
-		xlog.Fatal(ctx, "Failed to create storage", zap.Error(err))
+		xlog.Fatal(ctx, "Failed to create storage", xfield.Error(err))
 	}
 	return storage
 }
@@ -89,7 +96,7 @@ func initGoque(cfg *config.Config, storage goque.TaskStorage) *goque.Goque {
 		models.TaskTypeEmail,
 		emailProcessor,
 		goque.WithWorkersCount(cfg.Queue.Workers),
-		goque.WithTaskProcessingMaxAttempts(int32(cfg.Queue.MaxAttempts)),
+		goque.WithTaskProcessingMaxAttempts(cfg.Queue.MaxAttempts),
 		goque.WithTaskProcessingTimeout(cfg.Queue.TaskTimeout),
 	)
 
@@ -98,7 +105,7 @@ func initGoque(cfg *config.Config, storage goque.TaskStorage) *goque.Goque {
 		models.TaskTypeNotification,
 		notificationProcessor,
 		goque.WithWorkersCount(cfg.Queue.Workers),
-		goque.WithTaskProcessingMaxAttempts(int32(cfg.Queue.MaxAttempts)),
+		goque.WithTaskProcessingMaxAttempts(cfg.Queue.MaxAttempts),
 		goque.WithTaskProcessingTimeout(cfg.Queue.TaskTimeout),
 	)
 
@@ -107,7 +114,7 @@ func initGoque(cfg *config.Config, storage goque.TaskStorage) *goque.Goque {
 		models.TaskTypeReport,
 		reportProcessor,
 		goque.WithWorkersCount(cfg.Queue.Workers),
-		goque.WithTaskProcessingMaxAttempts(int32(cfg.Queue.MaxAttempts)),
+		goque.WithTaskProcessingMaxAttempts(cfg.Queue.MaxAttempts),
 		goque.WithTaskProcessingTimeout(cfg.Queue.TaskTimeout),
 	)
 
@@ -116,25 +123,26 @@ func initGoque(cfg *config.Config, storage goque.TaskStorage) *goque.Goque {
 		models.TaskTypeWebhook,
 		webhookProcessor,
 		goque.WithWorkersCount(cfg.Queue.Workers),
-		goque.WithTaskProcessingMaxAttempts(int32(cfg.Queue.MaxAttempts)),
+		goque.WithTaskProcessingMaxAttempts(cfg.Queue.MaxAttempts),
 		goque.WithTaskProcessingTimeout(cfg.Queue.TaskTimeout),
 	)
 
 	return goqueInst
 }
 
-func initHTTPServer(application *app.Application) *echo.Echo {
+func initHTTPServer(ctx context.Context, application *app.Application, cfg *config.Config) *echo.Echo {
 	e := echo.New()
 	e.HidePort = true
 	e.HideBanner = true
 
 	// Middleware
-	logger := xlog.LoggerFromContext(context.Background())
+	logger := xlog.LoggerFromContext(ctx)
 	e.Use(middleware.RequestID())
 	e.Use(app.XlogMiddleware(logger))
 	e.Use(middleware.Logger())
 	e.Use(middleware.Recover())
 	e.Use(middleware.CORS())
+	e.Use(otelecho.Middleware(cfg.AppName))
 
 	// Setup routes
 	app.SetupRoutes(e, application)
@@ -150,8 +158,40 @@ func waitForShutdown(ctx context.Context, server *echo.Echo) {
 	xlog.Info(ctx, "Shutting down server...")
 
 	if err := server.Shutdown(ctx); err != nil {
-		xlog.Error(ctx, "Error shutting down HTTP server", zap.Error(err))
+		xlog.Error(ctx, "Error shutting down HTTP server", xfield.Error(err))
 	}
 
 	xlog.Info(ctx, "Server stopped successfully")
+}
+
+func initExporters(ctx context.Context, cfg *config.Config) func() {
+	xlog.ReplaceTracerName(cfg.AppName)
+	goque.SetMetricsServiceName(cfg.AppName)
+
+	otelRes, err := config.InitTracerResource(cfg)
+	if err != nil {
+		xlog.Panic(ctx, "failed to initialize OpenTelemetry", xfield.Error(err))
+	}
+
+	tracerProvider, err := config.InitTracerProvider(ctx, cfg, otelRes)
+	if err != nil {
+		xlog.Panic(ctx, "failed to initialize OpenTelemetry", xfield.Error(err))
+	}
+
+	meterProvider, err := config.InitMetricExporter(otelRes)
+	if err != nil {
+		xlog.Panic(ctx, "failed to initialize OpenTelemetry metric exporter", xfield.Error(err))
+	}
+
+	return func() {
+		eg := errgroup.Group{}
+		eg.Go(func() error {
+			return tracerProvider.Shutdown(ctx)
+		})
+		eg.Go(func() error {
+			return meterProvider.Shutdown(ctx)
+		})
+
+		_ = eg.Wait()
+	}
 }
