@@ -26,9 +26,7 @@ func NewReportProcessor() *ReportProcessor {
 
 // ProcessTask implements the TaskProcessor interface for report tasks.
 func (p *ReportProcessor) ProcessTask(ctx context.Context, task *goque.Task) error {
-	ctx, span := xlog.WithOperationSpan(ctx, "ReportProcessor",
-		xfield.String("task_id", task.ID.String()),
-	)
+	ctx, span := xlog.WithOperationSpan(ctx, "ReportProcessor")
 	defer span.End()
 
 	var payload models.ReportPayload

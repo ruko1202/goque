@@ -174,21 +174,20 @@ func (p *GoqueProcessor) runWithWorkerPool(ctx context.Context, workerPool *ants
 }
 
 func (p *GoqueProcessor) fetchAndProcess(ctx context.Context, workerPool *ants.Pool) error {
-	ctx, span := xlog.WithOperationSpan(ctx, "queue_processor.fetchAndProcess")
-	defer span.End()
-
 	for _, task := range p.fetchTasks(ctx) {
-		ctx := xlog.WithFields(ctx, xfield.String("taskID", task.ID.String()))
-
 		err := workerPool.Submit(func() {
+			ctx = goquectx.WithValues(ctx, task.Metadata)
+			ctx, span := xlog.WithOperationSpan(ctx, "queue_processor.fetchAndProcess",
+				xfield.String("taskID", task.ID.String()),
+			)
+			defer span.End()
+
 			select {
 			case <-ctx.Done():
 				p.returnTaskWhenGracefulShutdown(ctx, task)
 				return
 			default:
 			}
-
-			ctx := goquectx.WithValues(ctx, task.Metadata)
 
 			p.callHooksBefore(ctx, task)
 
@@ -197,7 +196,10 @@ func (p *GoqueProcessor) fetchAndProcess(ctx context.Context, workerPool *ants.P
 			p.callHooksAfter(ctx, task, taskErr)
 		})
 		if err != nil {
-			xlog.Error(ctx, "failed to submit task", xfield.Error(err))
+			xlog.Error(ctx, "failed to submit task",
+				xfield.Error(err),
+				xfield.String("taskID", task.ID.String()),
+			)
 			return err
 		}
 	}

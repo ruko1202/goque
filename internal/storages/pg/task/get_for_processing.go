@@ -7,6 +7,7 @@ import (
 	"github.com/jmoiron/sqlx"
 	"github.com/ruko1202/xlog"
 	"github.com/ruko1202/xlog/xfield"
+	semconv "go.opentelemetry.io/otel/semconv/v1.40.0"
 
 	"github.com/ruko1202/goque/internal/entity"
 	"github.com/ruko1202/goque/internal/pkg/generated/postgres/public/model"
@@ -18,9 +19,9 @@ import (
 // GetTasksForProcessing retrieves and locks tasks ready for processing, updating their status to pending.
 func (s *Storage) GetTasksForProcessing(ctx context.Context, taskType entity.TaskType, limit int64) ([]*entity.Task, error) {
 	ctx, span := xlog.WithOperationSpan(ctx, "storage.GetTasksForProcessing",
-		xfield.String("db.type", "postgres"),
 		xfield.String("task_type", taskType),
 	)
+	span.SetAttributes(semconv.DBSystemNamePostgreSQL)
 	defer span.End()
 
 	var tasks []*model.Task

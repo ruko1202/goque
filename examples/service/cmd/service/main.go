@@ -17,6 +17,7 @@ import (
 	"github.com/labstack/echo/v4/middleware"
 	"github.com/ruko1202/xlog"
 	"github.com/ruko1202/xlog/xfield"
+	"go.opentelemetry.io/contrib/instrumentation/github.com/labstack/echo/otelecho"
 	"golang.org/x/sync/errgroup"
 
 	"github.com/ruko1202/goque"
@@ -66,7 +67,7 @@ func main() {
 
 	application := app.New(cfg, queueManager)
 
-	server := initHTTPServer(ctx, application)
+	server := initHTTPServer(ctx, application, cfg)
 	go func() {
 		addr := fmt.Sprintf("%s:%d", cfg.Server.Host, cfg.Server.Port)
 		xlog.Info(ctx, "Starting HTTP server", xfield.String("address", addr))
@@ -129,7 +130,7 @@ func initGoque(cfg *config.Config, storage goque.TaskStorage) *goque.Goque {
 	return goqueInst
 }
 
-func initHTTPServer(ctx context.Context, application *app.Application) *echo.Echo {
+func initHTTPServer(ctx context.Context, application *app.Application, cfg *config.Config) *echo.Echo {
 	e := echo.New()
 	e.HidePort = true
 	e.HideBanner = true
@@ -141,6 +142,7 @@ func initHTTPServer(ctx context.Context, application *app.Application) *echo.Ech
 	e.Use(middleware.Logger())
 	e.Use(middleware.Recover())
 	e.Use(middleware.CORS())
+	e.Use(otelecho.Middleware(cfg.AppName))
 
 	// Setup routes
 	app.SetupRoutes(e, application)

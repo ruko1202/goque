@@ -9,6 +9,7 @@ import (
 	"github.com/ruko1202/xlog"
 	"github.com/ruko1202/xlog/xfield"
 	"github.com/samber/lo"
+	semconv "go.opentelemetry.io/otel/semconv/v1.40.0"
 
 	"github.com/ruko1202/goque/internal/entity"
 	"github.com/ruko1202/goque/internal/pkg/generated/postgres/public/model"
@@ -25,10 +26,10 @@ func (s *Storage) CureTasks(
 	comment string,
 ) ([]*entity.Task, error) {
 	ctx, span := xlog.WithOperationSpan(ctx, "storage.CureTasks",
-		xfield.String("db.type", "postgres"),
 		xfield.Any("statuses", statuses),
 		xfield.Duration("updated_at_time_ago", updatedAtTimeAgo),
 	)
+	span.SetAttributes(semconv.DBSystemNamePostgreSQL)
 	defer span.End()
 
 	stmt := table.Task.

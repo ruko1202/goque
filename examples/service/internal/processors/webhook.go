@@ -25,9 +25,7 @@ func NewWebhookProcessor() *WebhookProcessor {
 
 // ProcessTask implements the TaskProcessor interface for webhook tasks.
 func (p *WebhookProcessor) ProcessTask(ctx context.Context, task *goque.Task) error {
-	ctx, span := xlog.WithOperationSpan(ctx, "WebhookProcessor",
-		xfield.String("task_id", task.ID.String()),
-	)
+	ctx, span := xlog.WithOperationSpan(ctx, "WebhookProcessor")
 	defer span.End()
 
 	var payload models.WebhookPayload

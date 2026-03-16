@@ -8,6 +8,7 @@ import (
 	"github.com/lib/pq"
 	"github.com/ruko1202/xlog"
 	"github.com/ruko1202/xlog/xfield"
+	semconv "go.opentelemetry.io/otel/semconv/v1.40.0"
 
 	"github.com/ruko1202/goque/internal/entity"
 	"github.com/ruko1202/goque/internal/pkg/generated/postgres/public/table"
@@ -17,10 +18,10 @@ import (
 // AddTask inserts a new task into the database.
 func (s *Storage) AddTask(ctx context.Context, task *entity.Task) error {
 	ctx, span := xlog.WithOperationSpan(ctx, "storage.AddTask",
-		xfield.String("db.type", "postgres"),
 		xfield.String("task_id", task.ID.String()),
 		xfield.String("task_type", task.Type),
 	)
+	span.SetAttributes(semconv.DBSystemNamePostgreSQL)
 	defer span.End()
 
 	// Validate JSON payload before insertion

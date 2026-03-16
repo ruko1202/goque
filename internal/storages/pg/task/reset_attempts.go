@@ -9,6 +9,7 @@ import (
 	"github.com/ruko1202/xlog"
 	"github.com/ruko1202/xlog/xfield"
 	"github.com/samber/lo"
+	semconv "go.opentelemetry.io/otel/semconv/v1.40.0"
 
 	"github.com/ruko1202/goque/internal/entity"
 	"github.com/ruko1202/goque/internal/storages/dbutils"
@@ -18,9 +19,9 @@ import (
 // ResetAttempts resets the retry attempts counter for a task and sets its status back to new.
 func (s *Storage) ResetAttempts(ctx context.Context, id uuid.UUID) error {
 	ctx, span := xlog.WithOperationSpan(ctx, "storage.ResetAttempts",
-		xfield.String("db.type", "postgres"),
 		xfield.String("task_id", id.String()),
 	)
+	span.SetAttributes(semconv.DBSystemNamePostgreSQL)
 	defer span.End()
 
 	err := dbutils.DoInTransaction(ctx, s.db, func(tx *sqlx.Tx) error {

@@ -26,9 +26,7 @@ func NewNotificationProcessor() *NotificationProcessor {
 
 // ProcessTask implements the TaskProcessor interface for notification tasks.
 func (p *NotificationProcessor) ProcessTask(ctx context.Context, task *goque.Task) error {
-	ctx, span := xlog.WithOperationSpan(ctx, "NotificationProcessor",
-		xfield.String("task_id", task.ID.String()),
-	)
+	ctx, span := xlog.WithOperationSpan(ctx, "NotificationProcessor")
 	defer span.End()
 
 	var payload models.NotificationPayload

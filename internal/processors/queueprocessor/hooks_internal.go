@@ -52,6 +52,8 @@ func (p *GoqueProcessor) updateTaskState(ctx context.Context, task *entity.Task,
 }
 
 func (p *GoqueProcessor) returnTaskWhenGracefulShutdown(ctx context.Context, task *entity.Task) {
+	ctx, span := xlog.WithOperationSpan(ctx, "queue_processor.returnTaskWhenGracefulShutdown")
+	defer span.End()
 	ctx = context.WithoutCancel(ctx)
 
 	xlog.Info(ctx, "graceful shutdown: return task to queue")

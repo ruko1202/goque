@@ -7,6 +7,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/ruko1202/xlog"
 	"github.com/ruko1202/xlog/xfield"
+	semconv "go.opentelemetry.io/otel/semconv/v1.40.0"
 
 	"github.com/ruko1202/goque/internal/storages/dbutils"
 
@@ -18,9 +19,9 @@ import (
 // GetTask retrieves a single task by its ID from the database.
 func (s *Storage) GetTask(ctx context.Context, id uuid.UUID) (*entity.Task, error) {
 	ctx, span := xlog.WithOperationSpan(ctx, "storage.GetTask",
-		xfield.String("db.type", "postgres"),
 		xfield.String("task_id", id.String()),
 	)
+	span.SetAttributes(semconv.DBSystemNamePostgreSQL)
 	defer span.End()
 
 	task, err := s.getTaskTx(ctx, s.db, id)

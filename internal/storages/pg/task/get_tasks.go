@@ -5,6 +5,7 @@ import (
 
 	"github.com/ruko1202/xlog"
 	"github.com/ruko1202/xlog/xfield"
+	semconv "go.opentelemetry.io/otel/semconv/v1.40.0"
 
 	"github.com/ruko1202/goque/internal/entity"
 	"github.com/ruko1202/goque/internal/pkg/generated/postgres/public/model"
@@ -16,9 +17,9 @@ import (
 // GetTasks retrieves tasks matching the filter criteria with a specified limit.
 func (s *Storage) GetTasks(ctx context.Context, filter *dbentity.GetTasksFilter, limit int64) ([]*entity.Task, error) {
 	ctx, span := xlog.WithOperationSpan(ctx, "storage.GetTasks",
-		xfield.String("db.type", "postgres"),
 		xfield.Any("filter", filter),
 	)
+	span.SetAttributes(semconv.DBSystemNamePostgreSQL)
 	defer span.End()
 
 	tasks, err := s.getTasksByFilterTx(ctx, s.db, filter, limit)

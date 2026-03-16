@@ -8,6 +8,7 @@ import (
 	"github.com/ruko1202/xlog"
 	"github.com/ruko1202/xlog/xfield"
 	"github.com/samber/lo"
+	semconv "go.opentelemetry.io/otel/semconv/v1.40.0"
 
 	"github.com/ruko1202/goque/internal/entity"
 	"github.com/ruko1202/goque/internal/pkg/generated/postgres/public/model"
@@ -19,9 +20,9 @@ import (
 // UpdateTask updates an existing task in the database with the provided data.
 func (s *Storage) UpdateTask(ctx context.Context, taskID uuid.UUID, task *entity.Task) error {
 	ctx, span := xlog.WithOperationSpan(ctx, "storage.UpdateTask",
-		xfield.String("db.type", "postgres"),
 		xfield.String("task_id", taskID.String()),
 	)
+	span.SetAttributes(semconv.DBSystemNamePostgreSQL)
 	defer span.End()
 
 	task.UpdatedAt = lo.ToPtr(xtime.Now())
@@ -31,9 +32,9 @@ func (s *Storage) UpdateTask(ctx context.Context, taskID uuid.UUID, task *entity
 // HardUpdateTask updates a task without automatically setting the updated_at timestamp.
 func (s *Storage) HardUpdateTask(ctx context.Context, taskID uuid.UUID, task *entity.Task) error {
 	ctx, span := xlog.WithOperationSpan(ctx, "storage.HardUpdateTask",
-		xfield.String("db.type", "postgres"),
 		xfield.String("task_id", taskID.String()),
 	)
+	span.SetAttributes(semconv.DBSystemNamePostgreSQL)
 	defer span.End()
 
 	return s.updateTaskTx(ctx, s.db, taskID, toDBModel(ctx, task))

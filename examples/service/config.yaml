@@ -24,5 +24,5 @@ taskgenerator:
   maxtasks: 5
 
 tracerconfig:
-  host: otel-collector
+  host: localhost
   port: 4317

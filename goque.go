@@ -45,6 +45,8 @@ func (g *Goque) RegisterProcessor(
 
 // Run starts all registered processors in separate goroutines.
 func (g *Goque) Run(ctx context.Context) error {
+	ctx = xlog.ContextWithTracer(ctx, tracer)
+
 	if len(g.processors) == 0 {
 		return errors.New("no processors to run")
 	}

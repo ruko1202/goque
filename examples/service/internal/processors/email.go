@@ -25,9 +25,7 @@ func NewEmailProcessor() *EmailProcessor {
 
 // ProcessTask implements the TaskProcessor interface for email tasks.
 func (p *EmailProcessor) ProcessTask(ctx context.Context, task *goque.Task) error {
-	ctx, span := xlog.WithOperationSpan(ctx, "EmailProcessor",
-		xfield.String("task_id", task.ID.String()),
-	)
+	ctx, span := xlog.WithOperationSpan(ctx, "EmailProcessor")
 	defer span.End()
 
 	var payload models.EmailPayload
