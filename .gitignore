@@ -14,3 +14,7 @@ agent-tasks
 goque.sqlite.db
 
 agent/tasks/
+
+profiles/
+
+goque.sqlite.db-journal

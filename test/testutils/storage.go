@@ -3,6 +3,7 @@ package testutils
 import (
 	"context"
 	"fmt"
+	"slices"
 
 	"github.com/ruko1202/xlog"
 	"github.com/ruko1202/xlog/xfield"
@@ -21,12 +22,12 @@ import (
 func SetupStorages(ctx context.Context) []storages.AdvancedTaskStorage {
 	dbDriver := viper.GetString("DB_DRIVER")
 
-	if _, ok := availableDBs[dbDriver]; ok {
+	if slices.Contains(availableDBs, dbDriver) {
 		return []storages.AdvancedTaskStorage{setupStorage(ctx, dbDriver)}
 	}
 
 	xlog.Info(ctx, "DB_DRIVER doesn't define. Init storages for all DBs", xfield.Any("dbs", availableDBs))
-	return lo.MapToSlice(availableDBs, func(dbDriver string, _ struct{}) storages.AdvancedTaskStorage {
+	return lo.Map(availableDBs, func(dbDriver string, _ int) storages.AdvancedTaskStorage {
 		return setupStorage(ctx, dbDriver)
 	})
 }

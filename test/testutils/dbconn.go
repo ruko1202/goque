@@ -11,10 +11,10 @@ import (
 	"github.com/ruko1202/goque/pkg/goquestorage"
 )
 
-var availableDBs = map[string]struct{}{
-	goquestorage.PgDriver:     {},
-	goquestorage.MysqlDriver:  {},
-	goquestorage.SqliteDriver: {},
+var availableDBs = []string{
+	goquestorage.SqliteDriver,
+	goquestorage.PgDriver,
+	goquestorage.MysqlDriver,
 }
 
 // PgDBConn creates a PostgreSQL database connection for testing.
