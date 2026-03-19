@@ -1,12 +1,15 @@
 package entity
 
 import (
+	"bytes"
 	"context"
 
 	"github.com/goccy/go-json"
 	"github.com/ruko1202/xlog"
 	"github.com/ruko1202/xlog/xfield"
 	"github.com/samber/lo"
+
+	"github.com/ruko1202/goque/internal/utils/xpool"
 )
 
 // Metadata represents arbitrary key-value data associated with a task for tracking and context.
@@ -31,11 +34,14 @@ func (m Metadata) Merge(metadata Metadata) Metadata {
 
 // ToJSON serializes the metadata map into a JSON string.
 func (m Metadata) ToJSON(ctx context.Context) string {
-	metadata, err := json.Marshal(m)
+	buf := xpool.AcquireBuffer()
+	defer xpool.ReleaseBuffer(buf)
+
+	err := json.NewEncoder(buf).Encode(m)
 	if err != nil {
 		xlog.Error(ctx, "marshaling metadata", xfield.Error(err))
 		return ""
 	}
 
-	return string(metadata)
+	return string(bytes.TrimSpace(buf.Bytes()))
 }
