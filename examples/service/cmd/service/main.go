@@ -18,7 +18,6 @@ import (
 	"github.com/ruko1202/xlog"
 	"github.com/ruko1202/xlog/xfield"
 	"go.opentelemetry.io/contrib/instrumentation/github.com/labstack/echo/otelecho"
-	"golang.org/x/sync/errgroup"
 
 	"github.com/ruko1202/goque"
 )
@@ -27,6 +26,7 @@ func main() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
+	// Configure logger
 	logger := config.InitLogger()
 	xlog.ReplaceGlobalLogger(logger)
 	ctx = xlog.ContextWithLogger(ctx, logger)
@@ -38,9 +38,25 @@ func main() {
 	}
 
 	// Configure metrics
-	stop := initExporters(ctx, cfg)
-	defer stop()
+	xlog.ReplaceTracerName(cfg.AppName)
+	otelRes, err := config.InitTracerResource(cfg)
+	if err != nil {
+		xlog.Panic(ctx, "failed to initialize OpenTelemetry", xfield.Error(err))
+	}
 
+	tracerProvider, err := config.InitTracerProvider(ctx, cfg, otelRes)
+	if err != nil {
+		xlog.Panic(ctx, "failed to initialize OpenTelemetry", xfield.Error(err))
+	}
+	defer tracerProvider.Shutdown(ctx)
+
+	meterProvider, err := config.InitMetricExporter(otelRes)
+	if err != nil {
+		xlog.Panic(ctx, "failed to initialize OpenTelemetry metric exporter", xfield.Error(err))
+	}
+	defer meterProvider.Shutdown(ctx)
+
+	// Configure db
 	db := config.NewDB(ctx, cfg.Database.Driver, cfg.Database.DSN)
 	defer func() {
 		_ = db.Close()
@@ -48,6 +64,9 @@ func main() {
 
 	storage := initStorage(ctx, db)
 
+	// Configure goque
+	goque.SetTracerProvider(tracerProvider)
+	goque.SetMetricsServiceName(cfg.AppName)
 	goqueInst := initGoque(cfg, storage)
 	if err := goqueInst.Run(ctx); err != nil {
 		cancel()
@@ -162,36 +181,4 @@ func waitForShutdown(ctx context.Context, server *echo.Echo) {
 	}
 
 	xlog.Info(ctx, "Server stopped successfully")
-}
-
-func initExporters(ctx context.Context, cfg *config.Config) func() {
-	xlog.ReplaceTracerName(cfg.AppName)
-	goque.SetMetricsServiceName(cfg.AppName)
-
-	otelRes, err := config.InitTracerResource(cfg)
-	if err != nil {
-		xlog.Panic(ctx, "failed to initialize OpenTelemetry", xfield.Error(err))
-	}
-
-	tracerProvider, err := config.InitTracerProvider(ctx, cfg, otelRes)
-	if err != nil {
-		xlog.Panic(ctx, "failed to initialize OpenTelemetry", xfield.Error(err))
-	}
-
-	meterProvider, err := config.InitMetricExporter(otelRes)
-	if err != nil {
-		xlog.Panic(ctx, "failed to initialize OpenTelemetry metric exporter", xfield.Error(err))
-	}
-
-	return func() {
-		eg := errgroup.Group{}
-		eg.Go(func() error {
-			return tracerProvider.Shutdown(ctx)
-		})
-		eg.Go(func() error {
-			return meterProvider.Shutdown(ctx)
-		})
-
-		_ = eg.Wait()
-	}
 }
