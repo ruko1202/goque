@@ -14,8 +14,12 @@ permissions:
   contents: read
   pull-requests: write
 
+# Configuration: Update these values to change Go versions across all tests
+# MAIN_GO_VERSION: Version used for coverage upload and linting
+# GO_VERSIONS: JSON array of versions to test (e.g., ["1.24", "1.25"])
 env:
-  MAIN_GO_VERSION: 1.23
+  MAIN_GO_VERSION: '1.25'
+  GO_VERSIONS: '["1.25"]'
 
 jobs:
   lint:
@@ -40,7 +44,8 @@ jobs:
       contents: write
       pull-requests: write
     with:
-      main_go_version: '1.23'
+      main_go_version: ${{ env.MAIN_GO_VERSION }}
+      go_versions: ${{ env.GO_VERSIONS }}
       db_driver: 'postgres'
       db_dsn: 'postgres://postgres:postgres@localhost:5432/postgres?sslmode=disable'
 
@@ -51,7 +56,8 @@ jobs:
       contents: write
       pull-requests: write
     with:
-      main_go_version: '1.23'
+      main_go_version: ${{ env.MAIN_GO_VERSION }}
+      go_versions: ${{ env.GO_VERSIONS }}
       db_driver: 'mysql'
       db_dsn: 'root:root@tcp(localhost:3306)/goque?parseTime=true&loc=UTC'
 
@@ -62,7 +68,8 @@ jobs:
       contents: write
       pull-requests: write
     with:
-      main_go_version: '1.23'
+      main_go_version: ${{ env.MAIN_GO_VERSION }}
+      go_versions: ${{ env.GO_VERSIONS }}
       db_driver: 'sqlite3'
       db_dsn: 'goque_test.db'
 
