@@ -138,7 +138,27 @@ github.com/spf13/pflag
 - **Usage**: CLI tools, configuration
 - **Benefits**: POSIX/GNU-style flags
 
-### Monitoring
+### Observability
+
+#### xlog
+```go
+github.com/ruko1202/xlog
+```
+- **Purpose**: Unified structured logging interface
+- **Usage**: All internal logging in Goque
+- **Components**:
+  - Zap adapter (recommended for production)
+  - Slog adapter (Go 1.21+ standard library)
+  - Custom adapter support
+- **Features**:
+  - Context-aware logging
+  - Automatic logger propagation
+  - Structured fields (task_id, task_type, etc.)
+  - Multiple backend support
+- **Benefits**:
+  - Consistent logging interface
+  - Easy to switch backends
+  - Production-ready adapters
 
 #### prometheus/client_golang
 ```go
@@ -155,6 +175,26 @@ github.com/prometheus/client_golang
   - Standard metrics format
   - Ready for Prometheus scraping
   - Grafana dashboard compatible
+
+#### OpenTelemetry
+```go
+go.opentelemetry.io/otel
+go.opentelemetry.io/otel/trace
+```
+- **Purpose**: Distributed tracing
+- **Usage**: Optional tracing support
+- **Default**: Noop tracer (zero overhead)
+- **Configuration**: `goque.SetTracerProvider(tracerProvider)`
+- **Traced Operations**:
+  - Task processing loop (`queue_processor.fetchAndProcess`)
+  - Task fetching (`queue_processor.fetchTasks`)
+  - Hook execution (before/after)
+  - Queue operations (`task_queue_manager.AddTaskToQueue`)
+- **Benefits**:
+  - Zero overhead by default
+  - Full OpenTelemetry compatibility
+  - Sampling support for production
+  - Integration with Jaeger, Zipkin, etc.
 
 ### Testing
 
@@ -340,12 +380,28 @@ internal/
 
 ## Observability
 
-### Logging
-- **Package**: `log/slog` (standard library)
-- **Format**: Structured logging
-- **Context**: Context-aware logging
+### Logging (xlog)
+- **Package**: `github.com/ruko1202/xlog`
+- **Adapters**:
+  - Zap (`xlog.NewZapAdapter()`) - Production recommended
+  - Slog (`xlog.NewSlogAdapter()`) - Standard library
+  - Custom adapters - Implement `xlog.Logger` interface
+- **Format**: Structured logging with fields
+- **Context**: Context-aware logging with automatic propagation
+- **Usage**:
+  ```go
+  logger := xlog.NewZapAdapter(zap.Must(zap.NewProduction()))
+  xlog.ReplaceGlobalLogger(logger)
+  ctx = xlog.ContextWithLogger(ctx, logger)
+  ```
+- **What Gets Logged**:
+  - Task lifecycle events (creation, processing, completion)
+  - Error events and retry attempts
+  - Database operations and transactions
+  - Worker pool events
+  - Healer and cleaner operations
 
-### Metrics
+### Metrics (Prometheus)
 - **Built-in**: Prometheus metrics via `internal/metrics`
 - **Metrics Exposed**:
   - `goque_processed_tasks_total` - Task counters by type and status
@@ -354,10 +410,41 @@ internal/
   - `goque_task_payload_size_bytes` - Payload size histograms
 - **Labels**: `task_type`, `status`, `task_error_type`, `task_processing_operations`, `service`
 - **Operations Tracked**: add_to_queue, processing, cleanup, health
+- **Configuration**:
+  ```go
+  goque.SetMetricsServiceName("my-service")
+  ```
 - **Extensible**: Via hooks for custom metrics
 
-### Tracing
-- Not built-in, but extensible via context
+### Tracing (OpenTelemetry)
+- **Package**: `go.opentelemetry.io/otel`
+- **Default**: Noop tracer (zero overhead)
+- **Configuration**:
+  ```go
+  // Initialize TracerProvider (before creating Goque instances)
+  tracerProvider := sdktrace.NewTracerProvider(
+      sdktrace.WithSampler(sdktrace.TraceIDRatioBased(0.01)), // 1% sampling
+      sdktrace.WithBatcher(exporter),
+  )
+  goque.SetTracerProvider(tracerProvider)
+  ```
+- **Traced Operations**:
+  - `queue_processor.fetchAndProcess` - Main processing loop
+  - `queue_processor.fetchTasks` - Getting tasks from DB
+  - `queue_processor.callHooksBefore` - Pre-processing hooks
+  - `queue_processor.processTask` - Task execution
+  - `queue_processor.callHooksAfter` - Post-processing hooks
+  - `task_queue_manager.AddTaskToQueue` - Task creation
+  - `task_queue_manager.GetTasks` - Task retrieval
+- **Performance Impact**:
+  - Noop (default): 0% overhead
+  - 1% sampling: <0.1% memory overhead
+  - 100% sampling: ~6% memory overhead
+- **Sampling Strategies**:
+  - Production: 1% (`TraceIDRatioBased(0.01)`)
+  - Staging: 10% (`TraceIDRatioBased(0.1)`)
+  - Development: 100% (`AlwaysSample()`)
+- **Integration**: Works with Jaeger, Zipkin, and other OTEL-compatible backends
 
 ## Testing Strategy
 

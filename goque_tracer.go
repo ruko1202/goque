@@ -33,8 +33,6 @@ import (
 //
 //	// Now create Goque instances
 //	goq := goque.NewGoque(taskStorage)
-//
-// For sampling strategies and performance tuning, see profiles/OTEL_SAMPLING_GUIDE.md
 func SetTracerProvider(tp trace.TracerProvider) {
 	xtracer.SetTracerProvider(tp)
 }

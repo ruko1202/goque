@@ -85,7 +85,22 @@ new → pending → processing → ✅ done
 - Idempotency support
 - Duplicate task prevention
 
-### 11. Prometheus Metrics
+### 11. Observability
+
+**Structured Logging (xlog)**
+- Uses xlog for all internal logging
+- Support for multiple backends: Zap, Slog, custom adapters
+- Context-aware logging with automatic enrichment
+- Task metadata included in logs
+
+**Distributed Tracing (OpenTelemetry)**
+- OpenTelemetry support for distributed tracing
+- Noop tracer by default (zero overhead)
+- Configurable TracerProvider via `goque.SetTracerProvider()`
+- Traces task lifecycle: fetching, processing, hooks
+- Sampling support for production deployments
+
+**Prometheus Metrics**
 - Built-in Prometheus metrics integration
 - Task processing counters and error tracking
 - Duration histograms for performance monitoring
