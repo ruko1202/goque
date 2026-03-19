@@ -11,7 +11,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/ruko1202/xlog"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/zap/zaptest"
+	"go.uber.org/zap"
 
 	"github.com/ruko1202/goque"
 	"github.com/ruko1202/goque/internal/entity"
@@ -44,7 +44,7 @@ func BenchmarkTaskPush(b *testing.B) {
 func benchmarkTaskPush(b *testing.B, storage storages.AdvancedTaskStorage) {
 	b.Helper()
 	ctx := context.Background()
-	ctx = xlog.ContextWithLogger(ctx, xlog.NewZapAdapter(zaptest.NewLogger(b)))
+	ctx = xlog.ContextWithLogger(ctx, xlog.NewZapAdapter(zap.NewNop()))
 
 	queueManager := goque.NewTaskQueueManager(storage)
 	taskType := "push_benchmark_" + uuid.NewString()
@@ -70,7 +70,7 @@ func BenchmarkConcurrentTaskPush(b *testing.B) {
 func benchmarkConcurrentTaskPush(b *testing.B, storage storages.AdvancedTaskStorage) {
 	b.Helper()
 	ctx := context.Background()
-	ctx = xlog.ContextWithLogger(ctx, xlog.NewZapAdapter(zaptest.NewLogger(b)))
+	ctx = xlog.ContextWithLogger(ctx, xlog.NewZapAdapter(zap.NewNop()))
 
 	queueManager := goque.NewTaskQueueManager(storage)
 	taskType := "concurrent_push_" + uuid.NewString()
@@ -109,7 +109,7 @@ func BenchmarkTaskFetch(b *testing.B) {
 func benchmarkTaskFetch(b *testing.B, storage storages.AdvancedTaskStorage) {
 	b.Helper()
 	ctx := context.Background()
-	ctx = xlog.ContextWithLogger(ctx, xlog.NewZapAdapter(zaptest.NewLogger(b)))
+	ctx = xlog.ContextWithLogger(ctx, xlog.NewZapAdapter(zap.NewNop()))
 
 	queueManager := goque.NewTaskQueueManager(storage)
 	taskType := "fetch_benchmark_" + uuid.NewString()
@@ -155,7 +155,7 @@ func BenchmarkWorkerPool(b *testing.B) {
 func benchmarkWorkerPool(b *testing.B, storage storages.AdvancedTaskStorage, workerCount int) {
 	b.Helper()
 	ctx := context.Background()
-	ctx = xlog.ContextWithLogger(ctx, xlog.NewZapAdapter(zaptest.NewLogger(b)))
+	ctx = xlog.ContextWithLogger(ctx, xlog.NewZapAdapter(zap.NewNop()))
 	ctx = goquectx.WithValue(ctx, "benchmark", b.Name())
 
 	queueManager := goque.NewTaskQueueManager(storage)
@@ -208,7 +208,7 @@ func BenchmarkTaskProcessingSimple(b *testing.B) {
 func benchmarkTaskProcessingSimple(b *testing.B, storage storages.AdvancedTaskStorage) {
 	b.Helper()
 	ctx := context.Background()
-	ctx = xlog.ContextWithLogger(ctx, xlog.NewZapAdapter(zaptest.NewLogger(b)))
+	ctx = xlog.ContextWithLogger(ctx, xlog.NewZapAdapter(zap.NewNop()))
 	ctx = goquectx.WithValue(ctx, "benchmark", b.Name())
 
 	queueManager := goque.NewTaskQueueManager(storage)

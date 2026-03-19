@@ -2,6 +2,7 @@ package testutils
 
 import (
 	"context"
+	"time"
 
 	"github.com/jmoiron/sqlx"
 	_ "github.com/lib/pq"           // PostgreSQL driver
@@ -21,8 +22,10 @@ var availableDBs = []string{
 func PgDBConn(ctx context.Context) *sqlx.DB {
 	viper.SetDefault("DB_DSN", "postgres://postgres:postgres@localhost:5432/postgres?sslmode=disable")
 	viper.SetDefault("DB_DRIVER", goquestorage.PgDriver)
-	viper.SetDefault("DB_MAX_OPEN_CONN", 10)
-	viper.SetDefault("DB_MAX_IDLE_CONN", 10)
+	viper.SetDefault("DB_MAX_OPEN_CONN", 50)
+	viper.SetDefault("DB_MAX_IDLE_CONN", 25)
+	viper.SetDefault("DB_CONN_MAX_IDLE_CONN", 5*time.Minute)
+	viper.SetDefault("DB_CONN_MAX_LIFE_CONN", 1*time.Minute)
 
 	return DBConn(ctx, viper.GetString("DB_DSN"), viper.GetString("DB_DRIVER"))
 }
@@ -31,8 +34,10 @@ func PgDBConn(ctx context.Context) *sqlx.DB {
 func MysqlDBConn(ctx context.Context) *sqlx.DB {
 	viper.SetDefault("DB_DSN", "root:root@tcp(localhost:3306)/goque?parseTime=true&loc=UTC")
 	viper.SetDefault("DB_DRIVER", goquestorage.MysqlDriver)
-	viper.SetDefault("DB_MAX_OPEN_CONN", 10)
-	viper.SetDefault("DB_MAX_IDLE_CONN", 10)
+	viper.SetDefault("DB_MAX_OPEN_CONN", 50)
+	viper.SetDefault("DB_MAX_IDLE_CONN", 25)
+	viper.SetDefault("DB_CONN_MAX_IDLE_CONN", 5*time.Minute)
+	viper.SetDefault("DB_CONN_MAX_LIFE_CONN", 1*time.Minute)
 
 	return DBConn(ctx, viper.GetString("DB_DSN"), viper.GetString("DB_DRIVER"))
 }
@@ -43,6 +48,8 @@ func SqliteDBConn(ctx context.Context) *sqlx.DB {
 	viper.SetDefault("DB_DRIVER", goquestorage.SqliteDriver)
 	viper.SetDefault("DB_MAX_OPEN_CONN", 1) // SQLite in-memory works best with single connection
 	viper.SetDefault("DB_MAX_IDLE_CONN", 1)
+	viper.SetDefault("DB_CONN_MAX_IDLE_CONN", 5*time.Minute)
+	viper.SetDefault("DB_CONN_MAX_LIFE_CONN", 1*time.Minute)
 
 	path, err := GetPathFromRoot(viper.GetString("DB_DSN"))
 	if err != nil {
@@ -58,7 +65,7 @@ func DBConn(ctx context.Context, dsn, driver string) *sqlx.DB {
 		DSN:             dsn,
 		Driver:          driver,
 		MaxIdleConn:     viper.GetInt("DB_MAX_OPEN_CONN"),
-		MaxOpenConn:     viper.GetInt("DB_MAX_OPEN_CONN"),
+		MaxOpenConn:     viper.GetInt("DB_MAX_IDLE_CONN"),
 		ConnMaxIdleTime: viper.GetDuration("DB_CONN_MAX_IDLE_CONN"),
 		ConnMaxLifetime: viper.GetDuration("DB_CONN_MAX_LIFE_CONN"),
 	})
