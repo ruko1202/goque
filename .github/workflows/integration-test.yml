@@ -7,6 +7,11 @@ on:
       main_go_version:
         required: true
         type: string
+        description: 'Main Go version for coverage upload'
+      go_versions:
+        required: true
+        type: string
+        description: 'JSON array of Go versions to test (e.g., ["1.24", "1.25"])'
       db_driver:
         required: true
         type: string
@@ -52,7 +57,7 @@ jobs:
 
     strategy:
       matrix:
-        go-version: ['1.23', '1.24']
+        go-version: ${{ fromJSON(inputs.go_versions) }}
 
     steps:
       - uses: actions/checkout@v5

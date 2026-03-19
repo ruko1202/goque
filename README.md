@@ -2,7 +2,8 @@
 [![pipeline](https://github.com/ruko1202/goque/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/ruko1202/goque/actions/workflows/ci.yml)
 ![Coverage](https://img.shields.io/badge/Coverage-86.5%25-brightgreen)
 
-A robust, database-backed task queue system for Go with built-in worker pools, retry logic, and graceful shutdown support. Supports PostgreSQL, MySQL, and SQLite.
+A robust, database-backed task queue system for Go with built-in worker pools, retry logic, and graceful shutdown support.
+Supports PostgreSQL, MySQL, and SQLite.
 
 ## Features
 
@@ -19,7 +20,7 @@ A robust, database-backed task queue system for Go with built-in worker pools, r
 - ✅ **External ID support** - Associate tasks with external identifiers for idempotency
 - ✅ **Built-in task healer** - Automatically marks stuck tasks as errored for reprocessing
 - ✅ **Multi-processor support** - Manage multiple task types with a single queue manager
-- ✅ **Structured logging** - Built-in structured logging with `log/slog`
+- ✅ **Structured logging** - Built-in structured logging with xlog (supports zap, slog, and custom adapters)
 - ✅ **Production-ready example** - Complete example service with web dashboard and API
 - ✅ **Prometheus metrics** - Built-in Prometheus metrics for monitoring task queue performance
 
@@ -29,30 +30,67 @@ A robust, database-backed task queue system for Go with built-in worker pools, r
 go get github.com/ruko1202/goque
 ```
 
+## Database Support
+
+Goque supports three database backends with different performance characteristics:
+
+| Database | Latency | Memory/op | Best For | Production Ready |
+|----------|---------|-----------|----------|------------------|
+| **PostgreSQL** | **0.97 ms** | 35.4 KB | High-throughput production systems | ✅ **Recommended** |
+| **MySQL** | 1.59 ms | **33.4 KB** | Memory-constrained environments | ✅ Yes |
+| **SQLite** | 3.24 ms | 38.9 KB | Local development, testing, CI/CD | ⚠️ **Dev/Test only** |
+
+**Key findings:**
+- PostgreSQL is **3.4x faster** than SQLite and **39% faster** than MySQL
+- MySQL uses **6% less memory** than PostgreSQL
+- SQLite has file-level locking and is **not recommended for production**
+
 ## Quick Start
 
 ### 1. Prepare database
 
-Goque supports three database backends: **PostgreSQL**, **MySQL**, and **SQLite**.
+Choose the database backend that fits your deployment requirements.
+
+#### Production
+
+For production deployments, apply migrations from the `migrations/` directory to your database:
 
 ```bash
+# Install goose migration tool
+go install github.com/pressly/goose/v3/cmd/goose@latest
+
+# Apply PostgreSQL migrations
+goose -dir migrations/pg postgres "your-production-dsn" up
+
+# Or for MySQL
+goose -dir migrations/mysql mysql "your-production-dsn" up
+```
+
+#### Local Development
+
+For local development, use Docker Compose and Make commands:
+
+```bash
+# Start PostgreSQL and MySQL with Docker Compose
+make docker-up
+
 # Configure your database connection in .env.local
-# For PostgreSQL:
-echo 'DB_DRIVER postgres' > .env.local
-echo 'DB_DSN postgres://postgres:postgres@localhost:5432/goque?sslmode=disable' >> .env.local
+# For PostgreSQL (recommended):
+echo 'DB_DRIVER=postgres' > .env.local
+echo 'DB_DSN=postgres://postgres:postgres@localhost:5432/goque?sslmode=disable' >> .env.local
 
 # For MySQL:
-# echo 'DB_DRIVER mysql' > .env.local
-# echo 'DB_DSN root:root@tcp(localhost:3306)/goque?parseTime=true&loc=UTC' >> .env.local
+# echo 'DB_DRIVER=mysql' > .env.local
+# echo 'DB_DSN=root:root@tcp(localhost:3306)/goque?parseTime=true&loc=UTC' >> .env.local
 
-# For SQLite:
-# echo 'DB_DRIVER sqlite3' > .env.local
-# echo 'DB_DSN ./goque.db' >> .env.local
+# For SQLite (dev/test only):
+# echo 'DB_DRIVER=sqlite3' > .env.local
+# echo 'DB_DSN=./goque.db' >> .env.local
 
-# Install database tools
+# Install database tools (goose)
 make bin-deps-db
 
-# Run migrations (works with any database)
+# Apply migrations
 make db-up
 ```
 
@@ -80,15 +118,25 @@ import (
     "context"
     "time"
 
-	"github.com/ruko1202/xlog"
     "github.com/jmoiron/sqlx"
     _ "github.com/lib/pq"
     "github.com/ruko1202/goque"
     "github.com/ruko1202/goque/pkg/goquestorage"
+    "github.com/ruko1202/xlog"
+    "go.uber.org/zap"
 )
 
 func main() {
-	ctx := context.Background()
+    ctx := context.Background()
+
+    // Configure structured logging with xlog
+    logger := xlog.NewZapAdapter(zap.Must(zap.NewProduction()))
+    xlog.ReplaceGlobalLogger(logger)
+    ctx = xlog.ContextWithLogger(ctx, logger)
+
+    // Optional: Configure OpenTelemetry tracing
+    // goque.SetTracerProvider(tracerProvider) // See "Observability" section
+
     // Initialize database connection
     db, err := goquestorage.NewDBConn(ctx, &goquestorage.Config{
         DSN: "postgres://user:pass@localhost:5432/goque?sslmode=disable",
@@ -227,11 +275,13 @@ goq.RegisterProcessor(
 )
 ```
 
-### Prometheus Metrics
+### Observability
+
+#### Prometheus Metrics
 
 Goque includes built-in Prometheus metrics for comprehensive monitoring of your task queue. Metrics are automatically collected during task processing operations.
 
-#### Available Metrics
+##### Available Metrics
 
 | Metric Name | Type | Labels | Description |
 |-------------|------|--------|-------------|
@@ -240,7 +290,7 @@ Goque includes built-in Prometheus metrics for comprehensive monitoring of your 
 | `goque_task_processing_duration_seconds` | Histogram | `task_type` | Task processing duration distribution in seconds |
 | `goque_task_payload_size_bytes` | Histogram | `task_type` | Task payload size distribution in bytes |
 
-#### Configuration
+##### Configuration
 
 ```go
 import (
@@ -257,7 +307,7 @@ http.Handle("/metrics", promhttp.Handler())
 go http.ListenAndServe(":9090", nil)
 ```
 
-#### Task Processing Operations
+##### Task Processing Operations
 
 Metrics track errors across different operations:
 - `add_to_queue` - Errors during task creation and queue insertion
@@ -265,7 +315,7 @@ Metrics track errors across different operations:
 - `cleanup` - Errors during task cleanup operations
 - `health` - Errors during healer operations
 
-#### Example Queries
+##### Example Queries
 
 ```promql
 # Task processing rate by type
@@ -286,6 +336,32 @@ sum by (status) (goque_processed_tasks_total)
 ```
 
 For a complete example with metrics integration, see [examples/service/](examples/service/).
+
+#### Structured Logging (xlog)
+
+Goque uses [xlog](https://github.com/ruko1202/xlog) for structured logging with support for multiple backends (Zap, Slog, custom adapters). See the Quick Start example above for configuration.
+
+**What gets logged:**
+- Task lifecycle events (creation, processing, completion)
+- Error events and retry attempts
+- Database operations and transaction management
+- Worker pool events and task distribution
+
+#### Distributed Tracing (OpenTelemetry)
+
+Goque supports OpenTelemetry for distributed tracing. By default, uses a noop tracer (zero overhead). See the Quick Start example above for enabling tracing.
+
+**Traced operations:**
+- Task processing loop and fetching
+- Hook execution (before/after)
+- Task queue operations (add, get)
+
+**Performance impact:**
+- Noop (default): 0% overhead
+- With 1% sampling: <0.1% memory overhead
+- Without sampling: ~6% memory overhead
+
+⚠️ **Important:** Call `goque.SetTracerProvider()` **before** creating Goque instances.
 
 ## Development
 
@@ -407,10 +483,10 @@ make mocks
 └── test/                       # Test utilities and fixtures
 ```
 
-## License
-
-[Add your license here]
-
 ## Contributing
 
 Contributions are welcome! Please feel free to submit a Pull Request.
+
+## License
+
+This project is licensed under the MIT License - see the LICENSE file for details.

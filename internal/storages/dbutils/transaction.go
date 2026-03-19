@@ -58,8 +58,12 @@ func rollback(ctx context.Context, tx *sqlx.Tx) error {
 	xlog.AddSpanEvent(ctx, "rollback")
 
 	if err := tx.Rollback(); err != nil {
-		xlog.Error(ctx, "failed to rollback the transaction", xfield.Error(err))
-		return err
+		// Ignore "transaction already done" error - happens when DB auto-rolls back
+		// due to context cancellation or connection issues
+		if !errors.Is(err, sql.ErrTxDone) {
+			xlog.Error(ctx, "failed to rollback the transaction", xfield.Error(err))
+			return err
+		}
 	}
 	return nil
 }
@@ -68,8 +72,12 @@ func commit(ctx context.Context, tx *sqlx.Tx) error {
 	xlog.AddSpanEvent(ctx, "commit")
 
 	if err := tx.Commit(); err != nil {
-		xlog.Error(ctx, "failed to commit the transaction", xfield.Error(err))
-		return err
+		// Ignore "transaction already done" error - happens when DB auto-commits/rolls back
+		// due to context cancellation or connection issues
+		if !errors.Is(err, sql.ErrTxDone) {
+			xlog.Error(ctx, "failed to commit the transaction", xfield.Error(err))
+			return err
+		}
 	}
 	return nil
 }

@@ -9,6 +9,8 @@ import (
 	"github.com/ruko1202/xlog"
 	"github.com/ruko1202/xlog/xfield"
 
+	"github.com/ruko1202/goque/internal/utils/xtracer"
+
 	"github.com/ruko1202/goque/internal/processors/queueprocessor"
 )
 
@@ -45,7 +47,7 @@ func (g *Goque) RegisterProcessor(
 
 // Run starts all registered processors in separate goroutines.
 func (g *Goque) Run(ctx context.Context) error {
-	ctx = xlog.ContextWithTracer(ctx, tracer)
+	ctx = xlog.ContextWithTracer(ctx, xtracer.GetTracer())
 
 	if len(g.processors) == 0 {
 		return errors.New("no processors to run")

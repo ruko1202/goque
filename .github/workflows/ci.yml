@@ -14,8 +14,10 @@ permissions:
   contents: read
   pull-requests: write
 
-env:
-  MAIN_GO_VERSION: 1.23
+# Configuration: Update Go versions below
+# When changing versions, update in 3 places: test-postgres, test-mysql, test-sqlite
+# MAIN_GO_VERSION: Version used for coverage upload (currently: '1.25')
+# GO_VERSIONS: JSON array of versions to test (currently: '["1.25"]')
 
 jobs:
   lint:
@@ -30,7 +32,7 @@ jobs:
       - name: Run golangci-lint
         uses: golangci/golangci-lint-action@v8
         with:
-          version: v2.3.0
+          version: v2.11.2
           args: --timeout=5m
 
   test-postgres:
@@ -40,7 +42,8 @@ jobs:
       contents: write
       pull-requests: write
     with:
-      main_go_version: '1.23'
+      main_go_version: '1.25'
+      go_versions: '["1.25"]'
       db_driver: 'postgres'
       db_dsn: 'postgres://postgres:postgres@localhost:5432/postgres?sslmode=disable'
 
@@ -51,7 +54,8 @@ jobs:
       contents: write
       pull-requests: write
     with:
-      main_go_version: '1.23'
+      main_go_version: '1.25'
+      go_versions: '["1.25"]'
       db_driver: 'mysql'
       db_dsn: 'root:root@tcp(localhost:3306)/goque?parseTime=true&loc=UTC'
 
@@ -62,7 +66,8 @@ jobs:
       contents: write
       pull-requests: write
     with:
-      main_go_version: '1.23'
+      main_go_version: '1.25'
+      go_versions: '["1.25"]'
       db_driver: 'sqlite3'
       db_dsn: 'goque_test.db'
 

@@ -176,7 +176,7 @@ func (p *GoqueProcessor) runWithWorkerPool(ctx context.Context, workerPool *ants
 func (p *GoqueProcessor) fetchAndProcess(ctx context.Context, workerPool *ants.Pool) error {
 	for _, task := range p.fetchTasks(ctx) {
 		err := workerPool.Submit(func() {
-			ctx = goquectx.WithValues(ctx, task.Metadata)
+			ctx := goquectx.WithValues(ctx, task.Metadata)
 			ctx, span := xlog.WithOperationSpan(ctx, "queue_processor.fetchAndProcess",
 				xfield.String("taskID", task.ID.String()),
 			)

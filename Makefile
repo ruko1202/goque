@@ -134,3 +134,57 @@ mocks:
 	rm -rf ./internal/pkg/generated/mocks
 	$(GOBIN)/mockgen -typed -destination ./internal/pkg/generated/mocks/mock_storages/storages.go -source ./internal/storages/interface.go
 
+# -------------------------------------
+# Benchmarks and profiling
+# -------------------------------------
+
+
+# profile-clean - Remove all profile files
+.PHONY: profile-clean
+profile-clean:
+	@./scripts/profile.sh clean
+
+
+# profile - Run comprehensive profiling (CPU, memory, block, mutex)
+# Generates profile files in ./profiles/ directory
+# Usage: make profile
+#        make profile-cpu    (CPU only)
+#        make profile-mem    (Memory only)
+.PHONY: profile
+profile: profile-clean
+profile:
+	@./scripts/profile.sh all
+
+.PHONY: profile-cpu
+profile-cpu:
+	@./scripts/profile.sh cpu
+
+.PHONY: profile-mem
+profile-mem:
+	@./scripts/profile.sh mem
+
+.PHONY: profile-block
+profile-block:
+	@./scripts/profile.sh block
+
+.PHONY: profile-mutex
+profile-mutex:
+	@./scripts/profile.sh mutex
+
+# profile-analyze - Analyze existing profile files
+.PHONY: profile-analyze
+profile-analyze:
+	@./scripts/profile.sh analyze
+
+# profile-web - Open interactive CPU profile in browser
+.PHONY: profile-web
+profile-web:
+	@echo "Opening CPU profile in browser at http://localhost:8080"
+	@go tool pprof -http=:8080 ./profiles/cpu.prof
+
+# profile-mem-web - Open interactive memory profile in browser
+.PHONY: profile-mem-web
+profile-mem-web:
+	@echo "Opening memory profile in browser at http://localhost:8080"
+	@go tool pprof -http=:8080 ./profiles/mem.prof
+

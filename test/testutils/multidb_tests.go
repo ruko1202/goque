@@ -21,3 +21,19 @@ func RunMultiDBTests(
 		})
 	}
 }
+
+// RunMultiDBBenchmarks runs the provided benchmark function against each database storage in the taskStorages slice.
+// Each benchmark is executed as a sub-benchmark named after the database driver.
+func RunMultiDBBenchmarks(
+	b *testing.B,
+	taskStorages []storages.AdvancedTaskStorage,
+	benchmark func(b *testing.B, storage storages.AdvancedTaskStorage),
+) {
+	b.Helper()
+
+	for _, storage := range taskStorages {
+		b.Run(storage.GetDB().DriverName(), func(b *testing.B) {
+			benchmark(b, storage)
+		})
+	}
+}
