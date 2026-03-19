@@ -10,6 +10,7 @@ import (
 	"github.com/samber/lo"
 
 	"github.com/ruko1202/goque/internal/entity"
+	"github.com/ruko1202/goque/internal/utils/xcollections"
 )
 
 type (
@@ -49,6 +50,18 @@ func LoggingAfterProcessing(ctx context.Context, task *entity.Task, err error) {
 	xlog.Info(ctx, "process task successfully")
 }
 
+var hookFuncCache = xcollections.NewMUMap[uintptr, string]()
+
 func getHookFuncName(f any) string {
-	return runtime.FuncForPC(reflect.ValueOf(f).Pointer()).Name()
+	ptr := reflect.ValueOf(f).Pointer()
+
+	funcName, ok := hookFuncCache.Get(ptr)
+	if ok {
+		return funcName
+	}
+
+	funcName = runtime.FuncForPC(ptr).Name()
+	hookFuncCache.Add(ptr, funcName)
+
+	return funcName
 }

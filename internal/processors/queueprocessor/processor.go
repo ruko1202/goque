@@ -39,6 +39,7 @@ type (
 		nextAttemptAtFunc     NextAttemptAtFunc
 		hooksBeforeProcessing []HookBeforeProcessing
 		hooksAfterProcessing  []HookAfterProcessing
+		verboseLogging        bool
 	}
 )
 
@@ -86,17 +87,21 @@ func NewGoqueProcessor(
 		hooksBeforeProcessing: []HookBeforeProcessing{
 			p.updateTaskStateBeforeProcessing,
 			p.metricsBeforeProcessing,
-			LoggingBeforeProcessing,
 		},
 		hooksAfterProcessing: []HookAfterProcessing{
 			p.updateTaskState,
 			p.metricsAfterProcessing,
-			LoggingAfterProcessing,
 		},
+		verboseLogging: true,
 	}
 
 	for _, opt := range opts {
 		opt(p)
+	}
+
+	if p.processor.verboseLogging {
+		p.processor.hooksBeforeProcessing = append(p.processor.hooksBeforeProcessing, LoggingBeforeProcessing)
+		p.processor.hooksAfterProcessing = append(p.processor.hooksAfterProcessing, LoggingAfterProcessing)
 	}
 
 	return p

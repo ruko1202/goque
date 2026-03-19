@@ -13,7 +13,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
+	"go.uber.org/zap"
 	"go.uber.org/zap/zaptest"
+	"go.uber.org/zap/zaptest/observer"
 
 	"github.com/ruko1202/goque/internal/entity"
 	"github.com/ruko1202/goque/internal/utils/xtime"
@@ -372,5 +374,56 @@ func TestGoqueProcessor(t *testing.T) {
 
 		goqueProc.Stop()
 		require.LessOrEqual(t, processedTasks.Load(), int32(10))
+	})
+
+	t.Run("disable verbose logging", func(t *testing.T) {
+		t.Parallel()
+
+		observedZapCore, observedLogs := observer.New(zap.InfoLevel)
+		ctx := xlog.ContextWithLogger(ctx, xlog.NewZapAdapter(zap.New(observedZapCore)))
+
+		task := &entity.Task{
+			ID:            uuid.New(),
+			Type:          "type[disable verbose logging]",
+			ExternalID:    uuid.NewString(),
+			Payload:       "test payload",
+			Status:        entity.TaskStatusPending,
+			Errors:        nil,
+			CreatedAt:     now,
+			UpdatedAt:     nil,
+			NextAttemptAt: now,
+		}
+
+		processedTasks := atomic.Int32{}
+
+		goqueProc, mocks := initGoqueProcessorWithMocks(t,
+			task.Type,
+			TaskProcessorFunc(func(_ context.Context, _ *entity.Task) error {
+				processedTasks.Add(1)
+				return nil
+			}),
+			WithTaskFetcherTick(100*time.Millisecond),
+			WithDisableVerboseLogging(),
+			WithHooksBeforeProcessing(func(_ context.Context, _ *entity.Task) {}),
+			WithHooksAfterProcessing(func(_ context.Context, _ *entity.Task, _ error) {}),
+		)
+
+		defaultFetcherMock(mocks, task.Type, []*entity.Task{task})
+		mocks.taskStorage.EXPECT().
+			UpdateTask(gomock.Any(), task.ID, task).
+			Return(nil).
+			AnyTimes()
+
+		err := goqueProc.Run(ctx)
+		require.NoError(t, err)
+		require.Eventually(t, func() bool {
+			return processedTasks.Load() == 1
+		}, time.Second*2, time.Millisecond*100)
+		goqueProc.Stop()
+
+		for _, logEntry := range observedLogs.All() {
+			require.NotEqual(t, "processing task", logEntry.Message)
+			require.NotEqual(t, "process task successfully", logEntry.Message)
+		}
 	})
 }
