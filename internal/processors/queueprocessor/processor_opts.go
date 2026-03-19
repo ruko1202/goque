@@ -122,3 +122,12 @@ func WithHealerPeriod(period time.Duration) GoqueProcessorOpts {
 		q.queueHealer.SetProcessPeriod(period)
 	}
 }
+
+// WithDisableVerboseLogging disables default verbose logging hooks (LoggingBeforeProcessing, LoggingAfterProcessing).
+// Use this option in production to reduce memory allocations from logging.
+// Custom logging hooks added via WithHooksBeforeProcessing/WithHooksAfterProcessing will still execute.
+func WithDisableVerboseLogging() GoqueProcessorOpts {
+	return func(q *GoqueProcessor) {
+		q.processor.verboseLogging = false
+	}
+}

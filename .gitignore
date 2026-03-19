@@ -18,3 +18,5 @@ agent/tasks/
 profiles/
 
 goque.sqlite.db-journal
+
+test.test
