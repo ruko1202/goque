@@ -133,6 +133,7 @@ fmt:
 mocks:
 	rm -rf ./internal/pkg/generated/mocks
 	$(GOBIN)/mockgen -typed -destination ./internal/pkg/generated/mocks/mock_storages/storages.go -source ./internal/storages/interface.go
+	$(GOBIN)/mockgen -typed -destination ./internal/pkg/generated/mocks/mock_periodicprocessor/queue_manager.go -source ./internal/processors/periodicprocessor/processor.go
 
 # -------------------------------------
 # Benchmarks and profiling

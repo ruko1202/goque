@@ -35,6 +35,7 @@ type TaskFilter = dbentity.GetTasksFilter
 
 // Task creation functions for adding new tasks to the queue.
 var (
+	NoTaskPayload = entity.NoTaskPayload
 	// NewTask creates a new task with the specified type and payload.
 	NewTask = entity.NewTask
 	// NewTaskWithExternalID creates a new task with an external identifier for idempotency.
