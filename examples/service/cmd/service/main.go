@@ -15,6 +15,7 @@ import (
 	"github.com/jmoiron/sqlx"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
+	"github.com/robfig/cron/v3"
 	"github.com/ruko1202/xlog"
 	"github.com/ruko1202/xlog/xfield"
 	"go.opentelemetry.io/contrib/instrumentation/github.com/labstack/echo/otelecho"
@@ -48,13 +49,21 @@ func main() {
 	if err != nil {
 		xlog.Panic(ctx, "failed to initialize OpenTelemetry", xfield.Error(err))
 	}
-	defer tracerProvider.Shutdown(ctx)
+	defer func() {
+		if err := tracerProvider.Shutdown(ctx); err != nil {
+			xlog.Error(ctx, "failed to shutdown tracer provider", xfield.Error(err))
+		}
+	}()
 
 	meterProvider, err := config.InitMetricExporter(otelRes)
 	if err != nil {
 		xlog.Panic(ctx, "failed to initialize OpenTelemetry metric exporter", xfield.Error(err))
 	}
-	defer meterProvider.Shutdown(ctx)
+	defer func() {
+		if err := meterProvider.Shutdown(ctx); err != nil {
+			xlog.Error(ctx, "failed to shutdown meter provider", xfield.Error(err))
+		}
+	}()
 
 	// Configure db
 	db := config.NewDB(ctx, cfg.Database.Driver, cfg.Database.DSN)
@@ -67,22 +76,13 @@ func main() {
 	// Configure goque
 	goque.SetTracerProvider(tracerProvider)
 	goque.SetMetricsServiceName(cfg.AppName)
-	goqueInst := initGoque(cfg, storage)
+	queueManager := goque.NewTaskQueueManager(storage)
+	goqueInst := initGoque(ctx, cfg, storage, queueManager)
 	if err := goqueInst.Run(ctx); err != nil {
 		cancel()
 		xlog.Fatal(ctx, "Failed to run goque", xfield.Error(err))
 	}
-
-	queueManager := goque.NewTaskQueueManager(storage)
-	if cfg.TaskGenerator.Enabled {
-		generator := worker.NewTaskGenerator(cfg.TaskGenerator, queueManager, []models.TaskType{
-			models.TaskTypeEmail,
-			models.TaskTypeNotification,
-			models.TaskTypeReport,
-			models.TaskTypeWebhook,
-		})
-		go generator.Run(ctx)
-	}
+	defer goqueInst.Stop()
 
 	application := app.New(cfg, queueManager)
 
@@ -107,7 +107,12 @@ func initStorage(ctx context.Context, db *sqlx.DB) goque.TaskStorage {
 	return storage
 }
 
-func initGoque(cfg *config.Config, storage goque.TaskStorage) *goque.Goque {
+func initGoque(
+	ctx context.Context,
+	cfg *config.Config,
+	storage goque.TaskStorage,
+	queueManager goque.TaskQueueManager,
+) *goque.Goque {
 	goqueInst := goque.NewGoque(storage)
 
 	emailProcessor := processors.NewEmailProcessor()
@@ -146,6 +151,42 @@ func initGoque(cfg *config.Config, storage goque.TaskStorage) *goque.Goque {
 		goque.WithTaskProcessingTimeout(cfg.Queue.TaskTimeout),
 	)
 
+	if cfg.TaskGenerator.Enabled {
+		goqueInst.RegisterProcessor(
+			models.TaskTypeTaskGenerator,
+			worker.NewTaskGenerator(cfg.TaskGenerator, queueManager, []models.TaskType{
+				models.TaskTypeEmail,
+				models.TaskTypeNotification,
+				models.TaskTypeReport,
+				models.TaskTypeWebhook,
+			}),
+			goque.WithWorkersCount(10),
+			goque.WithTaskProcessingMaxAttempts(cfg.Queue.MaxAttempts),
+			goque.WithTaskProcessingTimeout(cfg.Queue.TaskTimeout),
+		)
+
+		cronParser := cron.NewParser(
+			cron.Second | cron.Minute | cron.Hour | cron.Dom | cron.Month | cron.Dow | cron.Descriptor,
+		)
+		schedule, err := cronParser.Parse(cfg.TaskGenerator.CronSpec)
+		if err != nil {
+			xlog.Fatal(ctx, "Failed to create periodic job", xfield.Error(err))
+		}
+
+		periodicJob, err := goque.NewPeriodicJob(
+			"periodic_job_task_generator",
+			schedule,
+			func(context.Context) (*goque.Task, error) {
+				return goque.NewTask(models.TaskTypeTaskGenerator, goque.NoTaskPayload), nil
+			},
+			goque.WithPeriodicJobRunOnStart(),
+		)
+		if err != nil {
+			xlog.Fatal(ctx, "Failed to create periodic job", xfield.Error(err))
+		}
+		goqueInst.RegisterPeriodicJob(periodicJob)
+	}
+
 	return goqueInst
 }
 
@@ -158,7 +199,7 @@ func initHTTPServer(ctx context.Context, application *app.Application, cfg *conf
 	logger := xlog.LoggerFromContext(ctx)
 	e.Use(middleware.RequestID())
 	e.Use(app.XlogMiddleware(logger))
-	e.Use(middleware.Logger())
+	e.Use(middleware.RequestLogger())
 	e.Use(middleware.Recover())
 	e.Use(middleware.CORS())
 	e.Use(otelecho.Middleware(cfg.AppName))

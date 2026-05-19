@@ -35,6 +35,7 @@ const (
 	TaskStatusAttemptsLeft = "attempts_left"
 )
 
+// NoTaskPayload is an empty JSON object payload for tasks without input data.
 const NoTaskPayload = "{}"
 
 // Task represents a unit of work in the queue system.
