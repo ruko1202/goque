@@ -20,6 +20,7 @@ Supports PostgreSQL, MySQL, and SQLite.
 - ✅ **External ID support** - Associate tasks with external identifiers for idempotency
 - ✅ **Built-in task healer** - Automatically marks stuck tasks as errored for reprocessing
 - ✅ **Multi-processor support** - Manage multiple task types with a single queue manager
+- ✅ **Periodic jobs** - Schedule recurring task creation with cron expressions or custom schedulers
 - ✅ **Structured logging** - Built-in structured logging with xlog (supports zap, slog, and custom adapters)
 - ✅ **Production-ready example** - Complete example service with web dashboard and API
 - ✅ **Prometheus metrics** - Built-in Prometheus metrics for monitoring task queue performance
@@ -200,14 +201,88 @@ For detailed instructions and API documentation, see [examples/service/README.md
 
 The `GoqueProcessor` supports various configuration options:
 
-- `WithWorkers(n int)` - Set the number of concurrent workers (default: 1)
-- `WithMaxAttempts(n int32)` - Set maximum retry attempts (default: 3)
-- `WithTaskTimeout(d time.Duration)` - Set per-task timeout (default: 30s)
-- `WithFetchMaxTasks(n int64)` - Set maximum tasks to fetch per cycle (default: 10)
-- `WithFetchTick(d time.Duration)` - Set fetch interval (default: 1s)
-- `WithNextAttemptAtFunc(f NextAttemptAtFunc)` - Custom retry backoff strategy
+- `WithWorkersCount(n int)` - Set the number of concurrent workers (default: 1)
+- `WithWorkersPanicHandler(handler func(context.Context) func(any))` - Set a custom worker panic handler
+- `WithTaskProcessingMaxAttempts(n int32)` - Set maximum retry attempts (default: 3)
+- `WithTaskProcessingTimeout(d time.Duration)` - Set per-task timeout (default: 30s)
+- `WithTaskProcessingNextAttemptAtFunc(f)` - Custom retry backoff strategy
+- `WithTaskFetcherMaxTasks(n int64)` - Set maximum tasks to fetch per cycle (default: 10)
+- `WithTaskFetcherTick(d time.Duration)` - Set fetch interval (default: 1s)
+- `WithTaskFetcherTimeout(d time.Duration)` - Set timeout for fetching tasks from storage
 - `WithHooksBeforeProcessing(hooks ...HookBeforeProcessing)` - Add pre-processing hooks
 - `WithHooksAfterProcessing(hooks ...HookAfterProcessing)` - Add post-processing hooks
+- `WithCleanerPeriod(d time.Duration)` - Set the cleaner run interval
+- `WithCleanerUpdatedAtTimeAgo(d time.Duration)` - Set the completed-task age threshold for cleanup
+- `WithCleanerTimeout(d time.Duration)` - Set the cleaner operation timeout
+- `WithHealerPeriod(d time.Duration)` - Set the healer run interval
+- `WithHealerUpdatedAtTimeAgo(d time.Duration)` - Set the stuck-task age threshold for healing
+- `WithHealerTimeout(d time.Duration)` - Set the healer operation timeout
+
+### Periodic Jobs
+
+Periodic jobs run in separate scheduler processors. On each schedule tick, Goque calls the job factory and inserts the returned task into the queue through `TaskQueueManager`. The inserted task is a normal one-shot task: successful tasks still become `done`, failed tasks still use the normal retry flow, and cancellation is handled by the queue manager.
+
+Use `NewCronJob` for a standard 5-field cron expression:
+
+```go
+periodicJob, err := goque.NewCronJob(
+    "daily_report_schedule",
+    "0 3 * * *",
+    time.UTC,
+    func(ctx context.Context) (*goque.Task, error) {
+        return goque.NewTask(
+            "daily_report",
+            `{"report":"sales"}`,
+        ), nil
+    },
+    goque.WithPeriodicJobRunOnStart(),
+)
+if err != nil {
+    return err
+}
+
+goq := goque.NewGoque(taskStorage)
+goq.RegisterPeriodicJob(periodicJob)
+```
+
+`WithPeriodicJobRunOnStart()` is optional. When enabled, the periodic job enqueues one task immediately when Goque starts, then continues with its normal schedule.
+
+Register a normal processor for the task type produced by the periodic factory:
+
+```go
+goq.RegisterProcessor(
+    "daily_report",
+    &DailyReportProcessor{},
+)
+```
+
+For non-cron schedules, use `NewPeriodicJob` with `PeriodicSchedulerFunc` or any type that implements `PeriodicSchedule`:
+
+```go
+periodicJob, err := goque.NewPeriodicJob(
+    "quarter_hour_report_schedule",
+    goque.PeriodicSchedulerFunc(func(t time.Time) time.Time {
+        return t.Add(15 * time.Minute)
+    }),
+    func(ctx context.Context) (*goque.Task, error) {
+        return goque.NewTask(
+            "quarter_hour_report",
+            `{"report":"sales"}`,
+        ), nil
+    },
+)
+if err != nil {
+    return err
+}
+```
+
+Use `external_id` when the periodic job must be idempotent for a schedule slot:
+
+```go
+slot := time.Now().UTC().Truncate(15 * time.Minute)
+externalID := fmt.Sprintf("quarter_hour_report:%s", slot.Format(time.RFC3339))
+task := goque.NewTaskWithExternalID("quarter_hour_report", payload, externalID)
+```
 
 ## Task Status Lifecycle
 

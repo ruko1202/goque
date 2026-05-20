@@ -101,13 +101,18 @@ The dashboard provides:
 - **Task Creation** - Create new tasks directly from the UI
 - **Statistics** - View task counts by status
 
-## Task Generator
+## Periodic Task Generator
 
-The built-in task generator creates random tasks periodically to demonstrate the queue in action:
+The example uses Goque periodic jobs to create generator tasks on a schedule. The periodic job inserts a `task_generator` task, and the normal `TaskGenerator` processor expands it into demo tasks:
 
-- Generates 1-5 random tasks every 10 seconds (configurable)
+- Schedules a generator task every 10 seconds by default
+- Uses `goque.NewPeriodicJob` with `goque.PeriodicSchedulerFunc`
+- Registers the schedule with `goq.RegisterPeriodicJob(...)`
+- Generates 1-5 random tasks per task type when the generator task is processed
 - Creates tasks of all types with realistic payloads
 - Can be enabled/disabled via configuration
+
+The relevant wiring lives in `cmd/service/main.go`: `initPeriodicJobs` creates the periodic job, and `initGoque` registers `TaskTypeTaskGenerator` as a regular processor.
 
 ## Monitoring and Metrics
 

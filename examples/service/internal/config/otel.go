@@ -11,12 +11,13 @@ import (
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/resource"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
-	semconv "go.opentelemetry.io/otel/semconv/v1.9.0"
+	semconv "go.opentelemetry.io/otel/semconv/v1.40.0"
 
 	"github.com/ruko1202/xlog"
 	"github.com/ruko1202/xlog/xfield"
 )
 
+// InitTracerResource creates the OpenTelemetry resource for traces and metrics.
 func InitTracerResource(cfg *Config) (*resource.Resource, error) {
 	res, err := resource.Merge(
 		resource.Default(),
@@ -34,7 +35,6 @@ func InitTracerResource(cfg *Config) (*resource.Resource, error) {
 
 // InitTracerProvider sets up everything: trace exporter and pull-based metric exporter.
 func InitTracerProvider(ctx context.Context, cfg *Config, res *resource.Resource) (*sdktrace.TracerProvider, error) {
-
 	otel.SetErrorHandler(otel.ErrorHandlerFunc(func(err error) {
 		logger := xlog.LoggerFromContext(ctx)
 		logger.Error("ALERT: Internal OpenTelemetry error", xfield.Error(err))

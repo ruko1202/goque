@@ -4,6 +4,7 @@ package worker
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"math/rand"
 	"time"
@@ -38,35 +39,28 @@ func NewTaskGenerator(
 	}
 }
 
-// Run starts the task generator.
-func (g *TaskGenerator) Run(ctx context.Context) {
-	xlog.Info(ctx, "Starting task generator",
-		xfield.Duration("interval", g.cfg.Interval),
+// ProcessTask generates demo tasks when the periodic scheduler enqueues a generator task.
+func (g *TaskGenerator) ProcessTask(ctx context.Context, _ *goque.Task) error {
+	xlog.Info(ctx, "Processing task generator",
 		xfield.Int("min_tasks", g.cfg.MinTasks),
 		xfield.Int("max_tasks", g.cfg.MaxTasks),
 	)
 
-	ticker := time.NewTicker(g.cfg.Interval)
-	defer ticker.Stop()
-
-	for {
-		select {
-		case <-ctx.Done():
-			xlog.Info(ctx, "Task generator stopped")
-			return
-		case <-ticker.C:
-			g.generateTasks(ctx)
-		}
-	}
+	return g.generateTasks(ctx)
 }
 
-func (g *TaskGenerator) generateTasks(ctx context.Context) {
-	numTasks := g.cfg.MinTasks + rand.Intn(g.cfg.MaxTasks-g.cfg.MinTasks+1) //nolint:gosec
+func (g *TaskGenerator) generateTasks(ctx context.Context) error {
+	numTasks := g.cfg.MinTasks
+	if g.cfg.MaxTasks > g.cfg.MinTasks {
+		numTasks += rand.Intn(g.cfg.MaxTasks - g.cfg.MinTasks + 1) //nolint:gosec
+	}
+
 	ctx, span := xlog.WithOperationSpan(ctx, "generateTasks",
 		xfield.Int("count", numTasks),
 	)
 	defer span.End()
 
+	var runErr error
 	for _, taskType := range g.taskTypes {
 		for i := 0; i < numTasks; i++ {
 			payload, err := generatePayload(taskType)
@@ -75,16 +69,26 @@ func (g *TaskGenerator) generateTasks(ctx context.Context) {
 					xfield.String("taskType", taskType),
 					xfield.Error(err),
 				)
+				runErr = errors.Join(runErr, err)
 				continue
 			}
 
-			g.queueManager.AsyncAddTaskToQueue(ctx, goque.NewTaskWithExternalID(
+			err = g.queueManager.AddTaskToQueue(ctx, goque.NewTaskWithExternalID(
 				taskType,
 				string(payload),
 				uuid.NewString(),
 			))
+			if err != nil {
+				xlog.Error(ctx, "Failed to add generated task to queue",
+					xfield.String("taskType", taskType),
+					xfield.Error(err),
+				)
+				runErr = errors.Join(runErr, err)
+			}
 		}
 	}
+
+	return runErr
 }
 
 func generatePayload(taskType models.TaskType) ([]byte, error) {

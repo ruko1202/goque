@@ -35,6 +35,9 @@ const (
 	TaskStatusAttemptsLeft = "attempts_left"
 )
 
+// NoTaskPayload is an empty JSON object payload for tasks without input data.
+const NoTaskPayload = "{}"
+
 // Task represents a unit of work in the queue system.
 type Task struct {
 	ID            uuid.UUID
@@ -82,6 +85,16 @@ func (t *Task) AddError(err error) {
 	taskErr := lo.FromPtr(t.Errors)
 	taskErr += fmt.Sprintf("attempt %d: %v\n", t.Attempts, err)
 	t.Errors = &taskErr
+}
+
+// IsInTerminalState reports whether the task is in a terminal status.
+func (t *Task) IsInTerminalState() bool {
+	switch t.Status {
+	case TaskStatusDone, TaskStatusCanceled, TaskStatusAttemptsLeft:
+		return true
+	default:
+		return false
+	}
 }
 
 func newUUID() uuid.UUID {

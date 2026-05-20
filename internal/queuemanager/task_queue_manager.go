@@ -5,6 +5,7 @@ package queuemanager
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/google/uuid"
 	"github.com/ruko1202/xlog"
@@ -96,4 +97,26 @@ func (m *TaskQueueManager) ResetAttempts(ctx context.Context, taskID uuid.UUID) 
 	defer span.End()
 
 	return m.taskStorage.ResetAttempts(ctx, taskID)
+}
+
+// CancelTask marks a non-terminal task as canceled.
+func (m *TaskQueueManager) CancelTask(ctx context.Context, taskID uuid.UUID) error {
+	ctx, span := xlog.WithOperationSpan(xlog.ContextWithTracer(ctx, m.tracer), "task_queue_manager.CancelTask")
+	defer span.End()
+
+	task, err := m.GetTask(ctx, taskID)
+	if err != nil {
+		return fmt.Errorf("get task for cancellation: %w", err)
+	}
+
+	if task.IsInTerminalState() {
+		return nil
+	}
+
+	task.Status = entity.TaskStatusCanceled
+	if err := m.taskStorage.UpdateTask(ctx, taskID, task); err != nil {
+		return fmt.Errorf("cancel task: %w", err)
+	}
+
+	return nil
 }

@@ -17,6 +17,7 @@ type TaskQueueManager interface {
 	GetTask(ctx context.Context, taskID uuid.UUID) (*Task, error)
 	GetTasks(ctx context.Context, filter *TaskFilter, limit int64) ([]*Task, error)
 	ResetAttempts(ctx context.Context, taskID uuid.UUID) error
+	CancelTask(ctx context.Context, taskID uuid.UUID) error
 }
 
 // NewTaskQueueManager creates a new TaskQueueManager instance with the specified task storage.

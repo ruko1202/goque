@@ -45,7 +45,7 @@ type (
 
 // GoqueProcessor manages task fetching, processing, and worker pool coordination.
 type GoqueProcessor struct {
-	globalCtx         context.Context
+	globalCtx         context.Context // global context for logging
 	gracefulStoppedCh chan struct{}
 	gracefulCtxCancel context.CancelFunc
 
@@ -152,7 +152,7 @@ func (p *GoqueProcessor) Stop() {
 }
 
 func (p *GoqueProcessor) runWithWorkerPool(ctx context.Context, workerPool *ants.Pool) {
-	defer func() { p.gracefulStoppedCh <- struct{}{} }()
+	defer close(p.gracefulStoppedCh)
 	defer workerPool.Release()
 
 	ticker := time.NewTicker(p.fetcher.tick)

@@ -45,11 +45,12 @@ type QueueConfig struct {
 // TaskGeneratorConfig holds task generator configuration.
 type TaskGeneratorConfig struct {
 	Enabled  bool
-	Interval time.Duration
+	CronSpec string
 	MinTasks int
 	MaxTasks int
 }
 
+// TracerConfig holds OpenTelemetry collector connection settings.
 type TracerConfig struct {
 	Host string
 	Port int

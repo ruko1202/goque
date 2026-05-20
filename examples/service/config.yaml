@@ -19,7 +19,7 @@ queue:
 
 taskgenerator:
   enabled: true
-  interval: 10s
+  cronspec: "*/10 * * * * *"
   mintasks: 1
   maxtasks: 5
 

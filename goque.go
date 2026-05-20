@@ -4,6 +4,7 @@ package goque
 import (
 	"context"
 	"errors"
+	"fmt"
 	"sync"
 
 	"github.com/ruko1202/xlog"
@@ -11,31 +12,34 @@ import (
 
 	"github.com/ruko1202/goque/internal/utils/xtracer"
 
+	"github.com/ruko1202/goque/internal/processors/periodicprocessor"
 	"github.com/ruko1202/goque/internal/processors/queueprocessor"
 )
 
 // Goque is the main task queue manager that coordinates multiple task processors.
 type Goque struct {
-	taskStorage TaskStorage
-	processors  map[string]*queueprocessor.GoqueProcessor
+	taskStorage           TaskStorage
+	taskQueueManager      TaskQueueManager
+	processors            map[string]*queueprocessor.GoqueProcessor
+	periodicJobProcessors map[string]*periodicprocessor.Processor
 }
 
 // NewGoque creates a new Goque instance with the specified task storage.
 func NewGoque(taskStorage TaskStorage) *Goque {
-	goque := &Goque{
-		taskStorage: taskStorage,
-		processors:  make(map[string]*queueprocessor.GoqueProcessor),
+	return &Goque{
+		taskStorage:           taskStorage,
+		taskQueueManager:      NewTaskQueueManager(taskStorage),
+		processors:            make(map[string]*queueprocessor.GoqueProcessor),
+		periodicJobProcessors: make(map[string]*periodicprocessor.Processor),
 	}
-
-	return goque
 }
 
 // RegisterProcessor registers a new task processor for a specific task type.
 // Should be call before Run.
 func (g *Goque) RegisterProcessor(
 	processorType string,
-	taskProcessor queueprocessor.TaskProcessor,
-	opts ...queueprocessor.GoqueProcessorOpts,
+	taskProcessor TaskProcessor,
+	opts ...ProcessorOpts,
 ) {
 	g.processors[processorType] = queueprocessor.NewGoqueProcessor(
 		g.taskStorage,
@@ -45,20 +49,61 @@ func (g *Goque) RegisterProcessor(
 	)
 }
 
+// RegisterPeriodicJob registers a periodic job processor.
+// Should be called before Run.
+func (g *Goque) RegisterPeriodicJob(job *PeriodicJob) {
+	if job == nil {
+		return
+	}
+
+	g.periodicJobProcessors[job.Name()] = periodicprocessor.NewProcessor(
+		g.taskQueueManager,
+		job,
+	)
+}
+
 // Run starts all registered processors in separate goroutines.
 func (g *Goque) Run(ctx context.Context) error {
 	ctx = xlog.ContextWithTracer(ctx, xtracer.GetTracer())
 
-	if len(g.processors) == 0 {
-		return errors.New("no processors to run")
+	if len(g.processors) == 0 && len(g.periodicJobProcessors) == 0 {
+		return errors.New("no processors or periodic jobs to run")
 	}
 
+	err := g.runProcessors(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to run processors: %w", err)
+	}
+
+	err = g.runPeriodicProcessors(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to run periodic processors: %w", err)
+	}
+
+	return nil
+}
+
+func (g *Goque) runProcessors(ctx context.Context) error {
 	var runErr error
 	for _, p := range g.processors {
 		err := p.Run(ctx)
 		if err != nil {
-			xlog.Error(ctx, "failed to run processor", xfield.Error(err))
-			runErr = errors.Join(runErr, err)
+			xlog.Error(ctx, "failed to run processor", xfield.Error(err), xfield.String("processor", p.Name()))
+			runErr = errors.Join(runErr, fmt.Errorf("failed to run processor '%s': %w", p.Name(), err))
+		}
+	}
+
+	return runErr
+}
+
+func (g *Goque) runPeriodicProcessors(ctx context.Context) error {
+	var runErr error
+
+	for _, p := range g.periodicJobProcessors {
+		err := p.Run(ctx)
+		if err != nil {
+			xlog.Error(ctx, "failed to run processor", xfield.Error(err), xfield.String("processor", p.Name()))
+			runErr = errors.Join(runErr, fmt.Errorf("failed to run processor '%s': %w", p.Name(), err))
 		}
 	}
 
@@ -67,8 +112,27 @@ func (g *Goque) Run(ctx context.Context) error {
 
 // Stop gracefully shuts down all registered processors and waits for them to finish.
 func (g *Goque) Stop() {
+	g.stopPeriodicProcessors()
+
+	g.stopProcessors()
+}
+
+func (g *Goque) stopProcessors() {
 	wg := &sync.WaitGroup{}
 	for _, p := range g.processors {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			p.Stop()
+		}()
+	}
+
+	wg.Wait()
+}
+
+func (g *Goque) stopPeriodicProcessors() {
+	wg := &sync.WaitGroup{}
+	for _, p := range g.periodicJobProcessors {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()

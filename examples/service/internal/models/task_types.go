@@ -18,6 +18,8 @@ const (
 	TaskTypeReport TaskType = "report"
 	// TaskTypeWebhook .
 	TaskTypeWebhook TaskType = "webhook"
+	// TaskTypeTaskGenerator .
+	TaskTypeTaskGenerator TaskType = "task_generator"
 )
 
 // EmailPayload represents the payload for email tasks.
@@ -83,7 +85,7 @@ type TaskListResponse struct {
 // ValidateTaskType checks if the given task type is valid.
 func ValidateTaskType(taskType string) error {
 	switch taskType {
-	case TaskTypeEmail, TaskTypeNotification, TaskTypeReport, TaskTypeWebhook:
+	case TaskTypeEmail, TaskTypeNotification, TaskTypeReport, TaskTypeWebhook, TaskTypeTaskGenerator:
 		return nil
 	default:
 		return fmt.Errorf("invalid task type: %s", taskType)

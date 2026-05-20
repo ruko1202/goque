@@ -18,7 +18,7 @@ import (
 type processQueueFunc func(ctx context.Context, taskType entity.TaskType) ([]*entity.Task, error)
 
 type baseProcessor struct {
-	globalCtx         context.Context
+	globalCtx         context.Context // global context for logging
 	gracefulStoppedCh chan struct{}
 	gracefulCtxCancel context.CancelFunc
 
@@ -72,9 +72,7 @@ func (p *baseProcessor) Run(ctx context.Context) {
 }
 
 func (p *baseProcessor) run(ctx context.Context) {
-	defer func() {
-		p.gracefulStoppedCh <- struct{}{}
-	}()
+	defer close(p.gracefulStoppedCh)
 
 	p.processTicker = time.NewTicker(p.processPeriod)
 	defer p.processTicker.Stop()
