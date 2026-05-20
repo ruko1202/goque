@@ -29,3 +29,24 @@ func NoopTaskProcessor() TaskProcessor {
 		return nil
 	})
 }
+
+// TypedTaskProcessor defines the interface for processing typed task payloads.
+type TypedTaskProcessor[T any] interface {
+	ProcessTask(ctx context.Context, task *entity.TypedTask[T]) error
+}
+
+// TypedTaskProcessorFunc is a function type that implements the TypedTaskProcessor interface.
+type TypedTaskProcessorFunc[T any] func(ctx context.Context, task *entity.TypedTask[T]) error
+
+// ProcessTask executes the typed task processing function.
+func (f TypedTaskProcessorFunc[T]) ProcessTask(ctx context.Context, task *entity.TypedTask[T]) error {
+	return f(ctx, task)
+}
+
+// NoopTypedTaskProcessor returns a task processor that logs task information without performing any actual processing.
+func NoopTypedTaskProcessor[T any]() TypedTaskProcessor[T] {
+	return TypedTaskProcessorFunc[T](func(ctx context.Context, _ *entity.TypedTask[T]) error {
+		xlog.Info(ctx, "process task", xfield.String("processor", "noop"))
+		return nil
+	})
+}

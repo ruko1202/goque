@@ -110,6 +110,37 @@ func (p *EmailProcessor) ProcessTask(ctx context.Context, task *entity.Task) err
 }
 ```
 
+Use a typed processor when you want Goque to decode JSON payloads before your processing logic runs:
+
+```go
+type EmailPayload struct {
+    To      string `json:"to"`
+    Subject string `json:"subject"`
+}
+
+processor := goque.NewTypedTaskProcessor(
+    goque.TypedTaskProcessorFunc[EmailPayload](func(ctx context.Context, task *goque.TypedTask[EmailPayload]) error {
+        return sendEmail(task.Payload.To, task.Payload.Subject)
+    }),
+    goque.WithPayloadDecodeErrorCancel(),
+)
+```
+
+If payload decoding fails, the typed processor is not called. The decode error is returned through the normal task processing flow, recorded in `goque_payload_decode_errors_total`, written to `task.Errors`, and passed to `WithHooksAfterProcessing`. Add `WithPayloadDecodeErrorCancel` to the typed processor to cancel decode failures instead of retrying them:
+
+```go
+goq.RegisterProcessor(
+    "send_email",
+    processor,
+    goque.WithHooksAfterProcessing(func(ctx context.Context, task *goque.Task, err error) {
+        if errors.Is(err, goque.ErrPayloadUnmarshal) {
+            // alert or inspect invalid payload
+        }
+    }),
+)
+```
+```
+
 ### 3. Initialize and Run the Queue Manager (Recommended)
 
 ```go
@@ -185,6 +216,12 @@ task := goque.NewTask("send_email", payload)
 
 // Or with external ID for idempotency
 task := goque.NewTaskWithExternalID("send_email", payload, "external-order-123")
+
+// Or marshal a typed payload as JSON
+task, err := goque.NewTaskWithPayload("send_email", EmailPayload{
+    To:      "user@example.com",
+    Subject: "Hello",
+})
 
 // Add to queue using TaskQueueManager (recommended - includes metrics)
 taskQueueManager := goque.NewTaskQueueManager(taskStorage)
@@ -364,6 +401,7 @@ Goque includes built-in Prometheus metrics for comprehensive monitoring of your 
 | `goque_processed_tasks_with_error_total` | Counter | `task_type`, `task_processing_operations`, `task_error_type` | Tasks processed with errors, including error type details |
 | `goque_task_processing_duration_seconds` | Histogram | `task_type` | Task processing duration distribution in seconds |
 | `goque_task_payload_size_bytes` | Histogram | `task_type` | Task payload size distribution in bytes |
+| `goque_payload_decode_errors_total` | Counter | `task_type` | Typed task payload JSON decode errors by task type |
 
 ##### Configuration
 
@@ -398,6 +436,9 @@ rate(goque_processed_tasks_total[5m])
 
 # Task error rate
 rate(goque_processed_tasks_with_error_total[5m])
+
+# Typed payload decode errors by task type
+sum by (task_type) (rate(goque_payload_decode_errors_total[5m]))
 
 # Average processing duration
 rate(goque_task_processing_duration_seconds_sum[5m])

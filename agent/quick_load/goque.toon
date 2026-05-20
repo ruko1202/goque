@@ -22,7 +22,7 @@ project:
   databases: PostgreSQL 12+, MySQL 8+, SQLite 3+
   purpose: Robust database-backed task queue with worker pools, retry logic, and graceful shutdown
 
-  core_features[11]{feature,description}:
+  core_features[12]{feature,description}:
     Multi-database support,Works with PostgreSQL MySQL SQLite
     Reliable persistence,Task storage with ACID guarantees
     Worker pool management,Configurable concurrent processing using goroutine pools
@@ -31,9 +31,10 @@ project:
     Graceful shutdown,Clean worker shutdown with in-flight task handling
     Task timeout,Per-task timeout configuration with context cancellation
     Extensible hooks,Before/after processing hooks for custom logic
+    Typed payload processors,Generic processor adapter decodes JSON payloads into Go structs
     Type-safe queries,PostgreSQL/MySQL use go-jet for type-safe SQL generation
     Built-in healer,Automatically marks stuck tasks as errored for reprocessing
-    Prometheus metrics,Built-in metrics for task counters errors duration and payload size
+    Prometheus metrics,Built-in metrics for task counters errors duration payload size and payload decode failures
 
   task_statuses[7]{status,description,terminal}:
     new,Task created and ready to be picked up,false
@@ -325,6 +326,7 @@ quick_start:
   step2_processor:
     interface: TaskProcessor
     method: ProcessTask(ctx context.Context, task *entity.Task) error
+    typed_adapter: NewTypedTaskProcessor[T] decodes JSON payload into TypedTask[T]
     implementation: User provides business logic
 
   step3_manager:

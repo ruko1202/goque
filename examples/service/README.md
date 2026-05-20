@@ -31,7 +31,7 @@ Once running, open your browser to:
 The example implements four different task types to demonstrate various use cases:
 
 ### 1. Email Tasks
-Simulates email sending with retry logic (1-3 seconds processing time)
+Simulates email sending with retry logic (1-3 seconds processing time). This task uses Goque's typed payload flow: the processor receives `*goque.TypedTask[models.EmailPayload]`, and invalid JSON is reported through `goque_payload_decode_errors_total`.
 
 ```json
 {
@@ -143,6 +143,7 @@ The pre-configured dashboard includes:
    - Task processing rate by type and status
    - Processing duration percentiles (p50, p95, p99)
    - Error rate by task type and operation
+   - Payload decode errors for typed task processors
    - Payload size percentiles
 
 3. **Auto-refresh** every 10 seconds
