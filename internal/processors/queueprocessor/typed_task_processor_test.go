@@ -5,13 +5,14 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
-	"github.com/ruko1202/goque/internal/entity"
 	"github.com/ruko1202/xlog"
 	"github.com/samber/lo"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 	"go.uber.org/zap/zaptest"
+
+	"github.com/ruko1202/goque/internal/entity"
 )
 
 type typedPayload struct {
