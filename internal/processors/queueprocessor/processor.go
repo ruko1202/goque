@@ -194,11 +194,7 @@ func (p *GoqueProcessor) fetchAndProcess(ctx context.Context, workerPool *ants.P
 			default:
 			}
 
-			p.callHooksBefore(ctx, task)
-
-			taskErr := p.processTask(ctx, task)
-
-			p.callHooksAfter(ctx, task, taskErr)
+			p.doProcessTask(ctx, task)
 		})
 		if err != nil {
 			xlog.Error(ctx, "failed to submit task",
@@ -250,6 +246,14 @@ func (p *GoqueProcessor) callHooksAfter(ctx context.Context, task *entity.Task, 
 		xlog.AddSpanEvent(ctx, getHookFuncName(item))
 		item(ctx, task, err)
 	})
+}
+
+func (p *GoqueProcessor) doProcessTask(ctx context.Context, task *entity.Task) {
+	p.callHooksBefore(ctx, task)
+
+	taskErr := p.processTask(ctx, task)
+
+	p.callHooksAfter(ctx, task, taskErr)
 }
 
 func (p *GoqueProcessor) processTask(ctx context.Context, task *entity.Task) error {

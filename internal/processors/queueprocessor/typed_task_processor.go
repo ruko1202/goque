@@ -6,13 +6,16 @@ import (
 	"fmt"
 
 	"github.com/goccy/go-json"
+
 	"github.com/ruko1202/goque/internal/metrics"
+
 	"github.com/ruko1202/xlog"
 	"github.com/ruko1202/xlog/xfield"
 
 	"github.com/ruko1202/goque/internal/entity"
 )
 
+// GoqueTypedProcessor adapts a typed payload processor to the generic task processor interface.
 type GoqueTypedProcessor[T any] struct {
 	cancelTaskIfDecodePayloadError bool
 	processor                      TypedTaskProcessor[T]
@@ -32,6 +35,7 @@ func NewTypedTaskProcessor[T any](processor TypedTaskProcessor[T], opts ...Goque
 	return p
 }
 
+// ProcessTask decodes the task payload before delegating to the wrapped typed processor.
 func (p *GoqueTypedProcessor[T]) ProcessTask(ctx context.Context, task *entity.Task) error {
 	ctx, span := xlog.WithOperationSpan(ctx, "typed_task_processor.ProcessTask")
 	defer span.End()

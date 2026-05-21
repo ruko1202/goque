@@ -45,10 +45,12 @@ var (
 	NewTaskWithExternalID = entity.NewTaskWithExternalID
 )
 
+// NewTaskWithPayload creates a new task with a typed payload marshaled as JSON.
 func NewTaskWithPayload[T any](taskType TaskType, payload T) (*Task, error) {
 	return entity.NewTaskWithPayload[T](taskType, payload)
 }
 
+// NewTaskWithPayloadAndExternalID creates a new task with a typed payload and custom external ID.
 func NewTaskWithPayloadAndExternalID[T any](taskType TaskType, payload T, externalID string) (*Task, error) {
 	return entity.NewTaskWithPayloadAndExternalID[T](taskType, payload, externalID)
 }
