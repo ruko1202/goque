@@ -2,8 +2,6 @@ package processors
 
 import (
 	"context"
-	"encoding/json"
-	"fmt"
 	"math/rand"
 	"time"
 
@@ -24,19 +22,14 @@ func NewEmailProcessor() *EmailProcessor {
 }
 
 // ProcessTask implements the TaskProcessor interface for email tasks.
-func (p *EmailProcessor) ProcessTask(ctx context.Context, task *goque.Task) error {
+func (p *EmailProcessor) ProcessTask(ctx context.Context, task *goque.TypedTask[models.EmailPayload]) error {
 	ctx, span := xlog.WithOperationSpan(ctx, "EmailProcessor")
 	defer span.End()
 
-	var payload models.EmailPayload
-	if err := json.Unmarshal([]byte(task.Payload), &payload); err != nil {
-		return fmt.Errorf("failed to unmarshal email payload: %w", err)
-	}
-
 	ctx = xlog.WithFields(ctx,
-		xfield.Any("payload", payload),
-		xfield.String("subject", payload.Subject),
-		xfield.String("to", payload.To),
+		xfield.Any("payload", task.Payload),
+		xfield.String("subject", task.Payload.Subject),
+		xfield.String("to", task.Payload.To),
 	)
 
 	xlog.Info(ctx, "Processing email task")

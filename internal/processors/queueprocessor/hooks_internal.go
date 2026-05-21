@@ -28,6 +28,9 @@ func (p *GoqueProcessor) updateTaskState(ctx context.Context, task *entity.Task,
 
 	switch {
 	case errors.Is(taskErr, entity.ErrTaskCancel):
+		if errors.Is(taskErr, entity.ErrPayloadUnmarshal) {
+			task.AddError(taskErr)
+		}
 		task.Status = entity.TaskStatusCanceled
 	case errors.Is(taskErr, context.Canceled):
 		p.returnTaskWhenGracefulShutdown(ctx, task)

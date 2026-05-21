@@ -115,37 +115,36 @@ func initGoque(
 ) *goque.Goque {
 	goqueInst := goque.NewGoque(storage)
 
-	emailProcessor := processors.NewEmailProcessor()
 	goqueInst.RegisterProcessor(
 		models.TaskTypeEmail,
-		emailProcessor,
+		goque.NewTypedTaskProcessor[models.EmailPayload](
+			processors.NewEmailProcessor(),
+			goque.WithCancelTaskWhenPayloadDecodeError[models.EmailPayload](),
+		),
 		goque.WithWorkersCount(cfg.Queue.Workers),
 		goque.WithTaskProcessingMaxAttempts(cfg.Queue.MaxAttempts),
 		goque.WithTaskProcessingTimeout(cfg.Queue.TaskTimeout),
 	)
 
-	notificationProcessor := processors.NewNotificationProcessor()
 	goqueInst.RegisterProcessor(
 		models.TaskTypeNotification,
-		notificationProcessor,
+		processors.NewNotificationProcessor(),
 		goque.WithWorkersCount(cfg.Queue.Workers),
 		goque.WithTaskProcessingMaxAttempts(cfg.Queue.MaxAttempts),
 		goque.WithTaskProcessingTimeout(cfg.Queue.TaskTimeout),
 	)
 
-	reportProcessor := processors.NewReportProcessor()
 	goqueInst.RegisterProcessor(
 		models.TaskTypeReport,
-		reportProcessor,
+		processors.NewReportProcessor(),
 		goque.WithWorkersCount(cfg.Queue.Workers),
 		goque.WithTaskProcessingMaxAttempts(cfg.Queue.MaxAttempts),
 		goque.WithTaskProcessingTimeout(cfg.Queue.TaskTimeout),
 	)
 
-	webhookProcessor := processors.NewWebhookProcessor()
 	goqueInst.RegisterProcessor(
 		models.TaskTypeWebhook,
-		webhookProcessor,
+		processors.NewWebhookProcessor(),
 		goque.WithWorkersCount(cfg.Queue.Workers),
 		goque.WithTaskProcessingMaxAttempts(cfg.Queue.MaxAttempts),
 		goque.WithTaskProcessingTimeout(cfg.Queue.TaskTimeout),

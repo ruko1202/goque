@@ -64,6 +64,16 @@ var (
 		},
 		[]string{labelTaskType},
 	)
+	payloadDecodeErrorsTotal = promauto.NewCounterVec(
+		prometheus.CounterOpts{
+			Namespace:   namespace,
+			Subsystem:   promSubsystem,
+			Name:        "payload_decode_errors_total",
+			Help:        "Total number of task payload JSON decode errors by task type.",
+			ConstLabels: constLabels,
+		},
+		[]string{labelTaskType},
+	)
 	processorsWorkersTotal = promauto.NewGaugeVec(
 		prometheus.GaugeOpts{
 			Namespace:   namespace,
@@ -106,6 +116,13 @@ func SetTaskPayloadSize(taskType entity.TaskType, size int) {
 	taskPayloadSize.With(prometheus.Labels{
 		labelTaskType: taskType,
 	}).Observe(float64(size))
+}
+
+// IncPayloadDecodeErrors increments the counter of payload decode errors for the given task type.
+func IncPayloadDecodeErrors(taskType entity.TaskType) {
+	payloadDecodeErrorsTotal.With(prometheus.Labels{
+		labelTaskType: taskType,
+	}).Inc()
 }
 
 // TaskProcessingDurationSecondsObserver returns an observer for recording task processing duration.

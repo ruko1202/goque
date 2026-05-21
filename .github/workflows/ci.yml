@@ -16,7 +16,6 @@ permissions:
 
 # Configuration: Update Go versions below
 # When changing versions, update in 3 places: test-postgres, test-mysql, test-sqlite
-# MAIN_GO_VERSION: Version used for coverage upload (currently: '1.25')
 # GO_VERSIONS: JSON array of versions to test (currently: '["1.25"]')
 
 jobs:
@@ -70,11 +69,3 @@ jobs:
       go_versions: '["1.25"]'
       db_driver: 'sqlite3'
       db_dsn: 'goque_test.db'
-
-  report-coverage:
-    name: Report Coverage
-    uses: ./.github/workflows/coverage.yml
-    needs: [test-postgres, test-mysql, test-sqlite]
-    permissions:
-      contents: write
-      pull-requests: write

@@ -26,6 +26,8 @@ const (
 type (
 	// Task represents a unit of work to be processed by the queue system.
 	Task = entity.Task
+	// TypedTask represents a task with a payload decoded into the expected Go type.
+	TypedTask[T any] = entity.TypedTask[T]
 	// Metadata represents arbitrary key-value data associated with a task for tracking and context.
 	Metadata = entity.Metadata
 )
@@ -35,9 +37,20 @@ type TaskFilter = dbentity.GetTasksFilter
 
 // Task creation functions for adding new tasks to the queue.
 var (
+	// NoTaskPayload represents an empty task payload.
 	NoTaskPayload = entity.NoTaskPayload
 	// NewTask creates a new task with the specified type and payload.
 	NewTask = entity.NewTask
 	// NewTaskWithExternalID creates a new task with an external identifier for idempotency.
 	NewTaskWithExternalID = entity.NewTaskWithExternalID
 )
+
+// NewTaskWithPayload creates a new task with a typed payload marshaled as JSON.
+func NewTaskWithPayload[T any](taskType TaskType, payload T) (*Task, error) {
+	return entity.NewTaskWithPayload[T](taskType, payload)
+}
+
+// NewTaskWithPayloadAndExternalID creates a new task with a typed payload and custom external ID.
+func NewTaskWithPayloadAndExternalID[T any](taskType TaskType, payload T, externalID string) (*Task, error) {
+	return entity.NewTaskWithPayloadAndExternalID[T](taskType, payload, externalID)
+}
