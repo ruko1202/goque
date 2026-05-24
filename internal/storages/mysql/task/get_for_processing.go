@@ -23,7 +23,7 @@ func (s *Storage) GetTasksForProcessing(ctx context.Context, taskType entity.Tas
 	)
 	defer span.End()
 
-	var tasks []*model.Task
+	var tasks []*model.GoqueTask
 	err := dbutils.DoInTransaction(ctx, s.db, func(tx *sqlx.Tx) error {
 		var err error
 		tasks, err = s.getTasksForProcessingTx(ctx, tx, taskType, limit)
@@ -41,31 +41,31 @@ func (s *Storage) GetTasksForProcessing(ctx context.Context, taskType entity.Tas
 	return fromDBModels(ctx, tasks)
 }
 
-func (s *Storage) getTasksForProcessingTx(ctx context.Context, tx *sqlx.Tx, taskType entity.TaskType, limit int64) ([]*model.Task, error) {
+func (s *Storage) getTasksForProcessingTx(ctx context.Context, tx *sqlx.Tx, taskType entity.TaskType, limit int64) ([]*model.GoqueTask, error) {
 	ctx, span := xlog.WithOperationSpan(ctx, "storage.getTasksForProcessingTx")
 	defer span.End()
 
-	stmt := table.Task.
-		SELECT(table.Task.AllColumns).
+	stmt := table.GoqueTask.
+		SELECT(table.GoqueTask.AllColumns).
 		WHERE(
 			mysql.AND(
-				table.Task.Type.EQ(mysql.String(taskType)),
-				table.Task.Status.IN(
+				table.GoqueTask.Type.EQ(mysql.String(taskType)),
+				table.GoqueTask.Status.IN(
 					mysql.String(entity.TaskStatusNew),
 					mysql.String(entity.TaskStatusError),
 				),
-				table.Task.NextAttemptAt.LT_EQ(mysql.TimestampT(xtime.Now())),
+				table.GoqueTask.NextAttemptAt.LT_EQ(mysql.TimestampT(xtime.Now())),
 			),
 		).
 		FOR(mysql.UPDATE()).
 		ORDER_BY(
-			table.Task.NextAttemptAt.ASC(),
+			table.GoqueTask.NextAttemptAt.ASC(),
 		).
 		LIMIT(limit)
 
 	query, args := stmt.Sql()
 
-	tasks := make([]*model.Task, 0)
+	tasks := make([]*model.GoqueTask, 0)
 	err := tx.SelectContext(ctx, &tasks, query, args...)
 	if err != nil {
 		xlog.Error(ctx, "failed to get task for processing", xfield.Error(err))

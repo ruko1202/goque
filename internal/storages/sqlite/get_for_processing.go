@@ -23,7 +23,7 @@ func (s *Storage) GetTasksForProcessing(ctx context.Context, taskType entity.Tas
 	)
 	defer span.End()
 
-	var tasks []*model.Task
+	var tasks []*model.GoqueTask
 	err := dbutils.DoInTransaction(ctx, s.db, func(tx *sqlx.Tx) error {
 		var err error
 		tasks, err = s.getTasksForProcessingTx(ctx, tx, taskType, limit)
@@ -41,33 +41,33 @@ func (s *Storage) GetTasksForProcessing(ctx context.Context, taskType entity.Tas
 	return fromDBModels(ctx, tasks)
 }
 
-func (s *Storage) getTasksForProcessingTx(ctx context.Context, tx *sqlx.Tx, taskType entity.TaskType, limit int64) ([]*model.Task, error) {
+func (s *Storage) getTasksForProcessingTx(ctx context.Context, tx *sqlx.Tx, taskType entity.TaskType, limit int64) ([]*model.GoqueTask, error) {
 	ctx, span := xlog.WithOperationSpan(ctx, "storage.getTasksForProcessingTx")
 	defer span.End()
 
 	// SQLite doesn't support FOR UPDATE SKIP LOCKED
 	// In WAL mode, the transaction provides row-level locking automatically
 	// The forUpdate parameter is kept for interface compatibility but not used
-	stmt := table.Task.
-		SELECT(table.Task.AllColumns).
+	stmt := table.GoqueTask.
+		SELECT(table.GoqueTask.AllColumns).
 		WHERE(
 			sqlite.AND(
-				table.Task.Type.EQ(sqlite.String(taskType)),
-				table.Task.Status.IN(
+				table.GoqueTask.Type.EQ(sqlite.String(taskType)),
+				table.GoqueTask.Status.IN(
 					sqlite.String(entity.TaskStatusNew),
 					sqlite.String(entity.TaskStatusError),
 				),
-				table.Task.NextAttemptAt.LT_EQ(sqlite.String(timeToString(xtime.Now()))),
+				table.GoqueTask.NextAttemptAt.LT_EQ(sqlite.String(timeToString(xtime.Now()))),
 			),
 		).
 		ORDER_BY(
-			table.Task.NextAttemptAt.ASC(),
+			table.GoqueTask.NextAttemptAt.ASC(),
 		).
 		LIMIT(limit)
 
 	query, args := stmt.Sql()
 
-	tasks := make([]*model.Task, 0)
+	tasks := make([]*model.GoqueTask, 0)
 	err := tx.SelectContext(ctx, &tasks, query, args...)
 	if err != nil {
 		xlog.Error(ctx, "failed to get task for processing", xfield.Error(err))

@@ -20,13 +20,13 @@ const (
 	timeFormat = time.RFC3339
 )
 
-func toDBModel(ctx context.Context, task *entity.Task) *model.Task {
+func toDBModel(ctx context.Context, task *entity.Task) *model.GoqueTask {
 	metadata := task.Metadata.Merge(goquectx.Values(ctx))
 	var updatedAt *string
 	if task.UpdatedAt != nil {
 		updatedAt = lo.ToPtr(timeToString(lo.FromPtr(task.UpdatedAt)))
 	}
-	return &model.Task{
+	return &model.GoqueTask{
 		ID:            lo.ToPtr(task.ID.String()),
 		Type:          task.Type,
 		ExternalID:    task.ExternalID,
@@ -41,7 +41,7 @@ func toDBModel(ctx context.Context, task *entity.Task) *model.Task {
 	}
 }
 
-func fromDBModel(ctx context.Context, task *model.Task) (*entity.Task, error) {
+func fromDBModel(ctx context.Context, task *model.GoqueTask) (*entity.Task, error) {
 	id, err := uuid.Parse(lo.FromPtr(task.ID))
 	if err != nil {
 		return nil, fmt.Errorf("parse task id: %w", err)
@@ -66,7 +66,7 @@ func fromDBModel(ctx context.Context, task *model.Task) (*entity.Task, error) {
 	}, nil
 }
 
-func fromDBModels(ctx context.Context, dbTasks []*model.Task) ([]*entity.Task, error) {
+func fromDBModels(ctx context.Context, dbTasks []*model.GoqueTask) ([]*entity.Task, error) {
 	tasks := make([]*entity.Task, 0, len(dbTasks))
 	for _, dbTask := range dbTasks {
 		task, err := fromDBModel(ctx, dbTask)

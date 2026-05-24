@@ -29,7 +29,7 @@ func (s *Storage) GetTasks(ctx context.Context, filter *dbentity.GetTasksFilter,
 	return fromDBModels(ctx, tasks), nil
 }
 
-func (s *Storage) getTasksByFilterTx(ctx context.Context, tx dbutils.DBTx, filter *dbentity.GetTasksFilter, limit int64) ([]*model.Task, error) {
+func (s *Storage) getTasksByFilterTx(ctx context.Context, tx dbutils.DBTx, filter *dbentity.GetTasksFilter, limit int64) ([]*model.GoqueTask, error) {
 	ctx, span := xlog.WithOperationSpan(ctx, "storage.getTasksByFilterTx")
 	defer span.End()
 
@@ -39,14 +39,14 @@ func (s *Storage) getTasksByFilterTx(ctx context.Context, tx dbutils.DBTx, filte
 		return nil, err
 	}
 
-	stmt := table.Task.
-		SELECT(table.Task.AllColumns).
+	stmt := table.GoqueTask.
+		SELECT(table.GoqueTask.AllColumns).
 		WHERE(whereExpr).
 		LIMIT(limit)
 
 	query, args := stmt.Sql()
 
-	tasks := make([]*model.Task, 0)
+	tasks := make([]*model.GoqueTask, 0)
 	err = tx.SelectContext(ctx, &tasks, query, args...)
 	if err != nil {
 		xlog.Error(ctx, "failed to get tasks", xfield.Error(err))

@@ -32,38 +32,38 @@ func (s *Storage) CureTasks(
 	span.SetAttributes(semconv.DBSystemNamePostgreSQL)
 	defer span.End()
 
-	stmt := table.Task.
+	stmt := table.GoqueTask.
 		UPDATE(
-			table.Task.Status,
-			table.Task.Errors,
-			table.Task.UpdatedAt,
+			table.GoqueTask.Status,
+			table.GoqueTask.Errors,
+			table.GoqueTask.UpdatedAt,
 		).
 		SET(
 			postgres.String(entity.TaskStatusError),
 			postgres.CONCAT(
-				postgres.COALESCE(table.Task.Errors, postgres.String("")),
+				postgres.COALESCE(table.GoqueTask.Errors, postgres.String("")),
 				// commen by format: `attempt <task.Attempts>: <comment>\n`
 				postgres.String("attempt ").
-					CONCAT(table.Task.Attempts).
+					CONCAT(table.GoqueTask.Attempts).
 					CONCAT(postgres.String(fmt.Sprintf(": %s\n", comment))),
 			),
 			postgres.TimestampzT(xtime.Now()),
 		).
 		WHERE(
 			postgres.AND(
-				table.Task.Type.EQ(postgres.String(taskType)),
-				table.Task.Status.IN(lo.Map(statuses, func(item entity.TaskStatus, _ int) postgres.Expression {
+				table.GoqueTask.Type.EQ(postgres.String(taskType)),
+				table.GoqueTask.Status.IN(lo.Map(statuses, func(item entity.TaskStatus, _ int) postgres.Expression {
 					return postgres.String(item)
 				})...),
-				table.Task.UpdatedAt.LT_EQ(
+				table.GoqueTask.UpdatedAt.LT_EQ(
 					postgres.TimestampzT(xtime.Now().Add(-updatedAtTimeAgo.Abs())),
 				),
 			),
-		).RETURNING(table.Task.AllColumns)
+		).RETURNING(table.GoqueTask.AllColumns)
 
 	query, args := stmt.Sql()
 
-	dbTasks := make([]*model.Task, 0)
+	dbTasks := make([]*model.GoqueTask, 0)
 	err := s.db.SelectContext(ctx, &dbTasks, query, args...)
 	if err != nil {
 		xlog.Error(ctx, "failed to update task", xfield.Error(err))

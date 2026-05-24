@@ -37,7 +37,7 @@ func (f *GetTasksFilter) BindPgWhereExpr() (postgres.BoolExpression, error) {
 
 	if len(f.IDs) > 0 {
 		expr.And(
-			pgtable.Task.ID.IN(lo.Map(f.IDs, func(item uuid.UUID, _ int) postgres.Expression {
+			pgtable.GoqueTask.ID.IN(lo.Map(f.IDs, func(item uuid.UUID, _ int) postgres.Expression {
 				return postgres.UUID(item)
 			})...),
 		)
@@ -45,19 +45,19 @@ func (f *GetTasksFilter) BindPgWhereExpr() (postgres.BoolExpression, error) {
 
 	if f.TaskType != nil {
 		expr.And(
-			pgtable.Task.Type.EQ(postgres.String(lo.FromPtr(f.TaskType))),
+			pgtable.GoqueTask.Type.EQ(postgres.String(lo.FromPtr(f.TaskType))),
 		)
 	}
 
 	if f.Status != nil {
 		expr.And(
-			pgtable.Task.Status.EQ(postgres.String(lo.FromPtr(f.Status))),
+			pgtable.GoqueTask.Status.EQ(postgres.String(lo.FromPtr(f.Status))),
 		)
 	}
 
 	if len(f.Statuses) > 0 {
 		expr.And(
-			pgtable.Task.Status.IN(lo.Map(f.Statuses, func(item entity.TaskStatus, _ int) postgres.Expression {
+			pgtable.GoqueTask.Status.IN(lo.Map(f.Statuses, func(item entity.TaskStatus, _ int) postgres.Expression {
 				return postgres.String(item)
 			})...),
 		)
@@ -65,7 +65,7 @@ func (f *GetTasksFilter) BindPgWhereExpr() (postgres.BoolExpression, error) {
 
 	if f.UpdatedAtTimeAgo != nil {
 		expr.And(
-			pgtable.Task.UpdatedAt.LT_EQ(
+			pgtable.GoqueTask.UpdatedAt.LT_EQ(
 				postgres.TimestampzT(xtime.Now().Add(-f.UpdatedAtTimeAgo.Abs())),
 			),
 		)
@@ -86,26 +86,26 @@ func (f *GetTasksFilter) BindMysqlWhereExpr() (mysql.BoolExpression, error) {
 
 	if len(f.IDs) > 0 {
 		expr.And(
-			mysqltable.Task.ID.IN(lo.Map(f.IDs, func(item uuid.UUID, _ int) mysql.Expression {
+			mysqltable.GoqueTask.ID.IN(lo.Map(f.IDs, func(item uuid.UUID, _ int) mysql.Expression {
 				return mysql.UUID(item)
 			})...),
 		)
 	}
 	if f.TaskType != nil {
 		expr.And(
-			mysqltable.Task.Type.EQ(mysql.String(lo.FromPtr(f.TaskType))),
+			mysqltable.GoqueTask.Type.EQ(mysql.String(lo.FromPtr(f.TaskType))),
 		)
 	}
 
 	if f.Status != nil {
 		expr.And(
-			mysqltable.Task.Status.EQ(mysql.String(lo.FromPtr(f.Status))),
+			mysqltable.GoqueTask.Status.EQ(mysql.String(lo.FromPtr(f.Status))),
 		)
 	}
 
 	if len(f.Statuses) > 0 {
 		expr.And(
-			mysqltable.Task.Status.IN(lo.Map(f.Statuses, func(item entity.TaskStatus, _ int) mysql.Expression {
+			mysqltable.GoqueTask.Status.IN(lo.Map(f.Statuses, func(item entity.TaskStatus, _ int) mysql.Expression {
 				return mysql.String(item)
 			})...),
 		)
@@ -113,7 +113,7 @@ func (f *GetTasksFilter) BindMysqlWhereExpr() (mysql.BoolExpression, error) {
 
 	if f.UpdatedAtTimeAgo != nil {
 		expr.And(
-			mysqltable.Task.UpdatedAt.LT_EQ(
+			mysqltable.GoqueTask.UpdatedAt.LT_EQ(
 				mysql.TimestampT(xtime.Now().Add(-f.UpdatedAtTimeAgo.Abs())),
 			),
 		)
@@ -134,26 +134,26 @@ func (f *GetTasksFilter) BindSqliteWhereExpr() (sqlite.BoolExpression, error) {
 
 	if len(f.IDs) > 0 {
 		expr.And(
-			sqlitetable.Task.ID.IN(lo.Map(f.IDs, func(item uuid.UUID, _ int) sqlite.Expression {
+			sqlitetable.GoqueTask.ID.IN(lo.Map(f.IDs, func(item uuid.UUID, _ int) sqlite.Expression {
 				return sqlite.UUID(item)
 			})...),
 		)
 	}
 	if f.TaskType != nil {
 		expr.And(
-			sqlitetable.Task.Type.EQ(sqlite.String(lo.FromPtr(f.TaskType))),
+			sqlitetable.GoqueTask.Type.EQ(sqlite.String(lo.FromPtr(f.TaskType))),
 		)
 	}
 
 	if f.Status != nil {
 		expr.And(
-			sqlitetable.Task.Status.EQ(sqlite.String(lo.FromPtr(f.Status))),
+			sqlitetable.GoqueTask.Status.EQ(sqlite.String(lo.FromPtr(f.Status))),
 		)
 	}
 
 	if len(f.Statuses) > 0 {
 		expr.And(
-			sqlitetable.Task.Status.IN(lo.Map(f.Statuses, func(item entity.TaskStatus, _ int) sqlite.Expression {
+			sqlitetable.GoqueTask.Status.IN(lo.Map(f.Statuses, func(item entity.TaskStatus, _ int) sqlite.Expression {
 				return sqlite.String(item)
 			})...),
 		)
@@ -161,7 +161,7 @@ func (f *GetTasksFilter) BindSqliteWhereExpr() (sqlite.BoolExpression, error) {
 
 	if f.UpdatedAtTimeAgo != nil {
 		expr.And(
-			sqlite.DATETIME(sqlitetable.Task.UpdatedAt).LT_EQ(
+			sqlite.DATETIME(sqlitetable.GoqueTask.UpdatedAt).LT_EQ(
 				sqlite.DATETIME(xtime.Now().Add(-f.UpdatedAtTimeAgo.Abs())),
 			),
 		)

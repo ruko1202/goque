@@ -31,17 +31,17 @@ func (s *Storage) GetTask(ctx context.Context, id uuid.UUID) (*entity.Task, erro
 	return fromDBModel(ctx, task), nil
 }
 
-func (s *Storage) getTaskTx(ctx context.Context, tx dbutils.DBTx, id uuid.UUID) (*model.Task, error) {
+func (s *Storage) getTaskTx(ctx context.Context, tx dbutils.DBTx, id uuid.UUID) (*model.GoqueTask, error) {
 	ctx, span := xlog.WithOperationSpan(ctx, "storage.getTaskTx")
 	defer span.End()
 
-	stmt := table.Task.
-		SELECT(table.Task.AllColumns).
-		WHERE(table.Task.ID.EQ(postgres.UUID(id)))
+	stmt := table.GoqueTask.
+		SELECT(table.GoqueTask.AllColumns).
+		WHERE(table.GoqueTask.ID.EQ(postgres.UUID(id)))
 
 	query, args := stmt.Sql()
 
-	task := new(model.Task)
+	task := new(model.GoqueTask)
 	err := tx.GetContext(ctx, task, query, args...)
 	if err != nil {
 		xlog.Error(ctx, "failed to get task", xfield.Error(err))

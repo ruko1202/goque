@@ -40,17 +40,17 @@ func (s *Storage) HardUpdateTask(ctx context.Context, taskID uuid.UUID, task *en
 	return s.updateTaskTx(ctx, s.db, taskID, toDBModel(ctx, task))
 }
 
-func (s *Storage) updateTaskTx(ctx context.Context, tx dbutils.DBTx, taskID uuid.UUID, task *model.Task) error {
+func (s *Storage) updateTaskTx(ctx context.Context, tx dbutils.DBTx, taskID uuid.UUID, task *model.GoqueTask) error {
 	ctx, span := xlog.WithOperationSpan(ctx, "storage.updateTaskTx")
 	defer span.End()
 
-	stmt := table.Task.
+	stmt := table.GoqueTask.
 		UPDATE(
-			table.Task.Status,
-			table.Task.Attempts,
-			table.Task.Errors,
-			table.Task.UpdatedAt,
-			table.Task.NextAttemptAt,
+			table.GoqueTask.Status,
+			table.GoqueTask.Attempts,
+			table.GoqueTask.Errors,
+			table.GoqueTask.UpdatedAt,
+			table.GoqueTask.NextAttemptAt,
 		).
 		SET(
 			task.Status,
@@ -59,7 +59,7 @@ func (s *Storage) updateTaskTx(ctx context.Context, tx dbutils.DBTx, taskID uuid
 			task.UpdatedAt,
 			task.NextAttemptAt,
 		).
-		WHERE(table.Task.ID.EQ(postgres.UUID(taskID)))
+		WHERE(table.GoqueTask.ID.EQ(postgres.UUID(taskID)))
 
 	query, args := stmt.Sql()
 
@@ -72,7 +72,7 @@ func (s *Storage) updateTaskTx(ctx context.Context, tx dbutils.DBTx, taskID uuid
 	return nil
 }
 
-func (s *Storage) batchUpdateTasksStatusTx(ctx context.Context, tx dbutils.DBTx, tasks []*model.Task, newStatus string) error {
+func (s *Storage) batchUpdateTasksStatusTx(ctx context.Context, tx dbutils.DBTx, tasks []*model.GoqueTask, newStatus string) error {
 	ctx, span := xlog.WithOperationSpan(ctx, "storage.batchUpdateTasksStatusTx")
 	defer span.End()
 
@@ -80,21 +80,21 @@ func (s *Storage) batchUpdateTasksStatusTx(ctx context.Context, tx dbutils.DBTx,
 		return nil
 	}
 	now := xtime.Now()
-	stmt := table.Task.
+	stmt := table.GoqueTask.
 		UPDATE(
-			table.Task.Status,
-			table.Task.UpdatedAt,
+			table.GoqueTask.Status,
+			table.GoqueTask.UpdatedAt,
 		).
 		SET(
 			postgres.String(newStatus),
 			postgres.TimestampzT(now),
 		).
-		WHERE(table.Task.ID.IN(
-			lo.Map(tasks, func(task *model.Task, _ int) postgres.Expression {
+		WHERE(table.GoqueTask.ID.IN(
+			lo.Map(tasks, func(task *model.GoqueTask, _ int) postgres.Expression {
 				return postgres.UUID(task.ID)
 			})...,
 		)).
-		RETURNING(table.Task.MutableColumns)
+		RETURNING(table.GoqueTask.MutableColumns)
 
 	query, args := stmt.Sql()
 
@@ -104,7 +104,7 @@ func (s *Storage) batchUpdateTasksStatusTx(ctx context.Context, tx dbutils.DBTx,
 		return err
 	}
 
-	lo.ForEach(tasks, func(task *model.Task, _ int) {
+	lo.ForEach(tasks, func(task *model.GoqueTask, _ int) {
 		task.UpdatedAt = lo.ToPtr(now)
 		task.Status = newStatus
 	})

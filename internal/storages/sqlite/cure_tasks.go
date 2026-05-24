@@ -34,7 +34,7 @@ func (s *Storage) CureTasks(
 	)
 	defer span.End()
 
-	tasks := make([]*model.Task, 0)
+	tasks := make([]*model.GoqueTask, 0)
 	err := dbutils.DoInTransaction(ctx, s.db, func(tx *sqlx.Tx) error {
 		var err error
 		tasks, err = s.getTasksByFilterTx(ctx, tx, &dbentity.GetTasksFilter{
@@ -57,7 +57,7 @@ func (s *Storage) CureTasks(
 	return fromDBModels(ctx, tasks)
 }
 
-func (s *Storage) cureTaskTx(ctx context.Context, tx dbutils.DBTx, tasks []*model.Task, comment string) error {
+func (s *Storage) cureTaskTx(ctx context.Context, tx dbutils.DBTx, tasks []*model.GoqueTask, comment string) error {
 	ctx, span := xlog.WithOperationSpan(ctx, "storage.cureTaskTx")
 	defer span.End()
 
@@ -66,25 +66,25 @@ func (s *Storage) cureTaskTx(ctx context.Context, tx dbutils.DBTx, tasks []*mode
 	}
 
 	// SQLite uses || for concatenation and CAST(x AS TEXT) for type conversion
-	updateStmt := table.Task.
+	updateStmt := table.GoqueTask.
 		UPDATE(
-			table.Task.Status,
-			table.Task.Errors,
-			table.Task.UpdatedAt,
+			table.GoqueTask.Status,
+			table.GoqueTask.Errors,
+			table.GoqueTask.UpdatedAt,
 		).
 		SET(
 			sqlite.String(entity.TaskStatusError),
 			// In SQLite: '' || COALESCE(errors, '') || 'attempt ' || <task.Attempts> || ': <comment>\n'
 			sqlite.String("").
-				CONCAT(sqlite.COALESCE(table.Task.Errors, sqlite.String(""))).
+				CONCAT(sqlite.COALESCE(table.GoqueTask.Errors, sqlite.String(""))).
 				//comment by format: `attempt <task.Attempts>: <comment>\n`
 				CONCAT(sqlite.String("attempt ")).
-				CONCAT(table.Task.Attempts).
+				CONCAT(table.GoqueTask.Attempts).
 				CONCAT(sqlite.String(fmt.Sprintf(": %s\n", comment))),
 			sqlite.String(timeToString(xtime.Now())),
 		).
 		WHERE(
-			table.Task.ID.IN(lo.Map(tasks, func(item *model.Task, _ int) sqlite.Expression {
+			table.GoqueTask.ID.IN(lo.Map(tasks, func(item *model.GoqueTask, _ int) sqlite.Expression {
 				return sqlite.String(lo.FromPtr(item.ID))
 			})...),
 		)

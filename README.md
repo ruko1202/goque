@@ -46,6 +46,23 @@ Goque supports three database backends with different performance characteristic
 - MySQL uses **6% less memory** than PostgreSQL
 - SQLite has file-level locking and is **not recommended for production**
 
+### Schema
+
+Goque installs a single table named **`goque_task`** plus three indexes
+(`goque_task_type_external_id_idx`, `goque_task_type_status_next_attempt_at_idx`,
+`goque_task_type_status_updated_at_idx`). The full DDL lives in
+[migrations/](migrations/) — apply it with `make db-up`.
+
+> **Breaking change in this release**: the table was previously named `task`.
+> Existing deployments must rename in place before adopting:
+>
+> ```sql
+> ALTER TABLE task RENAME TO goque_task;
+> ALTER INDEX task_type_external_id_idx          RENAME TO goque_task_type_external_id_idx;
+> ALTER INDEX task_type_status_next_attempt_at_idx RENAME TO goque_task_type_status_next_attempt_at_idx;
+> ALTER INDEX task_type_status_updated_at_idx      RENAME TO goque_task_type_status_updated_at_idx;
+> ```
+
 ## Quick Start
 
 ### 1. Prepare database

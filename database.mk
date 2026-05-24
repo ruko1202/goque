@@ -193,7 +193,7 @@ db-info: ## Show current database configuration
 # Creates containers, networks, and volumes if they don't exist
 # Safe to run multiple times (idempotent)
 .PHONY: docker-up
-docker-up: ## Start all databases with Docker Compose
+docker-up: docker-down ## Start all databases with Docker Compose
 	$(info $(M) starting databases with Docker Compose...)
 	docker compose up -d
 	make docker-ps
