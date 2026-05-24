@@ -245,6 +245,38 @@ taskQueueManager := goque.NewTaskQueueManager(taskStorage)
 err := taskQueueManager.AddTaskToQueue(ctx, task)
 ```
 
+### 5. Transactional Outbox
+
+Enqueue a task atomically with your own domain writes by passing a
+`*sqlx.Tx` through the context. If the tx rolls back, the enqueue is
+discarded with it; if it commits, the task becomes visible to workers
+in the same instant the domain rows do.
+
+```go
+tx, err := db.BeginTxx(ctx, nil)
+if err != nil {
+    return err
+}
+defer func() { _ = tx.Rollback() }() // no-op after a successful Commit
+
+// 1) Your domain write inside the tx
+if _, err := tx.ExecContext(ctx, "INSERT INTO orders ..."); err != nil {
+    return err
+}
+
+// 2) Enqueue using the same tx — goque.WithTx wires it into ctx
+task := goque.NewTask("send_order_confirmation", payload)
+if err := taskQueueManager.AddTaskToQueue(goque.WithTx(ctx, tx), task); err != nil {
+    return err
+}
+
+// 3) Commit — domain row and queued task become durable together
+return tx.Commit()
+```
+
+Calls without `goque.WithTx` keep the existing behavior and write
+directly to the storage's `*sqlx.DB`.
+
 ## Example Application
 
 A complete, production-ready example service demonstrating real-world Goque usage is available in the `examples/service` directory.

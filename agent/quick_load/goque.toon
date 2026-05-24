@@ -22,7 +22,7 @@ project:
   databases: PostgreSQL 12+, MySQL 8+, SQLite 3+
   purpose: Robust database-backed task queue with worker pools, retry logic, and graceful shutdown
 
-  core_features[12]{feature,description}:
+  core_features[13]{feature,description}:
     Multi-database support,Works with PostgreSQL MySQL SQLite
     Reliable persistence,Task storage with ACID guarantees
     Worker pool management,Configurable concurrent processing using goroutine pools
@@ -35,6 +35,7 @@ project:
     Type-safe queries,PostgreSQL/MySQL use go-jet for type-safe SQL generation
     Built-in healer,Automatically marks stuck tasks as errored for reprocessing
     Prometheus metrics,Built-in metrics for task counters errors duration payload size and payload decode failures
+    Transactional outbox,goque.WithTx(ctx tx) enrolls AddTaskToQueue in a caller-provided sqlx.Tx for atomic domain+enqueue writes
 
   task_statuses[7]{status,description,terminal}:
     new,Task created and ready to be picked up,false
