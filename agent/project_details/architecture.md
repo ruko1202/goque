@@ -47,7 +47,7 @@ Goque follows a layered architecture with clear separation of concerns.
           │
 ┌─────────▼───────────────────────────────┐
 │  Database (PostgreSQL/MySQL/SQLite)     │
-│  - tasks table                          │
+│  - goque_task table                     │
 └─────────────────────────────────────────┘
      │
      ├──────────────────────────────────────┐
@@ -320,27 +320,28 @@ Cleaner.Run()
 ## Database Schema
 
 ```sql
-CREATE TABLE tasks (
-    id UUID PRIMARY KEY,
-    type VARCHAR(255) NOT NULL,
-    status VARCHAR(50) NOT NULL,
-    payload JSONB,
-    external_id VARCHAR(255),
-    attempts INT NOT NULL DEFAULT 0,
-    max_attempts INT NOT NULL DEFAULT 3,
-    next_attempt_at TIMESTAMP,
-    error TEXT,
-    created_at TIMESTAMP NOT NULL,
-    updated_at TIMESTAMP NOT NULL,
-
-    INDEX idx_tasks_processing (type, status, next_attempt_at)
-    UNIQUE INDEX idx_tasks_external_id (external_id)
+CREATE TABLE goque_task (
+    id              UUID        PRIMARY KEY,
+    type            TEXT        NOT NULL,
+    external_id     TEXT        NOT NULL,
+    payload         JSONB       NOT NULL,
+    status          TEXT        NOT NULL,
+    attempts        INT         NOT NULL,
+    errors          TEXT,
+    metadata        JSONB,
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at      TIMESTAMPTZ,
+    next_attempt_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+CREATE UNIQUE INDEX goque_task_type_external_id_idx          ON goque_task (type, external_id);
+CREATE INDEX        goque_task_type_status_next_attempt_at_idx ON goque_task (type, status, next_attempt_at ASC);
+CREATE INDEX        goque_task_type_status_updated_at_idx      ON goque_task (type, status, updated_at ASC);
 ```
 
 **Key Indexes**:
-- `idx_tasks_processing` - Optimize task fetching
-- `idx_tasks_external_id` - Ensure external ID uniqueness
+- `goque_task_type_status_next_attempt_at_idx` — optimize task fetching
+- `goque_task_type_external_id_idx` — ensure (type, external_id) uniqueness
 
 ## Scalability Considerations
 
