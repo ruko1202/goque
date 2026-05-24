@@ -9,8 +9,6 @@ import (
 	"github.com/ruko1202/xlog/xfield"
 	semconv "go.opentelemetry.io/otel/semconv/v1.40.0"
 
-	"github.com/ruko1202/goque/internal/storages/dbutils"
-
 	"github.com/ruko1202/goque/internal/entity"
 	"github.com/ruko1202/goque/internal/pkg/generated/postgres/public/model"
 	"github.com/ruko1202/goque/internal/pkg/generated/postgres/public/table"
@@ -24,15 +22,15 @@ func (s *Storage) GetTask(ctx context.Context, id uuid.UUID) (*entity.Task, erro
 	span.SetAttributes(semconv.DBSystemNamePostgreSQL)
 	defer span.End()
 
-	task, err := s.getTaskTx(ctx, s.db, id)
+	task, err := s.getTask(ctx, id)
 	if err != nil {
 		return nil, err
 	}
 	return fromDBModel(ctx, task), nil
 }
 
-func (s *Storage) getTaskTx(ctx context.Context, tx dbutils.DBTx, id uuid.UUID) (*model.GoqueTask, error) {
-	ctx, span := xlog.WithOperationSpan(ctx, "storage.getTaskTx")
+func (s *Storage) getTask(ctx context.Context, id uuid.UUID) (*model.GoqueTask, error) {
+	ctx, span := xlog.WithOperationSpan(ctx, "storage.getTask")
 	defer span.End()
 
 	stmt := table.GoqueTask.
@@ -42,7 +40,7 @@ func (s *Storage) getTaskTx(ctx context.Context, tx dbutils.DBTx, id uuid.UUID) 
 	query, args := stmt.Sql()
 
 	task := new(model.GoqueTask)
-	err := tx.GetContext(ctx, task, query, args...)
+	err := s.db.Executor(ctx).GetContext(ctx, task, query, args...)
 	if err != nil {
 		xlog.Error(ctx, "failed to get task", xfield.Error(err))
 		return nil, err

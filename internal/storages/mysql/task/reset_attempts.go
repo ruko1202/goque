@@ -5,13 +5,13 @@ import (
 	"fmt"
 
 	"github.com/google/uuid"
-	"github.com/jmoiron/sqlx"
 	"github.com/ruko1202/xlog"
 	"github.com/ruko1202/xlog/xfield"
 	"github.com/samber/lo"
 
+	"github.com/ruko1202/goque/internal/storages/dbtx"
+
 	"github.com/ruko1202/goque/internal/entity"
-	"github.com/ruko1202/goque/internal/storages/dbutils"
 	"github.com/ruko1202/goque/internal/utils/xtime"
 )
 
@@ -23,8 +23,8 @@ func (s *Storage) ResetAttempts(ctx context.Context, id uuid.UUID) error {
 	)
 	defer span.End()
 
-	err := dbutils.DoInTransaction(ctx, s.db, func(tx *sqlx.Tx) error {
-		task, err := s.getTaskTx(ctx, tx, id)
+	err := dbtx.WithinTx(ctx, s.db.GetDB(), func(ctx context.Context) error {
+		task, err := s.getTask(ctx, id)
 		if err != nil {
 			return err
 		}
@@ -37,7 +37,7 @@ func (s *Storage) ResetAttempts(ctx context.Context, id uuid.UUID) error {
 		taskErr += fmt.Sprintf("reset attempts: %s\n", task.NextAttemptAt)
 		task.Errors = &taskErr
 
-		return s.updateTaskTx(ctx, tx, task.ID, task)
+		return s.updateTask(ctx, task.ID, task)
 	})
 	if err != nil {
 		return fmt.Errorf("reset attempts failed: %w", err)

@@ -6,16 +6,16 @@ import (
 	"time"
 
 	"github.com/go-jet/jet/v2/sqlite"
-	"github.com/jmoiron/sqlx"
 	"github.com/ruko1202/xlog"
 	"github.com/ruko1202/xlog/xfield"
 	"github.com/samber/lo"
+
+	"github.com/ruko1202/goque/internal/storages/dbtx"
 
 	"github.com/ruko1202/goque/internal/entity"
 	"github.com/ruko1202/goque/internal/pkg/generated/sqlite3/model"
 	"github.com/ruko1202/goque/internal/pkg/generated/sqlite3/table"
 	"github.com/ruko1202/goque/internal/storages/dbentity"
-	"github.com/ruko1202/goque/internal/storages/dbutils"
 	"github.com/ruko1202/goque/internal/utils/xtime"
 )
 
@@ -35,9 +35,9 @@ func (s *Storage) CureTasks(
 	defer span.End()
 
 	tasks := make([]*model.GoqueTask, 0)
-	err := dbutils.DoInTransaction(ctx, s.db, func(tx *sqlx.Tx) error {
+	err := dbtx.WithinTx(ctx, s.db.GetDB(), func(ctx context.Context) error {
 		var err error
-		tasks, err = s.getTasksByFilterTx(ctx, tx, &dbentity.GetTasksFilter{
+		tasks, err = s.getTasksByFilter(ctx, &dbentity.GetTasksFilter{
 			TaskType:         lo.ToPtr(taskType),
 			Statuses:         statuses,
 			UpdatedAtTimeAgo: lo.ToPtr(updatedAtTimeAgo),
@@ -47,7 +47,7 @@ func (s *Storage) CureTasks(
 			return err
 		}
 
-		return s.cureTaskTx(ctx, tx, tasks, comment)
+		return s.cureTask(ctx, tasks, comment)
 	})
 	if err != nil {
 		xlog.Error(ctx, "failed to cure tasks", xfield.Error(err))
@@ -57,8 +57,8 @@ func (s *Storage) CureTasks(
 	return fromDBModels(ctx, tasks)
 }
 
-func (s *Storage) cureTaskTx(ctx context.Context, tx dbutils.DBTx, tasks []*model.GoqueTask, comment string) error {
-	ctx, span := xlog.WithOperationSpan(ctx, "storage.cureTaskTx")
+func (s *Storage) cureTask(ctx context.Context, tasks []*model.GoqueTask, comment string) error {
+	ctx, span := xlog.WithOperationSpan(ctx, "storage.cureTask")
 	defer span.End()
 
 	if len(tasks) == 0 {
@@ -90,7 +90,7 @@ func (s *Storage) cureTaskTx(ctx context.Context, tx dbutils.DBTx, tasks []*mode
 		)
 
 	query, args := updateStmt.Sql()
-	_, err := tx.ExecContext(ctx, query, args...)
+	_, err := s.db.Executor(ctx).ExecContext(ctx, query, args...)
 	if err != nil {
 		xlog.Error(ctx, "failed to update task", xfield.Error(err))
 		return err

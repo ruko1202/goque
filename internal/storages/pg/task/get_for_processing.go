@@ -4,15 +4,15 @@ import (
 	"context"
 
 	"github.com/go-jet/jet/v2/postgres"
-	"github.com/jmoiron/sqlx"
 	"github.com/ruko1202/xlog"
 	"github.com/ruko1202/xlog/xfield"
 	semconv "go.opentelemetry.io/otel/semconv/v1.40.0"
 
+	"github.com/ruko1202/goque/internal/storages/dbtx"
+
 	"github.com/ruko1202/goque/internal/entity"
 	"github.com/ruko1202/goque/internal/pkg/generated/postgres/public/model"
 	"github.com/ruko1202/goque/internal/pkg/generated/postgres/public/table"
-	"github.com/ruko1202/goque/internal/storages/dbutils"
 	"github.com/ruko1202/goque/internal/utils/xtime"
 )
 
@@ -25,14 +25,14 @@ func (s *Storage) GetTasksForProcessing(ctx context.Context, taskType entity.Tas
 	defer span.End()
 
 	var tasks []*model.GoqueTask
-	err := dbutils.DoInTransaction(ctx, s.db, func(tx *sqlx.Tx) error {
+	err := dbtx.WithinTx(ctx, s.db.GetDB(), func(ctx context.Context) error {
 		var err error
-		tasks, err = s.getTasksForProcessingTx(ctx, tx, taskType, limit)
+		tasks, err = s.getTasksForProcessing(ctx, taskType, limit)
 		if err != nil {
 			return err
 		}
 
-		return s.batchUpdateTasksStatusTx(ctx, tx, tasks, entity.TaskStatusPending)
+		return s.batchUpdateTasksStatus(ctx, tasks, entity.TaskStatusPending)
 	})
 	if err != nil {
 		xlog.Error(ctx, "failed to get task for processing", xfield.Error(err))
@@ -42,8 +42,8 @@ func (s *Storage) GetTasksForProcessing(ctx context.Context, taskType entity.Tas
 	return fromDBModels(ctx, tasks), nil
 }
 
-func (s *Storage) getTasksForProcessingTx(ctx context.Context, tx *sqlx.Tx, taskType entity.TaskType, limit int64) ([]*model.GoqueTask, error) {
-	ctx, span := xlog.WithOperationSpan(ctx, "storage.getTasksForProcessingTx")
+func (s *Storage) getTasksForProcessing(ctx context.Context, taskType entity.TaskType, limit int64) ([]*model.GoqueTask, error) {
+	ctx, span := xlog.WithOperationSpan(ctx, "storage.getTasksForProcessing")
 	defer span.End()
 
 	stmt := table.GoqueTask.
@@ -67,7 +67,7 @@ func (s *Storage) getTasksForProcessingTx(ctx context.Context, tx *sqlx.Tx, task
 	query, args := stmt.Sql()
 
 	tasks := make([]*model.GoqueTask, 0)
-	err := tx.SelectContext(ctx, &tasks, query, args...)
+	err := s.db.Executor(ctx).SelectContext(ctx, &tasks, query, args...)
 	if err != nil {
 		xlog.Error(ctx, "failed to get task for processing", xfield.Error(err))
 		return nil, err

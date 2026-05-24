@@ -12,7 +12,6 @@ import (
 	"github.com/ruko1202/goque/internal/entity"
 	"github.com/ruko1202/goque/internal/pkg/generated/sqlite3/model"
 	"github.com/ruko1202/goque/internal/pkg/generated/sqlite3/table"
-	"github.com/ruko1202/goque/internal/storages/dbutils"
 	"github.com/ruko1202/goque/internal/utils/xtime"
 )
 
@@ -25,7 +24,7 @@ func (s *Storage) UpdateTask(ctx context.Context, taskID uuid.UUID, task *entity
 	defer span.End()
 
 	task.UpdatedAt = lo.ToPtr(xtime.Now())
-	return s.updateTaskTx(ctx, s.db, taskID.String(), toDBModel(ctx, task))
+	return s.updateTask(ctx, taskID.String(), toDBModel(ctx, task))
 }
 
 // HardUpdateTask updates a task without automatically setting the updated_at timestamp.
@@ -36,11 +35,11 @@ func (s *Storage) HardUpdateTask(ctx context.Context, taskID uuid.UUID, task *en
 	)
 	defer span.End()
 
-	return s.updateTaskTx(ctx, s.db, taskID.String(), toDBModel(ctx, task))
+	return s.updateTask(ctx, taskID.String(), toDBModel(ctx, task))
 }
 
-func (s *Storage) updateTaskTx(ctx context.Context, tx dbutils.DBTx, taskID string, task *model.GoqueTask) error {
-	ctx, span := xlog.WithOperationSpan(ctx, "storage.updateTaskTx")
+func (s *Storage) updateTask(ctx context.Context, taskID string, task *model.GoqueTask) error {
+	ctx, span := xlog.WithOperationSpan(ctx, "storage.updateTask")
 	defer span.End()
 
 	stmt := table.GoqueTask.
@@ -62,7 +61,7 @@ func (s *Storage) updateTaskTx(ctx context.Context, tx dbutils.DBTx, taskID stri
 
 	query, args := stmt.Sql()
 
-	_, err := tx.ExecContext(ctx, query, args...)
+	_, err := s.db.Executor(ctx).ExecContext(ctx, query, args...)
 	if err != nil {
 		xlog.Error(ctx, "failed to update task", xfield.Error(err))
 		return err
@@ -71,8 +70,8 @@ func (s *Storage) updateTaskTx(ctx context.Context, tx dbutils.DBTx, taskID stri
 	return nil
 }
 
-func (s *Storage) batchUpdateTasksStatusTx(ctx context.Context, tx dbutils.DBTx, tasks []*model.GoqueTask, newStatus string) error {
-	ctx, span := xlog.WithOperationSpan(ctx, "storage.batchUpdateTasksStatusTx")
+func (s *Storage) batchUpdateTasksStatus(ctx context.Context, tasks []*model.GoqueTask, newStatus string) error {
+	ctx, span := xlog.WithOperationSpan(ctx, "storage.batchUpdateTasksStatus")
 	defer span.End()
 
 	if len(tasks) == 0 {
@@ -95,7 +94,7 @@ func (s *Storage) batchUpdateTasksStatusTx(ctx context.Context, tx dbutils.DBTx,
 
 	query, args := stmt.Sql()
 
-	_, err := tx.ExecContext(ctx, query, args...)
+	_, err := s.db.Executor(ctx).ExecContext(ctx, query, args...)
 	if err != nil {
 		xlog.Error(ctx, "failed to update task", xfield.Error(err))
 		return err

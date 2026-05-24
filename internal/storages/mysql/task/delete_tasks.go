@@ -5,16 +5,16 @@ import (
 	"time"
 
 	"github.com/go-jet/jet/v2/mysql"
-	"github.com/jmoiron/sqlx"
 	"github.com/ruko1202/xlog"
 	"github.com/ruko1202/xlog/xfield"
 	"github.com/samber/lo"
+
+	"github.com/ruko1202/goque/internal/storages/dbtx"
 
 	"github.com/ruko1202/goque/internal/entity"
 	"github.com/ruko1202/goque/internal/pkg/generated/mysql/goque/model"
 	"github.com/ruko1202/goque/internal/pkg/generated/mysql/goque/table"
 	"github.com/ruko1202/goque/internal/storages/dbentity"
-	"github.com/ruko1202/goque/internal/storages/dbutils"
 )
 
 // DeleteTasks removes tasks with specified statuses that haven't been updated within the given time period.
@@ -32,9 +32,9 @@ func (s *Storage) DeleteTasks(
 	defer span.End()
 
 	tasks := make([]*model.GoqueTask, 0)
-	err := dbutils.DoInTransaction(ctx, s.db, func(tx *sqlx.Tx) error {
+	err := dbtx.WithinTx(ctx, s.db.GetDB(), func(ctx context.Context) error {
 		var err error
-		tasks, err = s.getTasksByFilterTx(ctx, tx, &dbentity.GetTasksFilter{
+		tasks, err = s.getTasksByFilter(ctx, &dbentity.GetTasksFilter{
 			TaskType:         lo.ToPtr(taskType),
 			Statuses:         statuses,
 			UpdatedAtTimeAgo: lo.ToPtr(updatedAtTimeAgo),
@@ -44,7 +44,7 @@ func (s *Storage) DeleteTasks(
 			return err
 		}
 
-		return s.deleteTasksTx(ctx, tx, tasks)
+		return s.deleteTasks(ctx, tasks)
 	})
 	if err != nil {
 		xlog.Error(ctx, "failed to delete tasks", xfield.Error(err))
@@ -54,8 +54,8 @@ func (s *Storage) DeleteTasks(
 	return fromDBModels(ctx, tasks)
 }
 
-func (s *Storage) deleteTasksTx(ctx context.Context, tx dbutils.DBTx, tasks []*model.GoqueTask) error {
-	ctx, span := xlog.WithOperationSpan(ctx, "storage.deleteTasksTx")
+func (s *Storage) deleteTasks(ctx context.Context, tasks []*model.GoqueTask) error {
+	ctx, span := xlog.WithOperationSpan(ctx, "storage.deleteTasks")
 	defer span.End()
 
 	if len(tasks) == 0 {
@@ -69,7 +69,7 @@ func (s *Storage) deleteTasksTx(ctx context.Context, tx dbutils.DBTx, tasks []*m
 		)
 
 	query, args := stmt.Sql()
-	_, err := tx.ExecContext(ctx, query, args...)
+	_, err := s.db.Executor(ctx).ExecContext(ctx, query, args...)
 	if err != nil {
 		return err
 	}
