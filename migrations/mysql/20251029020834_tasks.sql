@@ -3,7 +3,7 @@ SELECT 'up SQL query';
 set time_zone = 'UTC';
 -- +goose StatementBegin
 
-CREATE TABLE IF NOT EXISTS task (
+CREATE TABLE goque_task (
     id              CHAR(36)     PRIMARY KEY,
     type            VARCHAR(255) NOT NULL,
     external_id     VARCHAR(255) NOT NULL,
@@ -19,19 +19,19 @@ CREATE TABLE IF NOT EXISTS task (
 -- +goose StatementEnd
 
 -- +goose StatementBegin
-CREATE UNIQUE INDEX task_type_external_id_idx ON task (type, external_id);
+CREATE UNIQUE INDEX goque_task_type_external_id_idx ON goque_task (type, external_id);
 -- +goose StatementEnd
 
 -- +goose StatementBegin
-CREATE INDEX task_type_status_next_attempt_at_idx ON task (type, status, next_attempt_at ASC);
+CREATE INDEX goque_task_type_status_next_attempt_at_idx ON goque_task (type, status, next_attempt_at ASC);
 -- +goose StatementEnd
 
 -- +goose StatementBegin
-CREATE INDEX task_type_status_updated_at_idx ON task (type, status, updated_at ASC);
+CREATE INDEX goque_task_type_status_updated_at_idx ON goque_task (type, status, updated_at ASC);
 -- +goose StatementEnd
 
 -- +goose Down
 SELECT 'down SQL query';
 -- +goose StatementBegin
-DROP TABLE IF EXISTS task;
+DROP TABLE goque_task;
 -- +goose StatementEnd
