@@ -11,5 +11,5 @@ package table
 // this method only once at the beginning of the program.
 func UseSchema(schema string) {
 	GooseDbVersion = GooseDbVersion.FromSchema(schema)
-	Task = Task.FromSchema(schema)
+	GoqueTask = GoqueTask.FromSchema(schema)
 }

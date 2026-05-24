@@ -11,9 +11,9 @@ import (
 	"github.com/go-jet/jet/v2/mysql"
 )
 
-var Task = newTaskTable("goque", "task", "")
+var GoqueTask = newGoqueTaskTable("goque", "goque_task", "")
 
-type taskTable struct {
+type goqueTaskTable struct {
 	mysql.Table
 
 	// Columns
@@ -34,40 +34,40 @@ type taskTable struct {
 	DefaultColumns mysql.ColumnList
 }
 
-type TaskTable struct {
-	taskTable
+type GoqueTaskTable struct {
+	goqueTaskTable
 
-	NEW taskTable
+	NEW goqueTaskTable
 }
 
-// AS creates new TaskTable with assigned alias
-func (a TaskTable) AS(alias string) *TaskTable {
-	return newTaskTable(a.SchemaName(), a.TableName(), alias)
+// AS creates new GoqueTaskTable with assigned alias
+func (a GoqueTaskTable) AS(alias string) *GoqueTaskTable {
+	return newGoqueTaskTable(a.SchemaName(), a.TableName(), alias)
 }
 
-// Schema creates new TaskTable with assigned schema name
-func (a TaskTable) FromSchema(schemaName string) *TaskTable {
-	return newTaskTable(schemaName, a.TableName(), a.Alias())
+// Schema creates new GoqueTaskTable with assigned schema name
+func (a GoqueTaskTable) FromSchema(schemaName string) *GoqueTaskTable {
+	return newGoqueTaskTable(schemaName, a.TableName(), a.Alias())
 }
 
-// WithPrefix creates new TaskTable with assigned table prefix
-func (a TaskTable) WithPrefix(prefix string) *TaskTable {
-	return newTaskTable(a.SchemaName(), prefix+a.TableName(), a.TableName())
+// WithPrefix creates new GoqueTaskTable with assigned table prefix
+func (a GoqueTaskTable) WithPrefix(prefix string) *GoqueTaskTable {
+	return newGoqueTaskTable(a.SchemaName(), prefix+a.TableName(), a.TableName())
 }
 
-// WithSuffix creates new TaskTable with assigned table suffix
-func (a TaskTable) WithSuffix(suffix string) *TaskTable {
-	return newTaskTable(a.SchemaName(), a.TableName()+suffix, a.TableName())
+// WithSuffix creates new GoqueTaskTable with assigned table suffix
+func (a GoqueTaskTable) WithSuffix(suffix string) *GoqueTaskTable {
+	return newGoqueTaskTable(a.SchemaName(), a.TableName()+suffix, a.TableName())
 }
 
-func newTaskTable(schemaName, tableName, alias string) *TaskTable {
-	return &TaskTable{
-		taskTable: newTaskTableImpl(schemaName, tableName, alias),
-		NEW:       newTaskTableImpl("", "new", ""),
+func newGoqueTaskTable(schemaName, tableName, alias string) *GoqueTaskTable {
+	return &GoqueTaskTable{
+		goqueTaskTable: newGoqueTaskTableImpl(schemaName, tableName, alias),
+		NEW:            newGoqueTaskTableImpl("", "new", ""),
 	}
 }
 
-func newTaskTableImpl(schemaName, tableName, alias string) taskTable {
+func newGoqueTaskTableImpl(schemaName, tableName, alias string) goqueTaskTable {
 	var (
 		IDColumn            = mysql.StringColumn("id")
 		TypeColumn          = mysql.StringColumn("type")
@@ -85,7 +85,7 @@ func newTaskTableImpl(schemaName, tableName, alias string) taskTable {
 		defaultColumns      = mysql.ColumnList{CreatedAtColumn, NextAttemptAtColumn}
 	)
 
-	return taskTable{
+	return goqueTaskTable{
 		Table: mysql.NewTable(schemaName, tableName, alias, allColumns...),
 
 		//Columns
