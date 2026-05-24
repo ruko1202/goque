@@ -16,6 +16,17 @@ import (
 // picks it up. On panic or error fn's return is joined with the
 // rollback result; on clean return the tx is committed. Errors from
 // BeginTxx, Rollback, and Commit are surfaced and logged.
+//
+// Always opens a fresh tx on db — does NOT reuse a *sqlx.Tx that may
+// already be attached to ctx via WithTx. This is intentional for
+// FOR UPDATE SKIP LOCKED-style operations (healer, cleaner, fetcher)
+// whose tx must not be entangled with a caller-owned outbox tx. If
+// you need to participate in the caller's tx instead, use
+// dbtx.DB.Executor(ctx) directly.
+//
+// Panics inside fn are recovered, joined into err as a regular error,
+// and NOT re-raised. Callers that rely on panic propagation must do
+// the recover themselves before invoking WithinTx.
 func WithinTx(ctx context.Context, db *sqlx.DB, fn func(ctx context.Context) error) (err error) {
 	ctx, span := xlog.WithOperationSpan(ctx, "txManager.WithinTx")
 	defer span.End()

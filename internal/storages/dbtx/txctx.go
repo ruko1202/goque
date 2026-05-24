@@ -19,7 +19,10 @@ func WithTx(ctx context.Context, tx *sqlx.Tx) context.Context {
 	return context.WithValue(ctx, txCtxKey{}, tx)
 }
 
-// TxFromContext returns the *sqlx.Tx and true context transaction attached.
+// TxFromContext returns the *sqlx.Tx attached via WithTx and true if
+// one is present and non-nil; otherwise returns (nil, false). A ctx
+// that went through WithoutTx (or never had a tx attached) returns
+// (nil, false).
 func TxFromContext(ctx context.Context) (*sqlx.Tx, bool) {
 	tx, ok := ctx.Value(txCtxKey{}).(*sqlx.Tx)
 
