@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"runtime/debug"
 
 	"github.com/jmoiron/sqlx"
 	"github.com/ruko1202/xlog"
@@ -40,7 +41,11 @@ func WithinTx(ctx context.Context, db *sqlx.DB, fn func(ctx context.Context) err
 
 	defer func() {
 		if recErr := recover(); recErr != nil {
-			xlog.Error(ctx, "panic recovery when execute the transaction", xfield.Any("panic", recErr))
+			stack := debug.Stack()
+			xlog.Error(ctx, "panic recovery when execute the transaction",
+				xfield.Any("panic", recErr),
+				xfield.String("stack", string(stack)),
+			)
 			err = errors.Join(err, fmt.Errorf("panic recovery: %v", recErr))
 		}
 
