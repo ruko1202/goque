@@ -277,6 +277,25 @@ return tx.Commit()
 Calls without `goque.WithTx` keep the existing behavior and write
 directly to the storage's `*sqlx.DB`.
 
+> **Scope of `WithTx`**
+>
+> `AddTaskToQueue` is the method that matters for the outbox pattern, and
+> it participates in your tx on **every** backend. Other tx-aware methods:
+> `GetTask`, `GetTasks`, `UpdateTask`, `CancelTask`, and (PostgreSQL only)
+> `DeleteTasks`/`CureTasks` — they also honor an attached tx.
+>
+> `GetTasksForProcessing` and `ResetAttempts` always run in their own
+> internally-managed tx (the worker fetch uses `FOR UPDATE SKIP LOCKED`
+> and must not be entangled with a caller's tx). On MySQL/SQLite,
+> `DeleteTasks` and `CureTasks` are in this group too because they do
+> batched read+write internally.
+>
+> **`AsyncAddTaskToQueue` is not outbox-safe.** Its goroutine outlives
+> your `Commit`/`Rollback`. If a tx is detected on the async path it is
+> stripped automatically and logged at WARN — but the enqueue then runs
+> against `*sqlx.DB` and is no longer atomic with your domain write.
+> Always use the synchronous `AddTaskToQueue` for outbox.
+
 ## Example Application
 
 A complete, production-ready example service demonstrating real-world Goque usage is available in the `examples/service` directory.
@@ -634,9 +653,11 @@ make mocks
 │   │   └── internalprocessors/ # Built-in processors (healer, cleaner)
 │   ├── storages/               # Data access layer (multi-database support)
 │   │   ├── pg/task/            # PostgreSQL storage (go-jet)
-│   │   ├── mysql/task/         # MySQL storage (raw SQL)
-│   │   ├── sqlite/task/        # SQLite storage (raw SQL)
-│   │   └── dbutils/            # Database utilities
+│   │   ├── mysql/task/         # MySQL storage (go-jet)
+│   │   ├── sqlite/             # SQLite storage (go-jet)
+│   │   ├── dbtx/               # ctx-aware tx executor (WithTx, WithinTx, Executor)
+│   │   ├── dbentity/           # Cross-backend filter/query builders
+│   │   └── dbutils/            # JSON validation + WHERE builders
 │   └── pkg/
 │       └── generated/          # Generated code (models, mocks)
 ├── migrations/                 # Database migrations

@@ -35,7 +35,7 @@ project:
     Type-safe queries,PostgreSQL/MySQL use go-jet for type-safe SQL generation
     Built-in healer,Automatically marks stuck tasks as errored for reprocessing
     Prometheus metrics,Built-in metrics for task counters errors duration payload size and payload decode failures
-    Transactional outbox,goque.WithTx(ctx tx) enrolls AddTaskToQueue in a caller-provided sqlx.Tx for atomic domain+enqueue writes
+    Transactional outbox,goque.WithTx(ctx tx) enrolls AddTaskToQueue and most CRUD methods in a caller-provided sqlx.Tx for atomic domain+enqueue writes (worker fetch and ResetAttempts use their own internal tx)
 
   task_statuses[7]{status,description,terminal}:
     new,Task created and ready to be picked up,false
@@ -367,12 +367,12 @@ never_do[12]{action}:
   Never use raw SQL strings
 
 file_locations:
-  public_api: goque.go,goque_manager.go,goque_entity.go,goque_metrics.go,goque_processor_opt.go,goque_storage.go
+  public_api: goque.go,goque_manager.go,goque_entity.go,goque_metrics.go,goque_processor_opt.go,goque_storage.go,goque_tx.go
   processors: internal/processors/queueprocessor/,internal/processors/internalprocessors/
   queue_manager: internal/queue_manager/
   metrics: internal/metrics/
   entity: internal/entity/
-  storage: internal/storages/pg/,internal/storages/mysql/,internal/storages/sqlite/
+  storage: internal/storages/pg/,internal/storages/mysql/,internal/storages/sqlite/,internal/storages/dbtx/
   migrations: migrations/pg/,migrations/mysql/,migrations/sqlite/
   generated: internal/pkg/generated/postgres/,internal/pkg/generated/mysql/,internal/pkg/generated/mocks/
   examples: examples/service/

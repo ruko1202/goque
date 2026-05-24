@@ -5,9 +5,9 @@ import (
 )
 
 var (
-	// WithTx returns a context that carries tx so that AddTaskToQueue runs
-	// inside it instead of the storage's own *sqlx.DB. This enables the
-	// transactional-outbox pattern: open a tx, write your domain rows,
+	// WithTx returns a context that carries tx so that storage operations
+	// run inside it instead of the storage's own *sqlx.DB. This enables
+	// the transactional-outbox pattern: open a tx, write your domain rows,
 	// enqueue a task via goque, then commit — all atomically. If the tx
 	// rolls back, the enqueue rolls back with it.
 	//
@@ -17,10 +17,29 @@ var (
 	// The caller owns the lifecycle of tx (Begin, Commit, Rollback). Goque
 	// only writes through it.
 	//
+	// Scope: tx-aware methods (participate in your tx)
+	//   - AddTaskToQueue
+	//   - GetTask, GetTasks
+	//   - UpdateTask
+	//   - CancelTask
+	//   - DeleteTasks, CureTasks  (PostgreSQL only; on MySQL/SQLite these
+	//     run in their own internally-managed tx for batched updates)
+	//
+	// Scope: NOT tx-aware (always run in their own internal tx)
+	//   - GetTasksForProcessing (uses FOR UPDATE SKIP LOCKED — must not
+	//     be entangled with caller's outbox tx)
+	//   - ResetAttempts (read+write loop with its own boundaries)
+	//   - DeleteTasks, CureTasks on MySQL/SQLite (see above)
+	//
+	// For the outbox pattern AddTaskToQueue is the only method that matters,
+	// and it is tx-aware on every backend.
+	//
 	// Do NOT use WithTx with AsyncAddTaskToQueue: the async enqueue runs
 	// in a goroutine that the caller does not wait on, so it races against
 	// the caller's Commit/Rollback and will either lose the write or panic
-	// on a closed tx. Stick to the synchronous AddTaskToQueue for outbox.
+	// on a closed tx. The async path detects this defensively, strips the
+	// tx, and logs a WARN — but the resulting enqueue is no longer atomic
+	// with your domain write. Stick to the synchronous AddTaskToQueue.
 	WithTx = dbtx.WithTx
 
 	// WithoutTx returns a context with any *sqlx.Tx attached via WithTx
