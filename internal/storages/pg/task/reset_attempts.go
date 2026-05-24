@@ -3,6 +3,7 @@ package task
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/ruko1202/xlog"
@@ -35,7 +36,7 @@ func (s *Storage) ResetAttempts(ctx context.Context, id uuid.UUID) error {
 		task.NextAttemptAt = xtime.Now()
 
 		taskErr := lo.FromPtr(task.Errors)
-		taskErr += fmt.Sprintf("reset attempts: %s\n", task.NextAttemptAt)
+		taskErr += fmt.Sprintf("reset attempts: %s\n", task.NextAttemptAt.Format(time.RFC3339))
 		task.Errors = &taskErr
 
 		return s.updateTask(ctx, task.ID, task)
