@@ -31,7 +31,7 @@ func (s *Storage) DeleteTasks(
 	)
 	defer span.End()
 
-	tasks := make([]*model.Task, 0)
+	tasks := make([]*model.GoqueTask, 0)
 	err := dbutils.DoInTransaction(ctx, s.db, func(tx *sqlx.Tx) error {
 		var err error
 		tasks, err = s.getTasksByFilterTx(ctx, tx, &dbentity.GetTasksFilter{
@@ -54,16 +54,16 @@ func (s *Storage) DeleteTasks(
 	return fromDBModels(ctx, tasks)
 }
 
-func (s *Storage) deleteTasksTx(ctx context.Context, tx dbutils.DBTx, tasks []*model.Task) error {
+func (s *Storage) deleteTasksTx(ctx context.Context, tx dbutils.DBTx, tasks []*model.GoqueTask) error {
 	ctx, span := xlog.WithOperationSpan(ctx, "storage.deleteTasksTx")
 	defer span.End()
 
 	if len(tasks) == 0 {
 		return nil
 	}
-	stmt := table.Task.DELETE().
+	stmt := table.GoqueTask.DELETE().
 		WHERE(
-			table.Task.ID.IN(lo.Map(tasks, func(task *model.Task, _ int) mysql.Expression {
+			table.GoqueTask.ID.IN(lo.Map(tasks, func(task *model.GoqueTask, _ int) mysql.Expression {
 				return mysql.String(task.ID)
 			})...),
 		)

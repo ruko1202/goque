@@ -34,7 +34,7 @@ func (s *Storage) CureTasks(
 	)
 	defer span.End()
 
-	tasks := make([]*model.Task, 0)
+	tasks := make([]*model.GoqueTask, 0)
 	err := dbutils.DoInTransaction(ctx, s.db, func(tx *sqlx.Tx) error {
 		var err error
 		tasks, err = s.getTasksByFilterTx(ctx, tx, &dbentity.GetTasksFilter{
@@ -57,34 +57,34 @@ func (s *Storage) CureTasks(
 	return fromDBModels(ctx, tasks)
 }
 
-func (s *Storage) cureTaskTx(ctx context.Context, tx dbutils.DBTx, tasks []*model.Task, comment string) error {
+func (s *Storage) cureTaskTx(ctx context.Context, tx dbutils.DBTx, tasks []*model.GoqueTask, comment string) error {
 	ctx, span := xlog.WithOperationSpan(ctx, "storage.cureTaskTx")
 	defer span.End()
 
 	if len(tasks) == 0 {
 		return nil
 	}
-	updateStmt := table.Task.
+	updateStmt := table.GoqueTask.
 		UPDATE(
-			table.Task.Status,
-			table.Task.Errors,
-			table.Task.UpdatedAt,
+			table.GoqueTask.Status,
+			table.GoqueTask.Errors,
+			table.GoqueTask.UpdatedAt,
 		).
 		SET(
 			mysql.String(entity.TaskStatusError),
 			mysql.CONCAT(
-				mysql.COALESCE(table.Task.Errors, mysql.String("")),
+				mysql.COALESCE(table.GoqueTask.Errors, mysql.String("")),
 				// comment by format: `attempt <task.Attempts>: <comment>\n`
 				mysql.CONCAT(
 					mysql.String("attempt ").
-						CONCAT(table.Task.Attempts).
+						CONCAT(table.GoqueTask.Attempts).
 						CONCAT(mysql.String(fmt.Sprintf(": %s\n", comment))),
 				),
 			),
 			mysql.TimestampT(xtime.Now()),
 		).
 		WHERE(
-			table.Task.ID.IN(lo.Map(tasks, func(item *model.Task, _ int) mysql.Expression {
+			table.GoqueTask.ID.IN(lo.Map(tasks, func(item *model.GoqueTask, _ int) mysql.Expression {
 				return mysql.String(item.ID)
 			})...),
 		)

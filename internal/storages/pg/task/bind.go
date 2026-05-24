@@ -10,9 +10,9 @@ import (
 	"github.com/ruko1202/goque/internal/utils/goquectx"
 )
 
-func toDBModel(ctx context.Context, task *entity.Task) *model.Task {
+func toDBModel(ctx context.Context, task *entity.Task) *model.GoqueTask {
 	metadata := task.Metadata.Merge(goquectx.Values(ctx))
-	return &model.Task{
+	return &model.GoqueTask{
 		ID:            task.ID,
 		Type:          task.Type,
 		ExternalID:    task.ExternalID,
@@ -27,7 +27,7 @@ func toDBModel(ctx context.Context, task *entity.Task) *model.Task {
 	}
 }
 
-func fromDBModel(ctx context.Context, task *model.Task) *entity.Task {
+func fromDBModel(ctx context.Context, task *model.GoqueTask) *entity.Task {
 	return &entity.Task{
 		ID:            task.ID,
 		Type:          task.Type,
@@ -43,8 +43,8 @@ func fromDBModel(ctx context.Context, task *model.Task) *entity.Task {
 	}
 }
 
-func fromDBModels(ctx context.Context, tasks []*model.Task) []*entity.Task {
-	return lo.Map(tasks, func(item *model.Task, _ int) *entity.Task {
+func fromDBModels(ctx context.Context, tasks []*model.GoqueTask) []*entity.Task {
+	return lo.Map(tasks, func(item *model.GoqueTask, _ int) *entity.Task {
 		return fromDBModel(ctx, item)
 	})
 }

@@ -30,23 +30,23 @@ func (s *Storage) DeleteTasks(
 	span.SetAttributes(semconv.DBSystemNamePostgreSQL)
 	defer span.End()
 
-	stmt := table.Task.DELETE().
+	stmt := table.GoqueTask.DELETE().
 		WHERE(
 			postgres.AND(
-				table.Task.Type.EQ(postgres.String(taskType)),
-				table.Task.Status.IN(lo.Map(statuses, func(status string, _ int) postgres.Expression {
+				table.GoqueTask.Type.EQ(postgres.String(taskType)),
+				table.GoqueTask.Status.IN(lo.Map(statuses, func(status string, _ int) postgres.Expression {
 					return postgres.String(status)
 				})...),
-				table.Task.UpdatedAt.LT_EQ(
+				table.GoqueTask.UpdatedAt.LT_EQ(
 					postgres.TimestampzT(xtime.Now().Add(-updatedAtTimeAgo.Abs())),
 				),
 			),
 		).
-		RETURNING(table.Task.AllColumns)
+		RETURNING(table.GoqueTask.AllColumns)
 
 	query, args := stmt.Sql()
 
-	dbTasks := make([]*model.Task, 0)
+	dbTasks := make([]*model.GoqueTask, 0)
 	err := s.db.SelectContext(ctx, &dbTasks, query, args...)
 	if err != nil {
 		xlog.Error(ctx, "failed to delete tasks", xfield.Error(err))

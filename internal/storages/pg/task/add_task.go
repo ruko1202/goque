@@ -30,8 +30,8 @@ func (s *Storage) AddTask(ctx context.Context, task *entity.Task) error {
 	}
 	dbTask := toDBModel(ctx, task)
 
-	stmt := table.Task.
-		INSERT(table.Task.AllColumns).
+	stmt := table.GoqueTask.
+		INSERT(table.GoqueTask.AllColumns).
 		MODEL(dbTask)
 
 	query, args := stmt.Sql()

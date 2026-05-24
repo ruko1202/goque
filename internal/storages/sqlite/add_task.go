@@ -2,7 +2,9 @@ package sqlite
 
 import (
 	"context"
+	"errors"
 
+	"github.com/mattn/go-sqlite3"
 	"github.com/ruko1202/xlog"
 	"github.com/ruko1202/xlog/xfield"
 
@@ -27,8 +29,8 @@ func (s *Storage) AddTask(ctx context.Context, task *entity.Task) error {
 
 	dbTask := toDBModel(ctx, task)
 
-	stmt := table.Task.
-		INSERT(table.Task.AllColumns).
+	stmt := table.GoqueTask.
+		INSERT(table.GoqueTask.AllColumns).
 		MODEL(dbTask)
 
 	query, args := stmt.Sql()
@@ -47,10 +49,12 @@ func handleError(err error) error {
 		return nil
 	}
 
-	// modernc.org/sqlite returns errors as strings
-	// Check for UNIQUE constraint violation
-	errMsg := err.Error()
-	if errMsg == "UNIQUE constraint failed: task.type, task.external_id" {
+	// mattn/go-sqlite3 surfaces constraint violations as a typed Error
+	// with ExtendedCode encoding the specific constraint that failed.
+	// Match on the code rather than the message text so a future driver
+	// upgrade or table-name change can't silently break duplicate detection.
+	var sqliteErr sqlite3.Error
+	if errors.As(err, &sqliteErr) && errors.Is(sqliteErr.ExtendedCode, sqlite3.ErrConstraintUnique) {
 		return entity.ErrDuplicateTask
 	}
 
