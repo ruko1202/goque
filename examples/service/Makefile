@@ -24,7 +24,7 @@ dev: ## Run the service in development mode
 docker-up: docker-down
 docker-up: args=
 docker-up: ## Start all services with docker-compose
-	@cp ./../../migrations/pg/* ./migrations/*
+	@cp ./../../migrations/pg/*.sql ./migrations/
 	@echo "Starting services with Docker Compose..."
 	docker-compose up -d ${args}
 	@echo "✓ Services started"

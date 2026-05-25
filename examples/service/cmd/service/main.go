@@ -84,7 +84,7 @@ func main() {
 	}
 	defer goqueInst.Stop()
 
-	application := app.New(cfg, queueManager)
+	application := app.New(cfg, queueManager, db)
 
 	server := initHTTPServer(ctx, application, cfg)
 	go func() {
@@ -145,6 +145,20 @@ func initGoque(
 	goqueInst.RegisterProcessor(
 		models.TaskTypeWebhook,
 		processors.NewWebhookProcessor(),
+		goque.WithWorkersCount(cfg.Queue.Workers),
+		goque.WithTaskProcessingMaxAttempts(cfg.Queue.MaxAttempts),
+		goque.WithTaskProcessingTimeout(cfg.Queue.TaskTimeout),
+	)
+
+	// Processor for the transactional-outbox example endpoint
+	// (POST /api/orders). The task is enqueued atomically with the
+	// orders-row INSERT — see internal/app/handler_create_order.go.
+	goqueInst.RegisterProcessor(
+		models.TaskTypeOrderConfirmation,
+		goque.NewTypedTaskProcessor[models.OrderConfirmationPayload](
+			processors.NewOrderConfirmationProcessor(),
+			goque.WithCancelTaskWhenPayloadDecodeError[models.OrderConfirmationPayload](),
+		),
 		goque.WithWorkersCount(cfg.Queue.Workers),
 		goque.WithTaskProcessingMaxAttempts(cfg.Queue.MaxAttempts),
 		goque.WithTaskProcessingTimeout(cfg.Queue.TaskTimeout),

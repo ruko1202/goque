@@ -20,6 +20,12 @@ const (
 	TaskTypeWebhook TaskType = "webhook"
 	// TaskTypeTaskGenerator .
 	TaskTypeTaskGenerator TaskType = "task_generator"
+	// TaskTypeOrderConfirmation is enqueued by the outbox example
+	// endpoint (POST /api/orders). The processor sends the customer
+	// a "your order is confirmed" notification — same pipeline as
+	// any other notification, but enqueue is atomic with the
+	// orders-row INSERT.
+	TaskTypeOrderConfirmation TaskType = "order_confirmation"
 )
 
 // EmailPayload represents the payload for email tasks.
@@ -57,6 +63,34 @@ type CreateTaskRequest struct {
 	Type       string          `json:"type"`
 	ExternalID string          `json:"external_id,omitempty"`
 	Payload    json.RawMessage `json:"payload"`
+}
+
+// OrderConfirmationPayload is the queue payload produced by the
+// outbox example: a small reference to the order so the processor
+// can render the confirmation message.
+type OrderConfirmationPayload struct {
+	OrderID  string `json:"order_id"`
+	Customer string `json:"customer"`
+}
+
+// CreateOrderRequest is the body of POST /api/orders. The handler
+// writes a row into the orders table AND enqueues a task to send
+// the confirmation — both inside the same transaction.
+type CreateOrderRequest struct {
+	Customer    string `json:"customer"`
+	AmountCents int    `json:"amount_cents"`
+}
+
+// OrderResponse is what POST /api/orders returns once the tx commits.
+type OrderResponse struct {
+	ID          string `json:"id"`
+	Customer    string `json:"customer"`
+	AmountCents int    `json:"amount_cents"`
+	Status      string `json:"status"`
+	// EnqueuedTaskID is the goque task that was created atomically
+	// with this order. Useful for tracing: hit GET /api/tasks/{id}
+	// to see its lifecycle.
+	EnqueuedTaskID string `json:"enqueued_task_id"`
 }
 
 // TaskResponse represents a task in API responses.

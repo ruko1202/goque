@@ -90,6 +90,46 @@ External API integration (1-4 seconds processing time)
 }
 ```
 
+## Transactional Outbox (POST /api/orders)
+
+Beyond the four "generic" task types, the example service also
+demonstrates the **transactional outbox pattern** end-to-end. Hit
+`POST /api/orders` and the handler does TWO writes that must be
+atomic:
+
+1. `INSERT INTO orders (...)` — the domain row.
+2. Enqueue an `order_confirmation` goque task — to send the
+   customer a "your order is confirmed" message.
+
+Without the outbox: a crash between the two leaves either a paid
+order without a confirmation (bad UX) or a phantom confirmation
+for an order that was rolled back (worse).
+
+With the outbox: both writes go through the **same `*sqlx.Tx`** —
+`goque.WithTx(ctx, tx)` plumbs the tx into AddTaskToQueue.
+`tx.Commit` makes both durable together; `tx.Rollback` discards
+both. The full handler is in
+[`internal/app/handler_create_order.go`](internal/app/handler_create_order.go)
+and is heavily commented.
+
+```bash
+curl -X POST http://localhost:8080/api/orders \
+  -H "Content-Type: application/json" \
+  -d '{"customer": "alice@example.com", "amount_cents": 1999}'
+
+# Response: 201 Created
+# {
+#   "id": "019e...",
+#   "customer": "alice@example.com",
+#   "amount_cents": 1999,
+#   "status": "created",
+#   "enqueued_task_id": "019e..."
+# }
+```
+
+Use the `enqueued_task_id` to watch the confirmation task progress
+through `GET /api/tasks/{task_id}` or in the dashboard.
+
 ## Web Dashboard
 
 The dashboard provides:
