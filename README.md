@@ -437,7 +437,7 @@ Tasks in these states will not be processed again:
 
 ### Task Healer
 
-Goque includes a built-in healer processor that automatically monitors and fixes stuck tasks. Tasks that remain in the "pending" status for too long are automatically marked as errored, allowing them to be retried. The healer is automatically registered when you use `internal.NewGoque()`.
+Goque includes a built-in healer processor that automatically monitors and fixes stuck tasks. Tasks that remain in the "pending" status for too long are automatically marked as errored, allowing them to be retried. The healer is automatically registered when you call `goque.NewGoque()`.
 
 You can configure the healer behavior:
 

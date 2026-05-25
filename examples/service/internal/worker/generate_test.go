@@ -1,3 +1,13 @@
+//go:build loadtest
+
+// This is a load generator, not a unit test. It POSTs 1000 tasks to
+// a running service on localhost:8080 — invoking it through plain
+// `go test ./...` fails because no server is up. Run it manually
+// against a started service:
+//
+//	make docker-up
+//	go test -tags=loadtest ./examples/service/internal/worker/ -run TestGenerate -count=1
+
 package worker
 
 import (

@@ -119,7 +119,8 @@ type TaskListResponse struct {
 // ValidateTaskType checks if the given task type is valid.
 func ValidateTaskType(taskType string) error {
 	switch taskType {
-	case TaskTypeEmail, TaskTypeNotification, TaskTypeReport, TaskTypeWebhook, TaskTypeTaskGenerator:
+	case TaskTypeEmail, TaskTypeNotification, TaskTypeReport, TaskTypeWebhook,
+		TaskTypeTaskGenerator, TaskTypeOrderConfirmation:
 		return nil
 	default:
 		return fmt.Errorf("invalid task type: %s", taskType)
