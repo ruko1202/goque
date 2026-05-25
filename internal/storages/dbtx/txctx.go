@@ -15,8 +15,18 @@ type txCtxKey struct{}
 // a task via goque, then commit — all atomically.
 //
 // Subsequent WithTx calls on the same ctx shadow earlier ones (last-wins).
-// Pass nil to clear an attached tx (see WithoutTx).
+//
+// If tx is nil, WithTx returns ctx unchanged and logs a WARN. Storing
+// a nil tx silently would degrade outbox guarantees to at-least-once
+// with a window — callers that forgot to initialize tx would think
+// they have atomicity but get a plain *sqlx.DB write. The WARN gives
+// them a chance to spot the bug before it ships. To deliberately
+// detach a tx from ctx use WithoutTx.
 func WithTx(ctx context.Context, tx *sqlx.Tx) context.Context {
+	if tx == nil {
+		xlog.Warn(ctx, "dbtx.WithTx called with nil tx; ignoring — storage writes will run against *sqlx.DB, not the outbox")
+		return ctx
+	}
 	return context.WithValue(ctx, txCtxKey{}, tx)
 }
 

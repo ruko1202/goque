@@ -57,3 +57,19 @@ func TestWithoutTx_NoOpWhenAbsent(t *testing.T) {
 	base := context.Background()
 	require.Equal(t, base, WithoutTx(base))
 }
+
+// TestWithTx_Nil pins the documented contract that WithTx(ctx, nil)
+// is a no-op: the returned ctx is the input ctx (no value attached),
+// and TxFromContext sees no tx. Without this, a caller who forgot to
+// initialize their tx would silently get a plain *sqlx.DB write
+// instead of the atomic outbox semantics they intended.
+func TestWithTx_Nil(t *testing.T) {
+	t.Parallel()
+
+	base := context.Background()
+	got := WithTx(base, nil)
+	require.Equal(t, base, got, "WithTx(ctx, nil) must return the input ctx unchanged")
+	gotTx, ok := TxFromContext(got)
+	require.False(t, ok)
+	require.Nil(t, gotTx)
+}
