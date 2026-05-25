@@ -69,7 +69,6 @@ func (s *Storage) getTasksForProcessing(ctx context.Context, taskType entity.Tas
 	tasks := make([]*model.GoqueTask, 0)
 	err := s.db.Executor(ctx).SelectContext(ctx, &tasks, query, args...)
 	if err != nil {
-		xlog.Error(ctx, "failed to get task for processing", xfield.Error(err))
 		return nil, err
 	}
 
