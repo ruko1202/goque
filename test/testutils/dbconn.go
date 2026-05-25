@@ -5,23 +5,23 @@ import (
 	"time"
 
 	"github.com/jmoiron/sqlx"
-	_ "github.com/lib/pq"           // PostgreSQL driver
 	_ "github.com/mattn/go-sqlite3" // SQLite driver
 	"github.com/spf13/viper"
 
+	// PgDriver ("pgx") is registered by importing goquestorage.
 	"github.com/ruko1202/goque/pkg/goquestorage"
 )
 
 var availableDBs = []string{
 	goquestorage.SqliteDriver,
-	goquestorage.PgDriver,
+	goquestorage.PgxDriver,
 	goquestorage.MysqlDriver,
 }
 
 // PgDBConn creates a PostgreSQL database connection for testing.
 func PgDBConn(ctx context.Context) *sqlx.DB {
 	viper.SetDefault("DB_DSN", "postgres://postgres:postgres@localhost:5432/postgres?sslmode=disable")
-	viper.SetDefault("DB_DRIVER", goquestorage.PgDriver)
+	viper.SetDefault("DB_DRIVER", goquestorage.PgxDriver)
 	viper.SetDefault("DB_MAX_OPEN_CONN", 50)
 	viper.SetDefault("DB_MAX_IDLE_CONN", 25)
 	viper.SetDefault("DB_CONN_MAX_IDLE_CONN", 5*time.Minute)

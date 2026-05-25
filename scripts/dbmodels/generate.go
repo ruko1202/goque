@@ -13,7 +13,8 @@ import (
 	"github.com/go-jet/jet/v2/mysql"
 	"github.com/go-jet/jet/v2/postgres"
 	"github.com/go-jet/jet/v2/sqlite"
-	_ "github.com/lib/pq"
+	_ "github.com/jackc/pgx/v5/stdlib" // registers "pgx" driver
+	"github.com/jmoiron/sqlx"
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
@@ -72,7 +73,17 @@ func main() {
 }
 
 func pgGenerator(cfg *config) error {
-	return pggen.GenerateDSN(cfg.dsn, cfg.schema, cfg.dest,
+	// jet's pggen.GenerateDSN internally does sql.Open("postgres", ...)
+	// which requires lib/pq. Open via sqlx with the pgx driver and
+	// pass jet the embedded *sql.DB — same result, no lib/pq in the
+	// module graph.
+	db, err := sqlx.Open("pgx", cfg.dsn)
+	if err != nil {
+		return fmt.Errorf("open pgx connection: %w", err)
+	}
+	defer func() { _ = db.Close() }()
+
+	return pggen.GenerateDB(db.DB, cfg.schema, cfg.dest,
 		template.Default(postgres.Dialect).UseSchema(genTemplateSchema),
 	)
 }

@@ -33,7 +33,7 @@ func SetupStorages(ctx context.Context) []storages.AdvancedTaskStorage {
 }
 func setupStorage(ctx context.Context, driver string) storages.AdvancedTaskStorage {
 	switch driver {
-	case goquestorage.PgDriver:
+	case goquestorage.PgxDriver:
 		return pgtask.NewStorage(PgDBConn(ctx))
 	case goquestorage.MysqlDriver:
 		return mysqltask.NewStorage(MysqlDBConn(ctx))

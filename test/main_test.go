@@ -9,7 +9,6 @@ import (
 	"github.com/ruko1202/goque/internal/storages"
 	"github.com/ruko1202/goque/test/testutils"
 
-	_ "github.com/lib/pq"
 	"github.com/stretchr/testify/require"
 )
 

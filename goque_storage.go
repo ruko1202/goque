@@ -17,10 +17,17 @@ import (
 type TaskStorage = storages.Task
 
 // NewStorage creates a new task storage instance based on the database driver.
-// Supports PostgreSQL and MySQL databases.
+// Supports PostgreSQL, MySQL and SQLite.
+//
+// PostgreSQL accepts three driver names: PgDriver (legacy lib/pq,
+// caller imports lib/pq themselves), PgxDriver (pgx/v5, registered by
+// goquestorage), and PgxV5Driver (alternative name pgx registers
+// itself under). All three resolve to the same PG-backed storage.
 func NewStorage(db *sqlx.DB) (TaskStorage, error) {
 	switch db.DriverName() {
-	case goquestorage.PgDriver:
+	// goquestorage.PgDriver is deprecated but still accepted here on
+	// purpose — callers who already run on lib/pq shouldn't break.
+	case goquestorage.PgDriver, goquestorage.PgxDriver, goquestorage.PgxV5Driver: //nolint:staticcheck
 		return pgtask.NewStorage(db), nil
 	case goquestorage.MysqlDriver:
 		return mysqltask.NewStorage(db), nil
