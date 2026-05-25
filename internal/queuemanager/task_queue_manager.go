@@ -48,16 +48,7 @@ func NewTaskQueueManager(taskStorage storages.Task) *TaskQueueManager {
 // write is logged at WARN level and goes against the underlying *sqlx.DB.
 func (m *TaskQueueManager) AsyncAddTaskToQueue(ctx context.Context, task *entity.Task) {
 	ctx, span := xlog.WithOperationSpan(xlog.ContextWithTracer(ctx, m.tracer), "task_queue_manager.AsyncAddTaskToQueue")
-	if _, hadTx := dbtx.TxFromContext(ctx); hadTx {
-		// Log AFTER span setup so the WARN attaches to the operation
-		// trace, not to whatever parent span the caller had.
-		xlog.Warn(ctx, "AsyncAddTaskToQueue called with a tx in context; stripping it to avoid racing the caller's Commit/Rollback",
-			xfield.String("task_id", task.ID.String()),
-			xfield.String("task_type", task.Type),
-		)
-
-		ctx = dbtx.WithoutTx(ctx)
-	}
+	ctx = dbtx.WithoutTx(ctx)
 
 	go func() {
 		defer span.End()

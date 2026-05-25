@@ -9,6 +9,7 @@ import (
 	"github.com/ruko1202/xlog/xfield"
 
 	"github.com/ruko1202/goque/internal/entity"
+	"github.com/ruko1202/goque/internal/storages/dbtx"
 	"github.com/ruko1202/goque/internal/utils/xtime"
 )
 
@@ -64,6 +65,15 @@ func (p *Processor) Stop() {
 
 func (p *Processor) run(ctx context.Context) {
 	defer close(p.gracefulStoppedCh)
+
+	// Strip caller's *sqlx.Tx from ctx once, at the start of the
+	// long-lived ticker goroutine. The ticker outlives the caller's
+	// stack, so enrolling our enqueues (or the user's job factory) in
+	// the caller's tx would race the caller's Commit/Rollback —
+	// either lose the write or panic on a closed tx. The strip covers
+	// both p.job.create(ctx) and p.taskQueueManager.AddTaskToQueue.
+	// WithoutTx itself logs WARN if there was actually a tx attached.
+	ctx = dbtx.WithoutTx(ctx)
 
 	if p.job.shouldRunOnStart() {
 		p.addTaskToQueue(ctx)

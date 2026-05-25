@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/jmoiron/sqlx"
+	"github.com/ruko1202/xlog"
 )
 
 type txCtxKey struct{}
@@ -32,10 +33,19 @@ func TxFromContext(ctx context.Context) (*sqlx.Tx, bool) {
 // WithoutTx returns a context with any attached *sqlx.Tx removed. Use it
 // when handing ctx to a code path that must not enroll in the caller's tx
 // (e.g. a goroutine that outlives the caller's Commit/Rollback).
+//
+// If a tx was actually attached the strip is logged at WARN — silently
+// dropping a caller's tx is a footgun (they think they have outbox
+// semantics; they don't). The WARN gives them a signal in production
+// logs. Callsites that need richer context (task_id, processor name,
+// etc.) should add their own log before calling, or use a span-bound
+// logger so the WARN attaches to the operation trace.
+//
+// No-op (and silent) if ctx has no tx attached.
 func WithoutTx(ctx context.Context) context.Context {
-	_, ok := TxFromContext(ctx)
-	if ok {
-		return context.WithValue(ctx, txCtxKey{}, (*sqlx.Tx)(nil))
+	if _, ok := TxFromContext(ctx); !ok {
+		return ctx
 	}
-	return ctx
+	xlog.Warn(ctx, "dbtx: stripping caller's *sqlx.Tx from ctx to avoid racing Commit/Rollback in a code path that outlives the caller")
+	return context.WithValue(ctx, txCtxKey{}, (*sqlx.Tx)(nil))
 }
