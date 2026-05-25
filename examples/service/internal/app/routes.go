@@ -22,6 +22,11 @@ func SetupRoutes(e *echo.Echo, app *Application) {
 	api.GET("/tasks", app.ListTasksHandler)
 	api.GET("/tasks/:id", app.GetTaskHandler)
 
+	// Transactional outbox demo: writes a domain row AND enqueues a
+	// confirmation task atomically via goque.WithTx. See the handler
+	// docstring for the pattern walk-through.
+	api.POST("/orders", app.CreateOrderHandler)
+
 	// Serve static files
 	e.Static("/static", "web/static")
 
