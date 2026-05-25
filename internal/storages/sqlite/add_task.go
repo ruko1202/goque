@@ -2,9 +2,8 @@ package sqlite
 
 import (
 	"context"
-	"errors"
+	"strings"
 
-	"github.com/mattn/go-sqlite3"
 	"github.com/ruko1202/xlog"
 	"github.com/ruko1202/xlog/xfield"
 
@@ -49,12 +48,19 @@ func handleError(err error) error {
 		return nil
 	}
 
-	// mattn/go-sqlite3 surfaces constraint violations as a typed Error
-	// with ExtendedCode encoding the specific constraint that failed.
-	// Match on the code rather than the message text so a future driver
-	// upgrade or table-name change can't silently break duplicate detection.
-	var sqliteErr sqlite3.Error
-	if errors.As(err, &sqliteErr) && errors.Is(sqliteErr.ExtendedCode, sqlite3.ErrConstraintUnique) {
+	// String-match the unique-constraint error message rather than
+	// type-asserting on sqlite3.Error. Typed assertion would require
+	// importing mattn/go-sqlite3 here, which forces CGO_ENABLED=1 on
+	// every downstream consumer — including PG/MySQL-only services
+	// that ship as scratch/distroless. The match is intentionally
+	// loose (substring) so a future driver upgrade that adds
+	// "(unique constraint)" prefixes or similar still fires.
+	//
+	// Covered by the sqlite integration test in
+	// internal/storages/test/add_task_test.go ("several externalID")
+	// — if the driver ever changes the message format the test fails
+	// loudly, prompting an update here.
+	if msg := err.Error(); strings.Contains(msg, "UNIQUE constraint failed") {
 		return entity.ErrDuplicateTask
 	}
 
