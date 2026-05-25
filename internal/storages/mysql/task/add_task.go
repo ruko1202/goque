@@ -35,7 +35,7 @@ func (s *Storage) AddTask(ctx context.Context, task *entity.Task) error {
 
 	query, args := stmt.Sql()
 
-	_, err := s.db.ExecContext(ctx, query, args...)
+	_, err := s.db.Executor(ctx).ExecContext(ctx, query, args...)
 	if err := handleError(err); err != nil {
 		xlog.Error(ctx, "failed to add task", xfield.Error(err))
 		return err

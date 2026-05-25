@@ -47,7 +47,7 @@ func (s *Storage) DeleteTasks(
 	query, args := stmt.Sql()
 
 	dbTasks := make([]*model.GoqueTask, 0)
-	err := s.db.SelectContext(ctx, &dbTasks, query, args...)
+	err := s.db.Executor(ctx).SelectContext(ctx, &dbTasks, query, args...)
 	if err != nil {
 		xlog.Error(ctx, "failed to delete tasks", xfield.Error(err))
 		return nil, err

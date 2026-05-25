@@ -11,7 +11,6 @@ import (
 	"github.com/ruko1202/goque/internal/pkg/generated/postgres/public/model"
 	"github.com/ruko1202/goque/internal/pkg/generated/postgres/public/table"
 	"github.com/ruko1202/goque/internal/storages/dbentity"
-	"github.com/ruko1202/goque/internal/storages/dbutils"
 )
 
 // GetTasks retrieves tasks matching the filter criteria with a specified limit.
@@ -22,15 +21,15 @@ func (s *Storage) GetTasks(ctx context.Context, filter *dbentity.GetTasksFilter,
 	span.SetAttributes(semconv.DBSystemNamePostgreSQL)
 	defer span.End()
 
-	tasks, err := s.getTasksByFilterTx(ctx, s.db, filter, limit)
+	tasks, err := s.getTasksByFilter(ctx, filter, limit)
 	if err != nil {
 		return nil, err
 	}
 	return fromDBModels(ctx, tasks), nil
 }
 
-func (s *Storage) getTasksByFilterTx(ctx context.Context, tx dbutils.DBTx, filter *dbentity.GetTasksFilter, limit int64) ([]*model.GoqueTask, error) {
-	ctx, span := xlog.WithOperationSpan(ctx, "storage.getTasksByFilterTx")
+func (s *Storage) getTasksByFilter(ctx context.Context, filter *dbentity.GetTasksFilter, limit int64) ([]*model.GoqueTask, error) {
+	ctx, span := xlog.WithOperationSpan(ctx, "storage.getTasksByFilter")
 	defer span.End()
 
 	whereExpr, err := filter.BindPgWhereExpr()
@@ -47,7 +46,7 @@ func (s *Storage) getTasksByFilterTx(ctx context.Context, tx dbutils.DBTx, filte
 	query, args := stmt.Sql()
 
 	tasks := make([]*model.GoqueTask, 0)
-	err = tx.SelectContext(ctx, &tasks, query, args...)
+	err = s.db.Executor(ctx).SelectContext(ctx, &tasks, query, args...)
 	if err != nil {
 		xlog.Error(ctx, "failed to get tasks", xfield.Error(err))
 		return nil, err
