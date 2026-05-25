@@ -4,17 +4,18 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/mattn/go-sqlite3"
 	"github.com/stretchr/testify/require"
 
 	"github.com/ruko1202/goque/internal/entity"
 )
 
-// TestHandleError_UniqueConstraint protects against silent regressions in
-// the sqlite duplicate-detection path. Prior implementations matched the
-// raw error message string — a table rename or driver upgrade would
-// silently break it. The current implementation must rely on the typed
-// error code (sqlite3.ErrConstraintUnique).
+// TestHandleError_UniqueConstraint protects against silent regressions
+// in the sqlite duplicate-detection path. We string-match instead of
+// type-asserting on sqlite3.Error to avoid forcing CGO on downstream
+// consumers (PG/MySQL-only services ship as scratch/distroless and
+// can't link mattn/go-sqlite3). The integration test in
+// internal/storages/test/add_task_test.go exercises the real driver
+// end-to-end; this test pins the substring contract of handleError.
 func TestHandleError_UniqueConstraint(t *testing.T) {
 	t.Parallel()
 
@@ -23,31 +24,34 @@ func TestHandleError_UniqueConstraint(t *testing.T) {
 		require.NoError(t, handleError(nil))
 	})
 
-	t.Run("unique constraint maps to ErrDuplicateTask", func(t *testing.T) {
+	t.Run("unique constraint message maps to ErrDuplicateTask", func(t *testing.T) {
 		t.Parallel()
-		src := sqlite3.Error{
-			Code:         sqlite3.ErrConstraint,
-			ExtendedCode: sqlite3.ErrConstraintUnique,
-		}
+		// Real message from mattn/go-sqlite3 v1.14.x:
+		// "UNIQUE constraint failed: goque_task.type, goque_task.external_id"
+		src := errors.New("UNIQUE constraint failed: goque_task.type, goque_task.external_id")
+		require.ErrorIs(t, handleError(src), entity.ErrDuplicateTask)
+	})
+
+	t.Run("unique constraint with future driver decorations", func(t *testing.T) {
+		t.Parallel()
+		// A defensive test: if the driver ever prefixes/suffixes the
+		// message we still want to fire as long as the canonical
+		// "UNIQUE constraint failed" substring is present.
+		src := errors.New("sqlite3: (1555) UNIQUE constraint failed: goque_task.type, goque_task.external_id")
 		require.ErrorIs(t, handleError(src), entity.ErrDuplicateTask)
 	})
 
 	t.Run("other constraint passes through unchanged", func(t *testing.T) {
 		t.Parallel()
-		src := sqlite3.Error{
-			Code:         sqlite3.ErrConstraint,
-			ExtendedCode: sqlite3.ErrConstraintNotNull,
-		}
-		got := handleError(src)
-		require.NotErrorIs(t, got, entity.ErrDuplicateTask)
-		require.Error(t, got)
+		src := errors.New("NOT NULL constraint failed: goque_task.type")
+		require.NotErrorIs(t, handleError(src), entity.ErrDuplicateTask)
+		require.Equal(t, src, handleError(src))
 	})
 
 	t.Run("non-sqlite error passes through unchanged", func(t *testing.T) {
 		t.Parallel()
 		src := errors.New("some random error")
-		got := handleError(src)
-		require.NotErrorIs(t, got, entity.ErrDuplicateTask)
-		require.Equal(t, src, got)
+		require.NotErrorIs(t, handleError(src), entity.ErrDuplicateTask)
+		require.Equal(t, src, handleError(src))
 	})
 }
