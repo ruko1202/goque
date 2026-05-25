@@ -20,6 +20,19 @@ import (
 )
 
 // CureTasks updates stuck tasks to error status for retry.
+//
+// MySQL has no UPDATE ... RETURNING, so we can't atomically update
+// rows and read them back in a single statement (PG storage does
+// exactly that). Instead we run SELECT ... FOR UPDATE SKIP LOCKED
+// inside a transaction, then UPDATE WHERE id IN (...). The row-level
+// locks taken by the SELECT close the race window where two healers
+// would otherwise see and cure the same task; SKIP_LOCKED keeps the
+// second healer from blocking — it just picks up a different slice
+// of rows on its tick.
+//
+// Cost is one extra roundtrip vs. PG. There is no way around it
+// without breaking the HealerTaskStorage API (callers consume the
+// returned []*entity.Task for logs + metrics).
 func (s *Storage) CureTasks(
 	ctx context.Context,
 	taskType entity.TaskType,
@@ -37,13 +50,16 @@ func (s *Storage) CureTasks(
 	tasks := make([]*model.GoqueTask, 0)
 	err := dbtx.WithinTx(ctx, s.db.GetDB(), func(ctx context.Context) error {
 		var err error
-		tasks, err = s.getTasksByFilter(ctx, &dbentity.GetTasksFilter{
+		// FOR UPDATE SKIP LOCKED: a concurrent CureTasks tick on the
+		// same task_type will see a different (non-overlapping) slice
+		// of rows. Without this lock the SELECT/UPDATE pair has a race
+		// where two workers both see and both cure the same task.
+		tasks, err = s.getTasksByFilterForUpdate(ctx, &dbentity.GetTasksFilter{
 			TaskType:         lo.ToPtr(taskType),
 			Statuses:         statuses,
 			UpdatedAtTimeAgo: lo.ToPtr(updatedAtTimeAgo),
 		}, 1000)
 		if err != nil {
-			xlog.Error(ctx, "failed to select tasks for deletion", xfield.Error(err))
 			return err
 		}
 

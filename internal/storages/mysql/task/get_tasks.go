@@ -3,6 +3,7 @@ package mysqltask
 import (
 	"context"
 
+	"github.com/go-jet/jet/v2/mysql"
 	"github.com/ruko1202/xlog"
 	"github.com/ruko1202/xlog/xfield"
 
@@ -28,6 +29,18 @@ func (s *Storage) GetTasks(ctx context.Context, filter *dbentity.GetTasksFilter,
 }
 
 func (s *Storage) getTasksByFilter(ctx context.Context, filter *dbentity.GetTasksFilter, limit int64) ([]*model.GoqueTask, error) {
+	return s.selectTasksByFilter(ctx, filter, limit, false)
+}
+
+// getTasksByFilterForUpdate is the same as getTasksByFilter but appends
+// FOR UPDATE SKIP LOCKED so concurrent CureTasks/DeleteTasks workers
+// don't see the same rows. Must be called inside a transaction —
+// MySQL releases row locks at commit/rollback.
+func (s *Storage) getTasksByFilterForUpdate(ctx context.Context, filter *dbentity.GetTasksFilter, limit int64) ([]*model.GoqueTask, error) {
+	return s.selectTasksByFilter(ctx, filter, limit, true)
+}
+
+func (s *Storage) selectTasksByFilter(ctx context.Context, filter *dbentity.GetTasksFilter, limit int64, forUpdate bool) ([]*model.GoqueTask, error) {
 	ctx, span := xlog.WithOperationSpan(ctx, "storage.getTasksByFilter")
 	defer span.End()
 
@@ -41,6 +54,13 @@ func (s *Storage) getTasksByFilter(ctx context.Context, filter *dbentity.GetTask
 		SELECT(table.GoqueTask.AllColumns).
 		WHERE(whereExpr).
 		LIMIT(limit)
+
+	if forUpdate {
+		// SKIP LOCKED: other workers' concurrent CureTasks scans
+		// silently skip these rows instead of blocking — turns the
+		// race into a "next tick will get them" non-issue.
+		stmt = stmt.FOR(mysql.UPDATE().SKIP_LOCKED())
+	}
 
 	query, args := stmt.Sql()
 
