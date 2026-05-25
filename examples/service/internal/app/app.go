@@ -5,6 +5,7 @@ import (
 	"example/internal/config"
 
 	"github.com/jmoiron/sqlx"
+
 	"github.com/ruko1202/goque"
 )
 

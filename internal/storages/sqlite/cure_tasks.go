@@ -43,7 +43,6 @@ func (s *Storage) CureTasks(
 			UpdatedAtTimeAgo: lo.ToPtr(updatedAtTimeAgo),
 		}, 1000)
 		if err != nil {
-			xlog.Error(ctx, "failed to select tasks for deletion", xfield.Error(err))
 			return err
 		}
 
@@ -92,7 +91,6 @@ func (s *Storage) cureTask(ctx context.Context, tasks []*model.GoqueTask, commen
 	query, args := updateStmt.Sql()
 	_, err := s.db.Executor(ctx).ExecContext(ctx, query, args...)
 	if err != nil {
-		xlog.Error(ctx, "failed to update task", xfield.Error(err))
 		return err
 	}
 
