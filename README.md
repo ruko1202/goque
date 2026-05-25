@@ -46,6 +46,29 @@ Goque supports three database backends with different performance characteristic
 - MySQL uses **6% less memory** than PostgreSQL
 - SQLite has file-level locking and is **not recommended for production**
 
+#### SQLite caveats
+
+SQLite serializes writes at the file level. Two practical consequences
+for goque on SQLite:
+
+- **Concurrent writers deadlock under the default `BEGIN DEFERRED`
+  transaction mode.** Operations like `CureTasks` and
+  `GetTasksForProcessing` open their own transactions via
+  `dbtx.WithinTx`; when several workers call them in parallel, one
+  SELECT takes a SHARED lock and the next UPDATE can't upgrade to
+  RESERVED — SQLite returns `SQLITE_BUSY` immediately and the
+  `_busy_timeout` parameter does **not** apply to lock upgrades.
+  Mitigation: pass `?_txlock=immediate&_journal_mode=WAL&_busy_timeout=5000`
+  in your DSN so all transactions start as `BEGIN IMMEDIATE` and
+  multiple readers can coexist with the single writer.
+- **One process at a time.** Even with the DSN tuning above, a single
+  SQLite database file should be opened by a single goque process.
+  Spinning up two binaries that both write to `goque.sqlite.db` will
+  see `database is locked` errors no matter what.
+
+If you need real horizontal scaling, run PostgreSQL or MySQL — they
+have row-level locks and don't have this class of problem.
+
 ### Schema
 
 Goque installs a single table named **`goque_task`** plus three indexes
