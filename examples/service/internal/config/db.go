@@ -3,8 +3,8 @@ package config
 import (
 	"context"
 
+	_ "github.com/jackc/pgx/v5/stdlib" // PostgreSQL driver
 	"github.com/jmoiron/sqlx"
-	_ "github.com/lib/pq" // PostgreSQL driver
 	"github.com/ruko1202/xlog"
 	"github.com/ruko1202/xlog/xfield"
 )

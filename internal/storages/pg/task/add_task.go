@@ -5,7 +5,8 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/lib/pq"
+	"github.com/jackc/pgerrcode"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/ruko1202/xlog"
 	"github.com/ruko1202/xlog/xfield"
 	semconv "go.opentelemetry.io/otel/semconv/v1.40.0"
@@ -50,15 +51,18 @@ func handleError(err error) error {
 		return nil
 	}
 
-	var pqErr *pq.Error
-	if errors.As(err, &pqErr) {
-		switch pqErr.Code.Name() {
-		case "unique_violation":
-			return fmt.Errorf("%w: %s", entity.ErrDuplicateTask, pqErr.Detail)
-		case "invalid_text_representation":
-			return fmt.Errorf("%w: %s", entity.ErrInvalidPayloadFormat, pqErr.Detail)
+	// pgx returns *pgconn.PgError for server-side Postgres errors.
+	// pgErr.Code is the SQLSTATE string ("23505" etc.); use the
+	// pgerrcode named constants for readability.
+	var pgErr *pgconn.PgError
+	if errors.As(err, &pgErr) {
+		switch pgErr.Code {
+		case pgerrcode.UniqueViolation:
+			return fmt.Errorf("%w: %s", entity.ErrDuplicateTask, pgErr.Detail)
+		case pgerrcode.InvalidTextRepresentation:
+			return fmt.Errorf("%w: %s", entity.ErrInvalidPayloadFormat, pgErr.Detail)
 		default:
-			return pqErr
+			return pgErr
 		}
 	}
 

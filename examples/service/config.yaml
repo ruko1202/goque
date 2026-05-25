@@ -5,7 +5,7 @@ server:
   port: 8080
 
 database:
-  driver: postgres
+  driver: pgx
   dsn: "postgres://postgres:postgres@localhost:5432/goque_example?sslmode=disable"
 
 queue:

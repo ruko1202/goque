@@ -43,7 +43,12 @@ jobs:
     with:
       main_go_version: '1.25'
       go_versions: '["1.25"]'
-      db_driver: 'postgres'
+      # 'pgx' since RUK-135 migrated the runtime PG driver to
+      # github.com/jackc/pgx/v5/stdlib. The legacy 'postgres' name no
+      # longer registers a driver via goquestorage, so passing it here
+      # would make SetupStorages fall through to "init all DBs" and
+      # crash on SqliteDBConn reading the PG DSN.
+      db_driver: 'pgx'
       db_dsn: 'postgres://postgres:postgres@localhost:5432/postgres?sslmode=disable'
 
   test-mysql:

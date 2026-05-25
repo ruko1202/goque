@@ -94,7 +94,7 @@ func setDefaults(v *viper.Viper) {
 	v.SetDefault("server.port", 8080)
 
 	// Database defaults
-	v.SetDefault("database.driver", "postgres")
+	v.SetDefault("database.driver", "pgx")
 	v.SetDefault("database.dsn", "postgres://postgres:postgres@localhost:5432/goque_example?sslmode=disable")
 
 	// Queue defaults

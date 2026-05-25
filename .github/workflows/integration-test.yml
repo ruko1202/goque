@@ -27,7 +27,7 @@ jobs:
 
     services:
       postgres:
-        image: ${{ inputs.db_driver == 'postgres' && 'postgres:17' || '' }}
+        image: ${{ inputs.db_driver == 'pgx' && 'postgres:17' || '' }}
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres

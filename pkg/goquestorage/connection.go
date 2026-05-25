@@ -6,17 +6,32 @@ import (
 	"fmt"
 	"time"
 
+	_ "github.com/jackc/pgx/v5/stdlib" // registers "pgx" driver
 	"github.com/jmoiron/sqlx"
 	"github.com/ruko1202/xlog"
 	"github.com/ruko1202/xlog/xfield"
 )
 
-// Database driver constants.
+// Database driver constants. Values are the names under which the
+// underlying drivers register themselves with database/sql.
 const (
-	// PgDriver represents the PostgreSQL database driver.
+	// PgDriver is the legacy lib/pq driver name. goque does not
+	// register "postgres" itself — callers using this constant must
+	// `_ "github.com/lib/pq"` in their own code.
+	//
+	// Deprecated: lib/pq is in maintenance mode. Use PgxDriver for
+	// new code; the storage layer works identically with either.
 	PgDriver = "postgres"
+	// PgxDriver is the pgx/v5 stdlib driver name. Registered by
+	// this package; recommended for new code.
+	PgxDriver = "pgx"
+	// PgxV5Driver is the alternative name pgx/v5/stdlib registers
+	// itself under (alongside "pgx"). Accept both so callers using
+	// either form via sqlx.Open hit the same code path.
+	PgxV5Driver = "pgx/v5"
 	// MysqlDriver represents the MySQL database driver.
-	MysqlDriver  = "mysql"
+	MysqlDriver = "mysql"
+	// SqliteDriver represents the SQLite database driver (mattn/go-sqlite3).
 	SqliteDriver = "sqlite3"
 )
 
