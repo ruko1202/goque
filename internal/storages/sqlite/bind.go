@@ -78,8 +78,19 @@ func fromDBModels(ctx context.Context, dbTasks []*model.GoqueTask) ([]*entity.Ta
 	return tasks, nil
 }
 
+// timeToString serializes t to RFC3339 in UTC. Forcing UTC is what
+// keeps lexicographic compare consistent with chronological order:
+// SQLite stores TEXT, and a row written with a local-zone offset
+// (e.g. "2026-05-25T16:00:00+03:00") would compare wrong against a
+// UTC-zone row ("2026-05-25T13:00:00Z") even though both moments
+// are equal. All WHERE clauses in this package format the comparison
+// value via timeToString too, so as long as everything goes through
+// here the order is stable. See RUK-139 for the underlying hazard
+// and why we did NOT migrate the column to INTEGER unix-seconds:
+// SQLite is positioned as dev/test only and the UTC normalisation
+// closes the practical risk surface.
 func timeToString(t time.Time) string {
-	return t.Format(timeFormat)
+	return t.UTC().Format(timeFormat)
 }
 
 func timeFromString(value string) time.Time {
