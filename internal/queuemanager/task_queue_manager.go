@@ -6,6 +6,7 @@ package queuemanager
 import (
 	"context"
 	"fmt"
+	"sync"
 
 	"github.com/google/uuid"
 	"github.com/ruko1202/xlog"
@@ -30,6 +31,13 @@ const (
 type TaskQueueManager struct {
 	taskStorage storages.Task
 	tracer      trace.Tracer
+
+	// asyncWG tracks in-flight AsyncAddTaskToQueue goroutines so
+	// Wait() can drain them on shutdown. Without this the goroutines
+	// would outlive Goque.Stop() and could write to a closing
+	// *sqlx.DB ("sql: database is closed") or leave spans unended.
+	// Violates critical rule #8 (no goroutine leaks) if dropped.
+	asyncWG sync.WaitGroup
 }
 
 // NewTaskQueueManager creates a new TaskQueueManager instance with the specified task storage.
@@ -43,20 +51,36 @@ func NewTaskQueueManager(taskStorage storages.Task) *TaskQueueManager {
 // AsyncAddTaskToQueue adds a task to the queue asynchronously without waiting for completion.
 //
 // The goroutine outlives the caller's stack, so any *sqlx.Tx carried in ctx
-// is stripped before dispatch: enrolling the async write in the caller's tx
-// would race against the caller's Commit/Rollback. If a tx is detected the
-// write is logged at WARN level and goes against the underlying *sqlx.DB.
+// is stripped before dispatch (dbtx.WithoutTx itself logs WARN if there
+// was a tx to strip) — enrolling the async write in the caller's tx would
+// race against the caller's Commit/Rollback.
+//
+// In-flight goroutines are tracked by an internal WaitGroup that
+// WaitAsyncEnqueues drains during graceful shutdown (Goque.Stop()).
+// Callers using the manager outside Goque must call WaitAsyncEnqueues
+// themselves before tearing down the underlying *sqlx.DB.
 func (m *TaskQueueManager) AsyncAddTaskToQueue(ctx context.Context, task *entity.Task) {
 	ctx, span := xlog.WithOperationSpan(xlog.ContextWithTracer(ctx, m.tracer), "task_queue_manager.AsyncAddTaskToQueue")
 	ctx = dbtx.WithoutTx(ctx)
 
+	m.asyncWG.Add(1)
 	go func() {
+		defer m.asyncWG.Done()
 		defer span.End()
 		err := m.AddTaskToQueue(ctx, task)
 		if err != nil {
 			xlog.Error(ctx, "failed to async add task to queue", xfield.Error(err))
 		}
 	}()
+}
+
+// WaitAsyncEnqueues blocks until every in-flight goroutine spawned by
+// AsyncAddTaskToQueue has returned. Goque.Stop() calls this
+// automatically. Direct users of TaskQueueManager (outside the Goque
+// facade) should call it before closing the underlying *sqlx.DB to
+// avoid "sql: database is closed" errors from late async writes.
+func (m *TaskQueueManager) WaitAsyncEnqueues() {
+	m.asyncWG.Wait()
 }
 
 // AddTaskToQueue adds a task to the queue and returns an error if the operation fails.

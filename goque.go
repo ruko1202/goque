@@ -111,10 +111,19 @@ func (g *Goque) runPeriodicProcessors(ctx context.Context) error {
 }
 
 // Stop gracefully shuts down all registered processors and waits for them to finish.
+//
+// Order matters: periodic processors are stopped first (no more new
+// tasks dispatched), then queue processors drain in-flight work, then
+// any in-flight AsyncAddTaskToQueue goroutines are drained. The last
+// step is critical for callers that close the underlying *sqlx.DB
+// after Stop() returns — without it a late async write hits a closed
+// connection pool.
 func (g *Goque) Stop() {
 	g.stopPeriodicProcessors()
 
 	g.stopProcessors()
+
+	g.taskQueueManager.WaitAsyncEnqueues()
 }
 
 func (g *Goque) stopProcessors() {

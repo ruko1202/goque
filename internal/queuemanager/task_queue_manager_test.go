@@ -3,6 +3,7 @@ package queuemanager
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -80,5 +81,63 @@ func TestTaskQueueManager_CancelTask(t *testing.T) {
 			err := manager.CancelTask(context.Background(), tt.task.ID)
 			tt.assertFunc(t, err)
 		})
+	}
+}
+
+// TestTaskQueueManager_WaitAsyncEnqueues_Drains verifies that
+// WaitAsyncEnqueues blocks until every in-flight AsyncAddTaskToQueue
+// goroutine has completed. Critical for graceful shutdown — without
+// it Goque.Stop() returns while async writes are still in flight,
+// leading to "sql: database is closed" errors when the caller closes
+// the pool.
+func TestTaskQueueManager_WaitAsyncEnqueues_Drains(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	storage := mock_storages.NewMockTask(ctrl)
+
+	// AddTask blocks on this channel until the test releases it.
+	// That way the goroutine is provably still in flight when
+	// WaitAsyncEnqueues is called — the test fails (deadlock-style
+	// timeout) if WaitAsyncEnqueues doesn't actually wait.
+	release := make(chan struct{})
+	completed := make(chan struct{})
+	storage.EXPECT().
+		AddTask(gomock.Any(), gomock.Any()).
+		DoAndReturn(func(_ context.Context, _ *entity.Task) error {
+			<-release
+			close(completed)
+			return nil
+		})
+
+	manager := NewTaskQueueManager(storage)
+	manager.AsyncAddTaskToQueue(context.Background(), &entity.Task{
+		ID:   uuid.New(),
+		Type: "test",
+	})
+
+	// WaitAsyncEnqueues must not return before we release the storage
+	// call.
+	waitDone := make(chan struct{})
+	go func() {
+		manager.WaitAsyncEnqueues()
+		close(waitDone)
+	}()
+
+	select {
+	case <-waitDone:
+		t.Fatal("WaitAsyncEnqueues returned before the in-flight async enqueue completed")
+	case <-time.After(50 * time.Millisecond):
+		// Expected: WaitAsyncEnqueues is correctly blocked.
+	}
+
+	close(release)
+	<-completed
+
+	select {
+	case <-waitDone:
+		// Expected: WaitAsyncEnqueues unblocks after the goroutine finishes.
+	case <-time.After(time.Second):
+		t.Fatal("WaitAsyncEnqueues did not unblock after the async enqueue completed")
 	}
 }
