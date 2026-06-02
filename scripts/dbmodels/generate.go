@@ -83,6 +83,7 @@ func pgGenerator(cfg *config) error {
 	}
 	defer func() { _ = db.Close() }()
 
+	cfg.dest = path.Join(cfg.dest, cfg.driver)
 	return pggen.GenerateDB(db.DB, cfg.schema, cfg.dest,
 		template.Default(postgres.Dialect).UseSchema(genTemplateSchema),
 	)

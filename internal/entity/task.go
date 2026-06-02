@@ -55,24 +55,25 @@ type Task struct {
 
 // NewTask creates a new task with the specified type and payload.
 func NewTask(taskType TaskType, payload string) *Task {
+	return NewTaskWithExternalID(taskType, payload, "")
+}
+
+// NewTaskWithExternalID creates a new task with a custom external ID.
+func NewTaskWithExternalID(taskType, payload, externalID string) *Task {
+	if externalID == "" {
+		externalID = "internal-" + uuid.NewString()
+	}
+
 	now := xtime.Now()
 	task := &Task{
 		ID:            newUUID(),
 		Type:          taskType,
-		ExternalID:    "internal-" + uuid.NewString(),
+		ExternalID:    externalID,
 		Payload:       payload,
 		Status:        TaskStatusNew,
 		CreatedAt:     now,
 		NextAttemptAt: now,
 	}
-
-	return task
-}
-
-// NewTaskWithExternalID creates a new task with a custom external ID.
-func NewTaskWithExternalID(taskType, payload, externalID string) *Task {
-	task := NewTask(taskType, payload)
-	task.ExternalID = externalID
 
 	return task
 }

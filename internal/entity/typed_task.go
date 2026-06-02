@@ -14,21 +14,15 @@ type TypedTask[T any] struct {
 
 // NewTaskWithPayload creates a new task with a typed payload marshaled as JSON.
 func NewTaskWithPayload[T any](taskType TaskType, payload T) (*Task, error) {
+	return NewTaskWithPayloadAndExternalID[T](taskType, payload, "")
+}
+
+// NewTaskWithPayloadAndExternalID creates a new task with a typed payload and custom external ID.
+func NewTaskWithPayloadAndExternalID[T any](taskType TaskType, payload T, externalID string) (*Task, error) {
 	payloadJSON, err := json.Marshal(payload)
 	if err != nil {
 		return nil, fmt.Errorf("%w: encode %s task payload: %w", ErrPayloadMarshal, taskType, err)
 	}
 
-	return NewTask(taskType, string(payloadJSON)), nil
-}
-
-// NewTaskWithPayloadAndExternalID creates a new task with a typed payload and custom external ID.
-func NewTaskWithPayloadAndExternalID[T any](taskType TaskType, payload T, externalID string) (*Task, error) {
-	task, err := NewTaskWithPayload(taskType, payload)
-	if err != nil {
-		return nil, err
-	}
-	task.ExternalID = externalID
-
-	return task, nil
+	return NewTaskWithExternalID(taskType, string(payloadJSON), externalID), nil
 }
