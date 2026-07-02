@@ -8,7 +8,6 @@ import (
 	"math/rand/v2"
 	"time"
 
-	"github.com/prometheus/client_golang/prometheus"
 	"github.com/ruko1202/xlog"
 	"github.com/ruko1202/xlog/xfield"
 
@@ -141,18 +140,31 @@ func (p *baseProcessor) doProcessQueue(ctx context.Context) error {
 	ctx, cancel := context.WithTimeout(ctx, p.processTimeout)
 	defer cancel()
 
-	promTimer := prometheus.NewTimer(metrics.TaskProcessingDurationSecondsObserver(p.processTaskType, p.processorName))
-	defer promTimer.ObserveDuration()
-
+	start := time.Now()
 	processedTasks, err := p.processQueueFunc(ctx, p.processTaskType)
 	if err != nil {
 		xlog.Error(ctx, "process queue failed", xfield.Error(err))
 		return fmt.Errorf("process queue failed: %w", err)
 	}
 
-	metrics.SetOperationsTotal(p.processTaskType, p.processorName, len(processedTasks))
-
 	xlog.Infof(ctx, "processed queue: %d tasks", len(processedTasks))
+
+	metrics.SetOperationsTotal(p.processTaskType, p.processorName, len(processedTasks))
+	if len(processedTasks) > 0 {
+		// Record processing duration only for polls that actually
+		// processed at least one task. Internal processors poll on a fixed
+		// ticker, so most ticks return zero tasks; observing those empty
+		// polls would seed task_processing_duration_seconds with the DB
+		// round-trip latency of an empty query and keep histogram_quantile
+		// reporting a stale q95 for task types that have no work (e.g.
+		// audit.write showing a duration with zero processed tasks).
+		// Errored polls are also excluded (the early return above). Note
+		// this differs from queueprocessor, which times error paths too;
+		// here an empty/failed poll is not "processing" and must not skew
+		// the latency distribution.
+		metrics.TaskProcessingDurationSecondsObserver(p.processTaskType, p.processorName).
+			Observe(time.Since(start).Seconds())
+	}
 
 	for _, task := range processedTasks {
 		xlog.Info(ctx, "processed queue task",

@@ -484,6 +484,8 @@ goq.RegisterProcessor(
 
 Goque includes built-in Prometheus metrics for comprehensive monitoring of your task queue. Metrics are automatically collected during task processing operations.
 
+> 📊 **Ready-to-import Grafana dashboard** lives in [`grafana/`](grafana/) — a Prometheus metrics dashboard with import instructions. See [`grafana/README.md`](grafana/README.md).
+
 ##### Available Metrics
 
 | Metric Name | Type | Labels | Description |

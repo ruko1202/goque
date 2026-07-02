@@ -32,11 +32,20 @@ var (
 
 	taskProcessingDurationSeconds = promauto.NewHistogramVec(
 		prometheus.HistogramOpts{
-			Namespace:   namespace,
-			Subsystem:   promSubsystem,
-			Name:        "task_processing_duration_seconds",
-			Help:        "Task processing duration in seconds by task type",
-			Buckets:     []float64{0.001, 0.01, 0.1, 0.5, 1, 2.5, 5, 10, 30, 60, 120, 300},
+			Namespace: namespace,
+			Subsystem: promSubsystem,
+			Name:      "task_processing_duration_seconds",
+			Help:      "Task processing duration in seconds by task type",
+			// Dense in the 1ms–1s working range (processing and empty/DB
+			// polls both land here); without boundaries between 10ms and
+			// 100ms a ~50ms p95 fell into one wide bucket and
+			// histogram_quantile interpolation made the reported q95
+			// drift. Sparse above ~5s: internal processors time out at
+			// 30s and user tasks rarely exceed a few seconds, so the
+			// tail only needs coarse "slow, investigate" resolution
+			// (30s, 300s) — finer minute-scale buckets would just be
+			// permanently-empty series.
+			Buckets:     []float64{0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 30, 300},
 			ConstLabels: constLabels,
 		},
 		[]string{labelTaskType, labelTaskProcessingOperations},
