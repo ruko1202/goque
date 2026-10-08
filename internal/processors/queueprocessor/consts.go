@@ -9,6 +9,10 @@ const (
 	defaultProcessorTimeout                 = 30 * time.Second
 	defaultProcessorStaticNextAttemptPeriod = 10 * time.Minute
 
+	// minWorkerPoolReleaseTimeout is the shortest graceful-shutdown wait for
+	// the worker pool, so that an idle pool can release cleanly.
+	minWorkerPoolReleaseTimeout = time.Second
+
 	// Fetcher constants.
 	defaultFetchTick     = 30 * time.Second
 	defaultFetchTimeout  = 30 * time.Second
