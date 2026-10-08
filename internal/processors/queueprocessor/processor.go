@@ -153,7 +153,6 @@ func (p *GoqueProcessor) Stop() {
 
 func (p *GoqueProcessor) runWithWorkerPool(ctx context.Context, workerPool *ants.Pool) {
 	defer close(p.gracefulStoppedCh)
-	defer workerPool.Release()
 
 	ticker := time.NewTicker(p.fetcher.tick)
 	defer ticker.Stop()
@@ -161,13 +160,9 @@ func (p *GoqueProcessor) runWithWorkerPool(ctx context.Context, workerPool *ants
 	for {
 		select {
 		case <-ctx.Done():
-			waitJobs := workerPool.Running() + workerPool.Waiting()
-			xlog.Info(ctx, "wait jobs before release worker pool", xfield.Int("workers count", waitJobs))
-
-			err := workerPool.ReleaseTimeout(time.Duration(waitJobs)*p.processor.timeout + time.Millisecond)
-			if err != nil {
-				xlog.Error(ctx, "failed to release workers", xfield.Error(err))
-			}
+			// ReleaseTimeout releases the pool itself (also when it times out),
+			// so no separate Release is needed.
+			p.releaseWorkerPool(ctx, workerPool)
 			return
 		case <-ticker.C:
 			err := p.fetchAndProcess(ctx, workerPool)
@@ -175,6 +170,30 @@ func (p *GoqueProcessor) runWithWorkerPool(ctx context.Context, workerPool *ants
 				xlog.Error(ctx, "failed to fetch and process tasks", xfield.Error(err))
 			}
 		}
+	}
+}
+
+// releaseWorkerPool closes the pool and waits for its workers to exit.
+//
+// The wait is bounded by the processing timeout per busy worker, but never
+// shorter than minWorkerPoolReleaseTimeout: ants' ReleaseTimeout also waits
+// for the pool's own purge/ticktock goroutines to stop, so even an idle pool
+// needs a moment. A timeout here means jobs are still running past the
+// deadline and is reported as an error.
+func (p *GoqueProcessor) releaseWorkerPool(ctx context.Context, workerPool *ants.Pool) {
+	waitJobs := workerPool.Running() + workerPool.Waiting()
+	timeout := max(time.Duration(waitJobs)*p.processor.timeout, minWorkerPoolReleaseTimeout)
+	xlog.Info(ctx, "wait jobs before release worker pool",
+		xfield.Int("workers count", waitJobs),
+		xfield.Duration("timeout", timeout),
+	)
+
+	err := workerPool.ReleaseTimeout(timeout)
+	if err != nil {
+		xlog.Error(ctx, "failed to release workers",
+			xfield.Error(err),
+			xfield.Int("running", workerPool.Running()),
+		)
 	}
 }
 
