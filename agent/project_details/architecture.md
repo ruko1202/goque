@@ -316,6 +316,9 @@ Cleaner.Run()
 - Stop() signals all processors
 - Worker pools drain gracefully
 - In-flight tasks complete
+- Pool release waits busy workers × task timeout, but at least 1s so an
+  idle pool releases cleanly; a release that still times out is logged
+  as `failed to release workers`
 
 ## Database Schema
 
