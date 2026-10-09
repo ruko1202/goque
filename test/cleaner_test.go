@@ -45,9 +45,9 @@ func testCleaner(t *testing.T, storage storages.AdvancedTaskStorage) {
 			task.Type,
 			goque.NoopTaskProcessor(),
 			goque.WithTaskFetcherTick(10*time.Millisecond),
-			goque.WithCleanerPeriod(10*time.Millisecond),
-			goque.WithCleanerUpdatedAtTimeAgo(10*time.Millisecond),
-			goque.WithCleanerTimeout(time.Second),
+			goque.WithCleanerPeriod(goque.NewStaticValue(10*time.Millisecond)),
+			goque.WithCleanerUpdatedAtTimeAgo(goque.NewStaticValue(10*time.Millisecond)),
+			goque.WithCleanerTimeout(goque.NewStaticValue(time.Second)),
 		)
 		err := goq.Run(ctx)
 		require.NoError(t, err)

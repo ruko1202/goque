@@ -13,6 +13,7 @@ import (
 
 	"github.com/ruko1202/goque/internal/entity"
 	"github.com/ruko1202/goque/internal/metrics"
+	"github.com/ruko1202/goque/internal/utils/xvalue"
 )
 
 type processQueueFunc func(ctx context.Context, taskType entity.TaskType) ([]*entity.Task, error)
@@ -25,9 +26,11 @@ type baseProcessor struct {
 	processorName    string
 	processTaskType  entity.TaskType
 	processQueueFunc processQueueFunc
-	processTimeout   time.Duration
-	processPeriod    time.Duration
-	processTicker    *time.Ticker
+
+	defaultProcessTimeout time.Duration
+	defaultProcessPeriod  time.Duration
+	processTimeout        *xvalue.Positive[time.Duration]
+	processPeriod         *xvalue.Positive[time.Duration]
 
 	// startupJitter returns the delay before the first tick. Defaults
 	// to defaultStartupJitter (uniform random in [0, period)). Tests
@@ -43,26 +46,30 @@ func newBaseProcessor(
 	processQueueFunc processQueueFunc,
 ) *baseProcessor {
 	return &baseProcessor{
-		processorName:     processorName,
-		processTaskType:   processingTaskType,
-		processTimeout:    processTimeout,
-		processPeriod:     processPeriod,
-		processQueueFunc:  processQueueFunc,
-		gracefulStoppedCh: make(chan struct{}),
-		gracefulCtxCancel: func() {},
-		startupJitter:     defaultStartupJitter,
+		processorName:         processorName,
+		processTaskType:       processingTaskType,
+		processQueueFunc:      processQueueFunc,
+		defaultProcessTimeout: processTimeout,
+		defaultProcessPeriod:  processPeriod,
+		processTimeout:        xvalue.NewPositive(processorName+".timeout", xvalue.NewStaticValue(processTimeout), processTimeout),
+		processPeriod:         xvalue.NewPositive(processorName+".period", xvalue.NewStaticValue(processPeriod), processPeriod),
+		gracefulStoppedCh:     make(chan struct{}),
+		gracefulCtxCancel:     func() {},
+		startupJitter:         defaultStartupJitter,
 	}
 }
 
-func (p *baseProcessor) SetProcessPeriod(processPeriod time.Duration) {
-	p.processPeriod = processPeriod
-	if p.processTicker != nil {
-		p.processTicker.Reset(processPeriod)
-	}
+// SetProcessPeriod sets the interval between runs. The value is re-read on every
+// tick, so a dynamic value takes effect after the current period elapses.
+// Must be called before Run.
+func (p *baseProcessor) SetProcessPeriod(processPeriod xvalue.Value[time.Duration]) {
+	p.processPeriod = xvalue.NewPositive(p.processorName+".period", processPeriod, p.defaultProcessPeriod)
 }
 
-func (p *baseProcessor) SetProcessTimeout(timeout time.Duration) {
-	p.processTimeout = timeout
+// SetProcessTimeout sets the timeout of a single run; it is re-read on every run.
+// Must be called before Run.
+func (p *baseProcessor) SetProcessTimeout(timeout xvalue.Value[time.Duration]) {
+	p.processTimeout = xvalue.NewPositive(p.processorName+".timeout", timeout, p.defaultProcessTimeout)
 }
 
 // Run starts the processor, fetching and processing tasks until the context is canceled.
@@ -80,19 +87,10 @@ func (p *baseProcessor) Run(ctx context.Context) {
 func (p *baseProcessor) run(ctx context.Context) {
 	defer close(p.gracefulStoppedCh)
 
-	// Misconfig: a non-positive period would also crash time.NewTicker
-	// below. Fail loud at the source instead of starting a useless
-	// goroutine that immediately panics.
-	if p.processPeriod <= 0 {
-		xlog.Error(ctx, "non-positive processPeriod, processor will not start",
-			xfield.Duration("processPeriod", p.processPeriod))
-		return
-	}
-
 	// Stagger the first tick across [0, processPeriod) so 2N
 	// concurrently-started cleaners/healers don't all hit the DB
 	// in lockstep on every period. See defaultStartupJitter doc.
-	jitter := p.startupJitter(p.processPeriod)
+	jitter := p.startupJitter(p.processPeriod.Load(ctx))
 	xlog.Info(ctx, "scheduler jitter applied", xfield.Duration("delay", jitter))
 	select {
 	case <-ctx.Done():
@@ -100,14 +98,25 @@ func (p *baseProcessor) run(ctx context.Context) {
 	case <-time.After(jitter):
 	}
 
-	p.processTicker = time.NewTicker(p.processPeriod)
-	defer p.processTicker.Stop()
+	// Re-read after the jitter: the period may have changed while waiting.
+	period := p.processPeriod.Load(ctx)
+	ticker := time.NewTicker(period)
+	defer ticker.Stop()
 
 	for {
 		select {
 		case <-ctx.Done():
 			return
-		case <-p.processTicker.C:
+		case <-ticker.C:
+			if newPeriod := p.processPeriod.Load(ctx); newPeriod != period {
+				xlog.Info(ctx, "process period changed",
+					xfield.Duration("old", period),
+					xfield.Duration("new", newPeriod),
+				)
+				period = newPeriod
+				ticker.Reset(period)
+			}
+
 			xlog.Info(ctx, "start processing")
 			err := p.doProcessQueue(ctx)
 			if err != nil {
@@ -132,12 +141,13 @@ func (p *baseProcessor) doProcessQueue(ctx context.Context) error {
 		return errors.New("not implemented")
 	}
 
+	timeout := p.processTimeout.Load(ctx)
 	xlog.WithFields(ctx,
 		xfield.String("action", p.processorName),
-		xfield.Duration("timeout", p.processTimeout),
+		xfield.Duration("timeout", timeout),
 	)
 
-	ctx, cancel := context.WithTimeout(ctx, p.processTimeout)
+	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
 	start := time.Now()

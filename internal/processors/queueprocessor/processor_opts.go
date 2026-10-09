@@ -3,6 +3,8 @@ package queueprocessor
 import (
 	"context"
 	"time"
+
+	"github.com/ruko1202/goque/internal/utils/xvalue"
 )
 
 // GoqueProcessorOpts is a function type for configuring GoqueProcessor options.
@@ -82,42 +84,48 @@ func WithHooksAfterProcessing(hooks ...HookAfterProcessing) GoqueProcessorOpts {
 }
 
 // WithCleanerUpdatedAtTimeAgo sets the time threshold for considering tasks as old enough to be cleaned.
-func WithCleanerUpdatedAtTimeAgo(updatedAtTimeAgo time.Duration) GoqueProcessorOpts {
+// The value is re-read on every cleaner run.
+func WithCleanerUpdatedAtTimeAgo(updatedAtTimeAgo xvalue.Value[time.Duration]) GoqueProcessorOpts {
 	return func(q *GoqueProcessor) {
 		q.queueCleaner.SetUpdatedAtTimeAgo(updatedAtTimeAgo)
 	}
 }
 
 // WithCleanerTimeout sets the timeout duration for cleaner operations.
-func WithCleanerTimeout(timeout time.Duration) GoqueProcessorOpts {
+// The value is re-read on every cleaner run.
+func WithCleanerTimeout(timeout xvalue.Value[time.Duration]) GoqueProcessorOpts {
 	return func(q *GoqueProcessor) {
 		q.queueCleaner.SetProcessTimeout(timeout)
 	}
 }
 
 // WithCleanerPeriod sets the interval at which the cleaner processor runs.
-func WithCleanerPeriod(period time.Duration) GoqueProcessorOpts {
+// A changed value takes effect after the current period elapses.
+func WithCleanerPeriod(period xvalue.Value[time.Duration]) GoqueProcessorOpts {
 	return func(q *GoqueProcessor) {
 		q.queueCleaner.SetProcessPeriod(period)
 	}
 }
 
 // WithHealerUpdatedAtTimeAgo sets the time threshold for considering a task as stuck.
-func WithHealerUpdatedAtTimeAgo(updatedAtTimeAgo time.Duration) GoqueProcessorOpts {
+// The value is re-read on every healer run.
+func WithHealerUpdatedAtTimeAgo(updatedAtTimeAgo xvalue.Value[time.Duration]) GoqueProcessorOpts {
 	return func(q *GoqueProcessor) {
 		q.queueHealer.SetUpdatedAtTimeAgo(updatedAtTimeAgo)
 	}
 }
 
 // WithHealerTimeout sets the timeout duration for healer operations.
-func WithHealerTimeout(timeout time.Duration) GoqueProcessorOpts {
+// The value is re-read on every healer run.
+func WithHealerTimeout(timeout xvalue.Value[time.Duration]) GoqueProcessorOpts {
 	return func(q *GoqueProcessor) {
 		q.queueHealer.SetProcessTimeout(timeout)
 	}
 }
 
 // WithHealerPeriod sets the interval at which the healer processor runs.
-func WithHealerPeriod(period time.Duration) GoqueProcessorOpts {
+// A changed value takes effect after the current period elapses.
+func WithHealerPeriod(period xvalue.Value[time.Duration]) GoqueProcessorOpts {
 	return func(q *GoqueProcessor) {
 		q.queueHealer.SetProcessPeriod(period)
 	}
