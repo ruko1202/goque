@@ -11,6 +11,7 @@ Supports PostgreSQL, MySQL, and SQLite.
 - ✅ **Multi-database support** - Works with PostgreSQL, MySQL, and SQLite
 - ✅ **Reliable persistence** - Task storage with ACID guarantees
 - ✅ **Worker pool management** - Configurable concurrent task processing using goroutine pools
+- ✅ **Dynamic configuration** - Change workers, batch size, ticks and timeouts at runtime via `goque.NewDynamicValue`
 - ✅ **Automatic retry logic** - Configurable retry attempts with custom backoff strategies
 - ✅ **Task lifecycle management** - Track task status through multiple states (new, processing, done, error, etc.)
 - ✅ **Graceful shutdown** - Clean worker shutdown with in-flight task handling
@@ -234,9 +235,9 @@ func main() {
     goq.RegisterProcessor(
         "send_email",
         &EmailProcessor{},
-        goque.WithWorkersCount(10),
-        goque.WithTaskProcessingMaxAttempts(3),
-        goque.WithTaskProcessingTimeout(30 * time.Second),
+        goque.WithWorkersCount(goque.NewStaticValue(10)),
+        goque.WithTaskProcessingMaxAttempts(goque.NewStaticValue[int32](3)),
+        goque.WithTaskProcessingTimeout(goque.NewStaticValue(30 * time.Second)),
     )
 
     // Run all processors
@@ -327,24 +328,82 @@ For detailed instructions and API documentation, see [examples/service/README.md
 
 ## Configuration Options
 
-The `GoqueProcessor` supports various configuration options:
+The `GoqueProcessor` supports various configuration options. Scalar options take a
+`goque.Value[T]`, so they can be constant or change at runtime (see [Dynamic Configuration](#dynamic-configuration)):
 
-- `WithWorkersCount(n int)` - Set the number of concurrent workers (default: 1)
+- `WithWorkersCount(v Value[int])` - Number of concurrent workers (default: 10, max: 10000)
 - `WithWorkersPanicHandler(handler func(context.Context) func(any))` - Set a custom worker panic handler
-- `WithTaskProcessingMaxAttempts(n int32)` - Set maximum retry attempts (default: 3)
-- `WithTaskProcessingTimeout(d time.Duration)` - Set per-task timeout (default: 30s)
+- `WithTaskProcessingMaxAttempts(v Value[int32])` - Maximum retry attempts (default: 5)
+- `WithTaskProcessingTimeout(v Value[time.Duration])` - Per-task timeout (default: 30s)
 - `WithTaskProcessingNextAttemptAtFunc(f)` - Custom retry backoff strategy
-- `WithTaskFetcherMaxTasks(n int64)` - Set maximum tasks to fetch per cycle (default: 10)
-- `WithTaskFetcherTick(d time.Duration)` - Set fetch interval (default: 1s)
-- `WithTaskFetcherTimeout(d time.Duration)` - Set timeout for fetching tasks from storage
+- `WithTaskFetcherMaxTasks(v Value[int64])` - Maximum tasks to fetch per cycle (default: 100)
+- `WithTaskFetcherTick(v Value[time.Duration])` - Fetch interval (default: 30s)
+- `WithTaskFetcherTimeout(v Value[time.Duration])` - Timeout for fetching tasks from storage (default: 30s)
 - `WithHooksBeforeProcessing(hooks ...HookBeforeProcessing)` - Add pre-processing hooks
 - `WithHooksAfterProcessing(hooks ...HookAfterProcessing)` - Add post-processing hooks
-- `WithCleanerPeriod(d time.Duration)` - Set the cleaner run interval
-- `WithCleanerUpdatedAtTimeAgo(d time.Duration)` - Set the completed-task age threshold for cleanup
-- `WithCleanerTimeout(d time.Duration)` - Set the cleaner operation timeout
-- `WithHealerPeriod(d time.Duration)` - Set the healer run interval
-- `WithHealerUpdatedAtTimeAgo(d time.Duration)` - Set the stuck-task age threshold for healing
-- `WithHealerTimeout(d time.Duration)` - Set the healer operation timeout
+- `WithCleanerPeriod(v Value[time.Duration])` - Cleaner run interval (default: 5m)
+- `WithCleanerUpdatedAtTimeAgo(v Value[time.Duration])` - Completed-task age threshold for cleanup (default: 3h)
+- `WithCleanerTimeout(v Value[time.Duration])` - Cleaner operation timeout (default: 30s)
+- `WithHealerPeriod(v Value[time.Duration])` - Healer run interval (default: 5m)
+- `WithHealerUpdatedAtTimeAgo(v Value[time.Duration])` - Stuck-task age threshold for healing (default: 1h)
+- `WithHealerTimeout(v Value[time.Duration])` - Healer operation timeout (default: 30s)
+
+All scalar values must be positive. An invalid (`<= 0`) value is never applied: the last valid value
+(or the default) is used and a warning is logged.
+
+### Dynamic Configuration
+
+Every scalar option is read on each processor cycle, so it can be changed without a restart.
+
+- `goque.NewStaticValue(v)` - a constant value.
+- `goque.NewDynamicValue(ctx, default, fetch, interval)` - polls `fetch` every `interval` in the
+  background and caches the result. The first fetch is synchronous; on error `default` is used, and
+  later errors keep the last successful value. `fetch` gets a context with a timeout of `interval`
+  and must honor it. Polling stops when `ctx` is done. Invalid arguments (nil `ctx`/`fetch`,
+  `interval <= 0`) are logged and the value stays at `default`.
+- Any type implementing `Get() T` (non-blocking, must not panic, safe for concurrent use) works as a
+  `goque.Value[T]`.
+
+```go
+// Read workers count from your config system / feature flags every 10 seconds.
+goq.RegisterProcessor(
+    "send_email",
+    &EmailProcessor{},
+    goque.WithWorkersCount(goque.NewDynamicValue(ctx, 10, func(ctx context.Context) (int, error) {
+        return configClient.GetInt(ctx, "queue.send_email.workers")
+    }, 10*time.Second)),
+    goque.WithTaskFetcherMaxTasks(goque.NewStaticValue[int64](50)),
+)
+```
+
+When changes are applied:
+
+- fetch `maxTasks`/`timeout`, processing `timeout`, `maxAttempts`, healer/cleaner `timeout` and
+  `updatedAtTimeAgo` - on their next use (next fetch, task or run);
+- workers count - on the next fetch tick or before the next task submit; the worker pool is resized in
+  place and in-flight tasks are not interrupted. When the pool is full, growth applies once a running
+  task finishes; after a shrink, extra workers retire as they finish their current task;
+- fetch tick and healer/cleaner period - after the current tick/period elapses.
+
+#### Migrating from scalar options
+
+Scalar arguments are replaced by values: wrap constants with `goque.NewStaticValue`.
+
+```go
+// before
+goque.WithWorkersCount(10)
+goque.WithTaskFetcherMaxTasks(100)
+goque.WithTaskProcessingMaxAttempts(3)
+
+// after
+goque.WithWorkersCount(goque.NewStaticValue(10))
+goque.WithTaskFetcherMaxTasks(goque.NewStaticValue[int64](100))      // Go infers int from an untyped constant,
+goque.WithTaskProcessingMaxAttempts(goque.NewStaticValue[int32](3))  // so int64/int32 options need a type argument
+```
+
+Other behavior changes: `WithTaskProcessingMaxAttempts` with a value `<= 0` no longer clamps to 1 (the
+last valid value or default 5 is used), and a non-positive healer/cleaner period no longer disables that
+processor (the last valid value or default period is used).
 
 ### Periodic Jobs
 
@@ -468,13 +527,13 @@ You can configure the healer behavior:
 goq.RegisterProcessor(
     "send_email",
     &EmailProcessor{},
-    goque.WithWorkersCount(10),
-    goque.WithTaskProcessingMaxAttempts(3),
-    goque.WithTaskProcessingTimeout(30 * time.Second),
+    goque.WithWorkersCount(goque.NewStaticValue(10)),
+    goque.WithTaskProcessingMaxAttempts(goque.NewStaticValue[int32](3)),
+    goque.WithTaskProcessingTimeout(goque.NewStaticValue(30 * time.Second)),
 
-    goque.WithHealerPeriod(10*time.Minute),
-    goque.WithHealerUpdatedAtTimeAgo(time.Hour),
-    goque.WithHealerTimeout(30*time.Second),
+    goque.WithHealerPeriod(goque.NewStaticValue(10*time.Minute)),
+    goque.WithHealerUpdatedAtTimeAgo(goque.NewStaticValue(time.Hour)),
+    goque.WithHealerTimeout(goque.NewStaticValue(30*time.Second)),
 )
 ```
 

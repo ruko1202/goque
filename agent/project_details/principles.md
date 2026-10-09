@@ -168,9 +168,9 @@ processor := NewGoqueProcessor(
     storage,
     "email",
     emailProcessor,
-    WithWorkers(10),           // Explicit: 10 workers
-    WithMaxAttempts(3),        // Explicit: 3 retries
-    WithTaskTimeout(30*time.Second),  // Explicit: 30s timeout
+    WithWorkersCount(goque.NewStaticValue(10)),           // Explicit: 10 workers
+    WithTaskProcessingMaxAttempts(goque.NewStaticValue[int32](3)),        // Explicit: 3 retries
+    WithTaskProcessingTimeout(goque.NewStaticValue(30*time.Second)),  // Explicit: 30s timeout
 )
 
 // Not:
@@ -312,7 +312,7 @@ processor := NewGoqueProcessor(
     storage,
     "email",
     emailProcessor,
-    WithWorkers(10),  // Extend configuration
+    WithWorkersCount(goque.NewStaticValue(10)),  // Extend configuration
 )
 
 // Extend via hooks

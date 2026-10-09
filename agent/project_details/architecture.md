@@ -130,8 +130,9 @@ type TaskProcessor interface {
 - Prevents tasks from being permanently stuck
 
 **Configuration**:
-- `WithHealerUpdatedAtTimeAgo(duration)` - Time threshold
-- `WithHealerMaxTasks(n)` - Max tasks to heal per cycle
+- `WithHealerUpdatedAtTimeAgo(Value[time.Duration])` - Time threshold
+- `WithHealerPeriod(Value[time.Duration])` - Interval between runs
+- `WithHealerTimeout(Value[time.Duration])` - Timeout of a single run
 
 #### Cleaner
 **Purpose**: Remove old tasks
@@ -143,8 +144,12 @@ type TaskProcessor interface {
 - Keeps database clean
 
 **Configuration**:
-- `WithCleanerUpdatedAtTimeAgo(duration)` - Age threshold
-- `WithCleanerMaxTasks(n)` - Max tasks to clean per cycle
+- `WithCleanerUpdatedAtTimeAgo(Value[time.Duration])` - Age threshold
+- `WithCleanerPeriod(Value[time.Duration])` - Interval between runs
+- `WithCleanerTimeout(Value[time.Duration])` - Timeout of a single run
+
+Scalar options take `goque.Value[T]` (`NewStaticValue` / `NewDynamicValue`, `internal/utils/xvalue`)
+and are re-read on every cycle; invalid (`<= 0`) values fall back to the last valid one.
 
 ### 4. Queue Manager (`internal/queuemngr/`)
 
