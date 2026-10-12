@@ -11,6 +11,7 @@ import (
 	"github.com/ruko1202/goque/internal/metrics"
 
 	"github.com/ruko1202/goque/internal/entity"
+	"github.com/ruko1202/goque/internal/utils/xtime"
 )
 
 func (p *GoqueProcessor) updateTaskStateBeforeProcessing(ctx context.Context, task *entity.Task) {
@@ -26,6 +27,7 @@ func (p *GoqueProcessor) updateTaskState(ctx context.Context, task *entity.Task,
 	xlog.WithFields(ctx, xfield.String("processor.action", "updateTaskState"))
 	ctx = context.WithoutCancel(ctx)
 
+	var reschedule *entity.RescheduleError
 	switch {
 	case errors.Is(taskErr, entity.ErrTaskCancel):
 		if errors.Is(taskErr, entity.ErrPayloadUnmarshal) {
@@ -35,6 +37,9 @@ func (p *GoqueProcessor) updateTaskState(ctx context.Context, task *entity.Task,
 	case errors.Is(taskErr, context.Canceled):
 		p.returnTaskWhenGracefulShutdown(ctx, task)
 		return
+	case errors.As(taskErr, &reschedule):
+		task.Status = entity.TaskStatusNew
+		task.NextAttemptAt = xtime.Now().Add(max(reschedule.After, 0))
 	case taskErr != nil:
 		task.Attempts = lo.Ternary(task.Attempts == 0, 1, task.Attempts+1)
 		task.AddError(taskErr)

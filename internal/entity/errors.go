@@ -2,6 +2,7 @@ package entity
 
 import (
 	"errors"
+	"time"
 )
 
 var (
@@ -18,4 +19,19 @@ var (
 	ErrTaskCancel = errors.New("task canceled")
 	// ErrTaskTimeout is returned when task processing exceeds the timeout limit.
 	ErrTaskTimeout = errors.New("task processing timeout")
+	// ErrTaskReschedule is matched by every error created with RescheduleTask.
+	ErrTaskReschedule = errors.New("task rescheduled")
 )
+
+// RescheduleError carries the delay requested by RescheduleTask.
+type RescheduleError struct {
+	After time.Duration
+}
+
+// RescheduleTask returns an error that puts the task back to the queue after the given delay.
+func RescheduleTask(after time.Duration) error {
+	return &RescheduleError{After: after}
+}
+
+func (e *RescheduleError) Error() string { return ErrTaskReschedule.Error() }
+func (e *RescheduleError) Unwrap() error { return ErrTaskReschedule }

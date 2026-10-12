@@ -354,6 +354,8 @@ func (p *GoqueProcessor) processTask(ctx context.Context, task *entity.Task) err
 	switch {
 	case errors.Is(err, context.DeadlineExceeded):
 		return fmt.Errorf("%w: %s. %w", entity.ErrTaskTimeout, timeout, err)
+	case errors.Is(err, entity.ErrTaskReschedule):
+		return err
 	case err != nil:
 		xlog.Error(ctx, "failed to process task", xfield.Error(err))
 		return err
