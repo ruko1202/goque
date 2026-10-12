@@ -57,7 +57,7 @@ func (s *Storage) getTasksForProcessing(ctx context.Context, taskType entity.Tas
 				table.GoqueTask.NextAttemptAt.LT_EQ(mysql.TimestampT(xtime.Now())),
 			),
 		).
-		FOR(mysql.UPDATE()).
+		FOR(mysql.UPDATE().SKIP_LOCKED()).
 		ORDER_BY(
 			table.GoqueTask.NextAttemptAt.ASC(),
 		).

@@ -2,6 +2,7 @@ package queueprocessor
 
 import (
 	"context"
+	"errors"
 	"reflect"
 	"runtime"
 
@@ -34,6 +35,10 @@ func LoggingBeforeProcessing(ctx context.Context, task *entity.Task) {
 
 // LoggingAfterProcessing default log after processing the task.
 func LoggingAfterProcessing(ctx context.Context, task *entity.Task, err error) {
+	if errors.Is(err, entity.ErrTaskReschedule) {
+		xlog.Info(ctx, "task rescheduled", xfield.Time("nextAttemptAt", task.NextAttemptAt))
+		return
+	}
 	if err != nil {
 		xlog.Error(ctx, "failed to process task",
 			xfield.String("externalID", task.ExternalID),

@@ -47,13 +47,14 @@ project:
     attempts_left,Task failed and exhausted all retry attempts,true
     canceled,Task was manually canceled,true
 
-  state_transitions[8]{from_status,to_status,trigger}:
+  state_transitions[9]{from_status,to_status,trigger}:
     new,pending,Task scheduled for processing
     pending,processing,Worker picks up task
     pending,error,Healer marks stuck task (cure operation without changing attempts)
     processing,done,Successful processing
     processing,error,Failed processing with retries left
     processing,canceled,Manual cancellation
+    processing,new,Processor returned RescheduleTask(after) - attempts unchanged
     error,pending,Retry logic schedules next attempt
     error,attempts_left,No more retry attempts available
 
@@ -252,7 +253,7 @@ database:
 
   concurrency:
     locking_postgres: FOR UPDATE SKIP LOCKED
-    locking_mysql: FOR UPDATE
+    locking_mysql: FOR UPDATE SKIP LOCKED
     reason: Prevent duplicate task processing across multiple workers
 
   migrations:

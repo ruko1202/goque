@@ -18,4 +18,12 @@ var (
 	ErrTaskCancel = entity.ErrTaskCancel
 	// ErrTaskTimeout is returned when task processing exceeds the timeout limit.
 	ErrTaskTimeout = entity.ErrTaskTimeout
+	// ErrTaskReschedule is matched by every error created with RescheduleTask.
+	ErrTaskReschedule = entity.ErrTaskReschedule
 )
+
+// RescheduleTask returns an error that puts the task back to the queue to be processed
+// again after the given delay, without counting the run as a failed attempt: attempts
+// and task errors are left untouched. A non-positive delay means "as soon as possible".
+// The error may be wrapped.
+var RescheduleTask = entity.RescheduleTask

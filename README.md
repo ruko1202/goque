@@ -182,6 +182,11 @@ goq.RegisterProcessor(
 ```
 ```
 
+Return `goque.RescheduleTask(after)` (optionally wrapped) when the task is not finished yet,
+e.g. while polling an external status. The task goes back to `new` and runs again after `after`;
+`attempts` and `errors` stay unchanged. Rescheduling is unbounded, so the processor should
+enforce its own deadline (e.g. based on `task.CreatedAt`).
+
 ### 3. Initialize and Run the Queue Manager (Recommended)
 
 ```go
@@ -505,6 +510,7 @@ new → pending → processing → done
 | `processing` | `done` | Successful processing |
 | `processing` | `error` | Failed processing with retries left |
 | `processing` | `canceled` | Manual cancellation |
+| `processing` | `new` | Processor returned `RescheduleTask(after)`; attempts unchanged |
 | `error` | `pending` | Retry logic schedules next attempt |
 | `error` | `attempts_left` | No more retry attempts available |
 
