@@ -58,7 +58,7 @@ func (s *Storage) getTasksForProcessing(ctx context.Context, taskType entity.Tas
 				table.GoqueTask.NextAttemptAt.LT_EQ(postgres.TimestampzT(xtime.Now())),
 			),
 		).
-		FOR(postgres.UPDATE()).
+		FOR(postgres.UPDATE().SKIP_LOCKED()).
 		ORDER_BY(
 			table.GoqueTask.NextAttemptAt.ASC(),
 		).
