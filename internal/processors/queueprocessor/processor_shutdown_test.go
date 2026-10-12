@@ -16,6 +16,7 @@ import (
 
 	"github.com/ruko1202/goque/internal/entity"
 	"github.com/ruko1202/goque/internal/utils/xtime"
+	"github.com/ruko1202/goque/internal/utils/xvalue"
 )
 
 const releaseWorkersErrMsg = "failed to release workers"
@@ -39,7 +40,7 @@ func TestGoqueProcessor_StopIdle(t *testing.T) {
 	goqueProc, _ := initGoqueProcessorWithMocks(t,
 		"type[stop idle]",
 		TaskProcessorFunc(func(_ context.Context, _ *entity.Task) error { return nil }),
-		WithTaskFetcherTick(time.Hour),
+		WithTaskFetcherTick(xvalue.NewStaticValue(time.Hour)),
 	)
 
 	require.NoError(t, goqueProc.Run(ctx))
@@ -81,9 +82,9 @@ func TestGoqueProcessor_StopReleaseTimeout(t *testing.T) {
 			<-release
 			return nil
 		}),
-		WithTaskFetcherTick(50*time.Millisecond),
-		WithTaskProcessingTimeout(10*time.Millisecond),
-		WithWorkersCount(1),
+		WithTaskFetcherTick(xvalue.NewStaticValue(50*time.Millisecond)),
+		WithTaskProcessingTimeout(xvalue.NewStaticValue(10*time.Millisecond)),
+		WithWorkersCount(xvalue.NewStaticValue(1)),
 	)
 	defaultFetcherMock(mocks, task.Type, []*entity.Task{task})
 	mocks.taskStorage.EXPECT().

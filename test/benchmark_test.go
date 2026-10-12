@@ -171,9 +171,9 @@ func benchmarkWorkerPool(b *testing.B, storage storages.AdvancedTaskStorage, wor
 	goq.RegisterProcessor(
 		taskType,
 		processor,
-		goque.WithWorkersCount(workerCount),
-		goque.WithTaskFetcherTick(10*time.Millisecond),
-		goque.WithTaskFetcherMaxTasks(100),
+		goque.WithWorkersCount(goque.NewStaticValue(workerCount)),
+		goque.WithTaskFetcherTick(goque.NewStaticValue(10*time.Millisecond)),
+		goque.WithTaskFetcherMaxTasks(goque.NewStaticValue[int64](100)),
 	)
 
 	err := goq.Run(ctx)
@@ -219,9 +219,9 @@ func benchmarkTaskProcessingSimple(b *testing.B, storage storages.AdvancedTaskSt
 	goq.RegisterProcessor(
 		taskType,
 		goque.NoopTaskProcessor(),
-		goque.WithWorkersCount(10),
-		goque.WithTaskFetcherTick(10*time.Millisecond),
-		goque.WithTaskFetcherMaxTasks(100),
+		goque.WithWorkersCount(goque.NewStaticValue(10)),
+		goque.WithTaskFetcherTick(goque.NewStaticValue(10*time.Millisecond)),
+		goque.WithTaskFetcherMaxTasks(goque.NewStaticValue[int64](100)),
 	)
 
 	err := goq.Run(ctx)

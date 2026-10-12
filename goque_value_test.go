@@ -21,4 +21,8 @@ func TestValueReExports(t *testing.T) {
 
 	dynamic := goque.NewDynamicValue(ctx, 1, func(context.Context) (int, error) { return 20, nil }, time.Minute)
 	assert.Equal(t, 20, dynamic.Get())
+
+	// The re-exported values plug straight into processor options.
+	_ = goque.WithWorkersCount(dynamic)
+	_ = goque.WithTaskFetcherMaxTasks(static)
 }

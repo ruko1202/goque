@@ -44,7 +44,7 @@ func testGoque(t *testing.T, storage storages.AdvancedTaskStorage) {
 		goq.RegisterProcessor(
 			task.Type,
 			goque.NoopTaskProcessor(),
-			goque.WithTaskFetcherTick(10*time.Millisecond),
+			goque.WithTaskFetcherTick(goque.NewStaticValue(10*time.Millisecond)),
 		)
 		err := goq.Run(ctx)
 		require.NoError(t, err)
@@ -77,7 +77,7 @@ func testGoque(t *testing.T, storage storages.AdvancedTaskStorage) {
 				require.Equal(t, goque.Metadata{"testname": t.Name()}, goque.Values(ctx))
 				return nil
 			}),
-			goque.WithTaskFetcherTick(10*time.Millisecond),
+			goque.WithTaskFetcherTick(goque.NewStaticValue(10*time.Millisecond)),
 		)
 		err := goq.Run(ctx)
 		require.NoError(t, err)
@@ -130,9 +130,9 @@ func testGoque(t *testing.T, storage storages.AdvancedTaskStorage) {
 					return nil
 				}
 			}),
-			goque.WithWorkersCount(1),
-			goque.WithTaskFetcherTick(10*time.Millisecond),
-			goque.WithTaskFetcherMaxTasks(100),
+			goque.WithWorkersCount(goque.NewStaticValue(1)),
+			goque.WithTaskFetcherTick(goque.NewStaticValue(10*time.Millisecond)),
+			goque.WithTaskFetcherMaxTasks(goque.NewStaticValue[int64](100)),
 		)
 		err := goq.Run(ctx)
 		require.NoError(t, err)
