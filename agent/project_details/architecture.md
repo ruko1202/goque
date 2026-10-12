@@ -174,7 +174,7 @@ and are re-read on every cycle; invalid (`<= 0`) values fall back to the last va
   - Row-level locking with FOR UPDATE SKIP LOCKED
 - **MySQL** (`internal/storages/mysql/task/`) - Alternative implementation
   - Uses go-jet for type-safe queries
-  - Row-level locking with FOR UPDATE
+  - Row-level locking with FOR UPDATE SKIP LOCKED
 - **SQLite** (`internal/storages/sqlite/task/`) - Embedded database implementation
   - Uses go-jet for type-safe queries
   - Transaction-based locking
@@ -237,6 +237,7 @@ GoqueProcessor.Run()
   │   │   │   │
   │   │   │   └─> Update task status:
   │   │   │       ├─> Success: status='done'
+  │   │   │       ├─> RescheduleTask(after): status='new', next_attempt_at=now+after
   │   │   │       └─> Error:
   │   │   │           ├─> Has retries: status='error', next_attempt_at=...
   │   │   │           └─> No retries: status='attempts_left'

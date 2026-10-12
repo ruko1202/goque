@@ -20,7 +20,7 @@ Goque supports multiple database backends:
 
 - **MySQL 8.0+** (Alternative)
   - ACID guarantees
-  - Row-level locking (FOR UPDATE)
+  - Row-level locking (FOR UPDATE SKIP LOCKED)
   - JSON column type for task payloads
   - Standard indexing
   - Good for MySQL-based infrastructure
