@@ -21,21 +21,22 @@ import (
 	"github.com/ruko1202/goque/internal/entity"
 	"github.com/ruko1202/goque/internal/processors/internalprocessors"
 	"github.com/ruko1202/goque/internal/storages"
+	"github.com/ruko1202/goque/internal/utils/xvalue"
 )
 
 type (
 	taskFetcher struct {
 		taskType entity.TaskType
-		maxTasks int64
-		tick     time.Duration
-		timeout  time.Duration
+		maxTasks *xvalue.Positive[int64]
+		tick     *xvalue.Positive[time.Duration]
+		timeout  *xvalue.Positive[time.Duration]
 	}
 	taskProcessor struct {
 		taskProcessor         TaskProcessor
-		workers               int
+		workers               *xvalue.Positive[int]
 		workerPanicHandler    func(context.Context) func(any)
-		timeout               time.Duration
-		maxAttempts           int32
+		timeout               *xvalue.Positive[time.Duration]
+		maxAttempts           *xvalue.Positive[int32]
 		nextAttemptAtFunc     NextAttemptAtFunc
 		hooksBeforeProcessing []HookBeforeProcessing
 		hooksAfterProcessing  []HookAfterProcessing
@@ -73,16 +74,16 @@ func NewGoqueProcessor(
 
 	p.fetcher = &taskFetcher{
 		taskType: taskType,
-		maxTasks: defaultFetchMaxTasks,
-		tick:     defaultFetchTick,
-		timeout:  defaultFetchTimeout,
+		maxTasks: newFetchMaxTasks(xvalue.NewStaticValue(defaultFetchMaxTasks)),
+		tick:     newFetchTick(xvalue.NewStaticValue(defaultFetchTick)),
+		timeout:  newFetchTimeout(xvalue.NewStaticValue(defaultFetchTimeout)),
 	}
 	p.processor = &taskProcessor{
 		taskProcessor:      processor,
-		workers:            defaultProcessorWorkers,
+		workers:            newProcessorWorkers(xvalue.NewStaticValue(defaultProcessorWorkers)),
 		workerPanicHandler: p.workersPanicHandler,
-		timeout:            defaultProcessorTimeout,
-		maxAttempts:        defaultProcessorMaxAttempts,
+		timeout:            newProcessorTimeout(xvalue.NewStaticValue(defaultProcessorTimeout)),
+		maxAttempts:        newProcessorMaxAttempts(xvalue.NewStaticValue[int32](defaultProcessorMaxAttempts)),
 		nextAttemptAtFunc:  StaticNextAttemptAtFunc(defaultProcessorStaticNextAttemptPeriod),
 		hooksBeforeProcessing: []HookBeforeProcessing{
 			p.updateTaskStateBeforeProcessing,
@@ -124,9 +125,10 @@ func (p *GoqueProcessor) Run(ctx context.Context) error {
 
 	ctx, p.gracefulCtxCancel = context.WithCancel(ctx)
 
-	metrics.SetTasksWorkersTotal(p.fetcher.taskType, p.processor.workers)
+	workers := p.workersCount(ctx)
+	metrics.SetTasksWorkersTotal(p.fetcher.taskType, workers)
 
-	workerPool, err := ants.NewPool(p.processor.workers,
+	workerPool, err := ants.NewPool(workers,
 		ants.WithPanicHandler(p.processor.workerPanicHandler(ctx)),
 	)
 
@@ -154,7 +156,8 @@ func (p *GoqueProcessor) Stop() {
 func (p *GoqueProcessor) runWithWorkerPool(ctx context.Context, workerPool *ants.Pool) {
 	defer close(p.gracefulStoppedCh)
 
-	ticker := time.NewTicker(p.fetcher.tick)
+	tick := p.fetcher.tick.Load(ctx)
+	ticker := time.NewTicker(tick)
 	defer ticker.Stop()
 
 	for {
@@ -165,12 +168,66 @@ func (p *GoqueProcessor) runWithWorkerPool(ctx context.Context, workerPool *ants
 			p.releaseWorkerPool(ctx, workerPool)
 			return
 		case <-ticker.C:
+			tick = p.resetFetchTicker(ctx, ticker, tick)
+			p.resizeWorkerPool(ctx, workerPool)
+
 			err := p.fetchAndProcess(ctx, workerPool)
 			if err != nil {
 				xlog.Error(ctx, "failed to fetch and process tasks", xfield.Error(err))
 			}
 		}
 	}
+}
+
+// resetFetchTicker applies a changed fetch tick to the ticker and returns the
+// tick in effect. It runs after a tick fires, so the old tick is waited out.
+func (p *GoqueProcessor) resetFetchTicker(ctx context.Context, ticker *time.Ticker, current time.Duration) time.Duration {
+	tick := p.fetcher.tick.Load(ctx)
+	if tick == current {
+		return current
+	}
+
+	ticker.Reset(tick)
+	xlog.Info(ctx, "fetch tick changed",
+		xfield.Duration("old", current),
+		xfield.Duration("new", tick),
+	)
+
+	return tick
+}
+
+// workersCount returns the configured workers count capped at maxProcessorWorkers.
+func (p *GoqueProcessor) workersCount(ctx context.Context) int {
+	workers := p.processor.workers.Load(ctx)
+	if workers > maxProcessorWorkers {
+		xlog.Warn(ctx, "workers count above the limit, capped",
+			xfield.Int("value", workers),
+			xfield.Int("applied", maxProcessorWorkers),
+		)
+		return maxProcessorWorkers
+	}
+
+	return workers
+}
+
+// resizeWorkerPool applies a changed workers count to the running pool.
+// In-flight tasks are not interrupted: on shrink, ants retires excess workers
+// once they finish their current task, so Running may exceed Cap for a while,
+// and idle workers can still be reused until then. While the pool is full the
+// fetch loop is blocked in Submit, so growth applies once a running task finishes.
+func (p *GoqueProcessor) resizeWorkerPool(ctx context.Context, workerPool *ants.Pool) {
+	workers := p.workersCount(ctx)
+	current := workerPool.Cap()
+	if workers == current {
+		return
+	}
+
+	workerPool.Tune(workers)
+	metrics.SetTasksWorkersTotal(p.fetcher.taskType, workers)
+	xlog.Info(ctx, "workers count changed",
+		xfield.Int("old", current),
+		xfield.Int("new", workers),
+	)
 }
 
 // releaseWorkerPool closes the pool and waits for its workers to exit.
@@ -182,7 +239,7 @@ func (p *GoqueProcessor) runWithWorkerPool(ctx context.Context, workerPool *ants
 // deadline and is reported as an error.
 func (p *GoqueProcessor) releaseWorkerPool(ctx context.Context, workerPool *ants.Pool) {
 	waitJobs := workerPool.Running() + workerPool.Waiting()
-	timeout := max(time.Duration(waitJobs)*p.processor.timeout, minWorkerPoolReleaseTimeout)
+	timeout := max(time.Duration(waitJobs)*p.processor.timeout.Load(ctx), minWorkerPoolReleaseTimeout)
 	xlog.Info(ctx, "wait jobs before release worker pool",
 		xfield.Int("workers count", waitJobs),
 		xfield.Duration("timeout", timeout),
@@ -199,6 +256,9 @@ func (p *GoqueProcessor) releaseWorkerPool(ctx context.Context, workerPool *ants
 
 func (p *GoqueProcessor) fetchAndProcess(ctx context.Context, workerPool *ants.Pool) error {
 	for _, task := range p.fetchTasks(ctx) {
+		// Submit blocks while the pool is full, so a changed workers count is
+		// also applied here, not only once per tick.
+		p.resizeWorkerPool(ctx, workerPool)
 		err := workerPool.Submit(func() {
 			ctx := goquectx.WithValues(ctx, task.Metadata)
 			ctx, span := xlog.WithOperationSpan(ctx, "queue_processor.fetchAndProcess",
@@ -227,15 +287,17 @@ func (p *GoqueProcessor) fetchAndProcess(ctx context.Context, workerPool *ants.P
 }
 
 func (p *GoqueProcessor) fetchTasks(ctx context.Context) []*entity.Task {
+	timeout := p.fetcher.timeout.Load(ctx)
+	maxTasks := p.fetcher.maxTasks.Load(ctx)
 	ctx, span := xlog.WithOperationSpan(ctx, "queue_processor.fetchTasks",
-		xfield.Duration("timeout", p.fetcher.timeout),
+		xfield.Duration("timeout", timeout),
 	)
 	defer span.End()
 
-	ctx, cancel := context.WithTimeout(ctx, p.fetcher.timeout)
+	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
-	tasks, err := p.taskStorage.GetTasksForProcessing(ctx, p.fetcher.taskType, p.fetcher.maxTasks)
+	tasks, err := p.taskStorage.GetTasksForProcessing(ctx, p.fetcher.taskType, maxTasks)
 	if err != nil {
 		metrics.SetOperationsTotal(p.fetcher.taskType, entity.OperationFetch, 0)
 		xlog.Error(ctx, "failed to fetch tasks", xfield.Error(err))
@@ -276,12 +338,13 @@ func (p *GoqueProcessor) doProcessTask(ctx context.Context, task *entity.Task) {
 }
 
 func (p *GoqueProcessor) processTask(ctx context.Context, task *entity.Task) error {
+	timeout := p.processor.timeout.Load(ctx)
 	ctx, span := xlog.WithOperationSpan(ctx, "queue_processor.processTask",
-		xfield.Duration("timeout", p.processor.timeout),
+		xfield.Duration("timeout", timeout),
 	)
 	defer span.End()
 
-	ctx, cancel := context.WithTimeout(ctx, p.processor.timeout)
+	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
 	promTimer := prometheus.NewTimer(metrics.TaskProcessingDurationSecondsObserver(task.Type, entity.OperationProcessing))
@@ -290,7 +353,7 @@ func (p *GoqueProcessor) processTask(ctx context.Context, task *entity.Task) err
 	err := p.processor.taskProcessor.ProcessTask(ctx, task)
 	switch {
 	case errors.Is(err, context.DeadlineExceeded):
-		return fmt.Errorf("%w: %s. %w", entity.ErrTaskTimeout, p.processor.timeout, err)
+		return fmt.Errorf("%w: %s. %w", entity.ErrTaskTimeout, timeout, err)
 	case err != nil:
 		xlog.Error(ctx, "failed to process task", xfield.Error(err))
 		return err

@@ -121,33 +121,33 @@ func initGoque(
 			processors.NewEmailProcessor(),
 			goque.WithCancelTaskWhenPayloadDecodeError[models.EmailPayload](),
 		),
-		goque.WithWorkersCount(cfg.Queue.Workers),
-		goque.WithTaskProcessingMaxAttempts(cfg.Queue.MaxAttempts),
-		goque.WithTaskProcessingTimeout(cfg.Queue.TaskTimeout),
+		goque.WithWorkersCount(goque.NewStaticValue(cfg.Queue.Workers)),
+		goque.WithTaskProcessingMaxAttempts(goque.NewStaticValue[int32](cfg.Queue.MaxAttempts)),
+		goque.WithTaskProcessingTimeout(goque.NewStaticValue(cfg.Queue.TaskTimeout)),
 	)
 
 	goqueInst.RegisterProcessor(
 		models.TaskTypeNotification,
 		processors.NewNotificationProcessor(),
-		goque.WithWorkersCount(cfg.Queue.Workers),
-		goque.WithTaskProcessingMaxAttempts(cfg.Queue.MaxAttempts),
-		goque.WithTaskProcessingTimeout(cfg.Queue.TaskTimeout),
+		goque.WithWorkersCount(goque.NewStaticValue(cfg.Queue.Workers)),
+		goque.WithTaskProcessingMaxAttempts(goque.NewStaticValue[int32](cfg.Queue.MaxAttempts)),
+		goque.WithTaskProcessingTimeout(goque.NewStaticValue(cfg.Queue.TaskTimeout)),
 	)
 
 	goqueInst.RegisterProcessor(
 		models.TaskTypeReport,
 		processors.NewReportProcessor(),
-		goque.WithWorkersCount(cfg.Queue.Workers),
-		goque.WithTaskProcessingMaxAttempts(cfg.Queue.MaxAttempts),
-		goque.WithTaskProcessingTimeout(cfg.Queue.TaskTimeout),
+		goque.WithWorkersCount(goque.NewStaticValue(cfg.Queue.Workers)),
+		goque.WithTaskProcessingMaxAttempts(goque.NewStaticValue[int32](cfg.Queue.MaxAttempts)),
+		goque.WithTaskProcessingTimeout(goque.NewStaticValue(cfg.Queue.TaskTimeout)),
 	)
 
 	goqueInst.RegisterProcessor(
 		models.TaskTypeWebhook,
 		processors.NewWebhookProcessor(),
-		goque.WithWorkersCount(cfg.Queue.Workers),
-		goque.WithTaskProcessingMaxAttempts(cfg.Queue.MaxAttempts),
-		goque.WithTaskProcessingTimeout(cfg.Queue.TaskTimeout),
+		goque.WithWorkersCount(goque.NewStaticValue(cfg.Queue.Workers)),
+		goque.WithTaskProcessingMaxAttempts(goque.NewStaticValue[int32](cfg.Queue.MaxAttempts)),
+		goque.WithTaskProcessingTimeout(goque.NewStaticValue(cfg.Queue.TaskTimeout)),
 	)
 
 	// Processor for the transactional-outbox example endpoint
@@ -159,9 +159,9 @@ func initGoque(
 			processors.NewOrderConfirmationProcessor(),
 			goque.WithCancelTaskWhenPayloadDecodeError[models.OrderConfirmationPayload](),
 		),
-		goque.WithWorkersCount(cfg.Queue.Workers),
-		goque.WithTaskProcessingMaxAttempts(cfg.Queue.MaxAttempts),
-		goque.WithTaskProcessingTimeout(cfg.Queue.TaskTimeout),
+		goque.WithWorkersCount(goque.NewStaticValue(cfg.Queue.Workers)),
+		goque.WithTaskProcessingMaxAttempts(goque.NewStaticValue[int32](cfg.Queue.MaxAttempts)),
+		goque.WithTaskProcessingTimeout(goque.NewStaticValue(cfg.Queue.TaskTimeout)),
 	)
 
 	if cfg.TaskGenerator.Enabled {
@@ -173,9 +173,9 @@ func initGoque(
 				models.TaskTypeReport,
 				models.TaskTypeWebhook,
 			}),
-			goque.WithWorkersCount(10),
-			goque.WithTaskProcessingMaxAttempts(cfg.Queue.MaxAttempts),
-			goque.WithTaskProcessingTimeout(cfg.Queue.TaskTimeout),
+			goque.WithWorkersCount(goque.NewStaticValue(10)),
+			goque.WithTaskProcessingMaxAttempts(goque.NewStaticValue[int32](cfg.Queue.MaxAttempts)),
+			goque.WithTaskProcessingTimeout(goque.NewStaticValue(cfg.Queue.TaskTimeout)),
 		)
 
 		cronParser := cron.NewParser(

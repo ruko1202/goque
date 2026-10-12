@@ -3,43 +3,52 @@ package queueprocessor
 import (
 	"context"
 	"time"
+
+	"github.com/ruko1202/goque/internal/utils/xvalue"
 )
 
 // GoqueProcessorOpts is a function type for configuring GoqueProcessor options.
 type GoqueProcessorOpts func(*GoqueProcessor)
 
 // WithTaskFetcherMaxTasks sets the maximum number of tasks to fetch in each cycle.
-func WithTaskFetcherMaxTasks(maxTasks int64) GoqueProcessorOpts {
+// The value is re-read on every fetch.
+func WithTaskFetcherMaxTasks(maxTasks xvalue.Value[int64]) GoqueProcessorOpts {
 	return func(p *GoqueProcessor) {
-		p.fetcher.maxTasks = maxTasks
+		p.fetcher.maxTasks = newFetchMaxTasks(maxTasks)
 	}
 }
 
 // WithTaskFetcherTick sets the interval between task fetching cycles.
-func WithTaskFetcherTick(tick time.Duration) GoqueProcessorOpts {
+// A changed value takes effect after the current tick fires.
+func WithTaskFetcherTick(tick xvalue.Value[time.Duration]) GoqueProcessorOpts {
 	return func(p *GoqueProcessor) {
-		p.fetcher.tick = tick
+		p.fetcher.tick = newFetchTick(tick)
 	}
 }
 
 // WithTaskFetcherTimeout sets the timeout for task fetching operations.
-func WithTaskFetcherTimeout(timeout time.Duration) GoqueProcessorOpts {
+// The value is re-read on every fetch.
+func WithTaskFetcherTimeout(timeout xvalue.Value[time.Duration]) GoqueProcessorOpts {
 	return func(p *GoqueProcessor) {
-		p.fetcher.timeout = timeout
+		p.fetcher.timeout = newFetchTimeout(timeout)
 	}
 }
 
 // WithTaskProcessingTimeout sets the maximum execution time for a single task.
-func WithTaskProcessingTimeout(timeout time.Duration) GoqueProcessorOpts {
+// The value is re-read for every task.
+func WithTaskProcessingTimeout(timeout xvalue.Value[time.Duration]) GoqueProcessorOpts {
 	return func(p *GoqueProcessor) {
-		p.processor.timeout = timeout
+		p.processor.timeout = newProcessorTimeout(timeout)
 	}
 }
 
 // WithWorkersCount sets the number of concurrent workers for processing tasks.
-func WithWorkersCount(count int) GoqueProcessorOpts {
+// A changed value resizes the running pool on the next tick or before the next
+// task submit; in-flight tasks are not interrupted. While the pool is full,
+// growth applies once a running task finishes. Values above 10000 are capped.
+func WithWorkersCount(count xvalue.Value[int]) GoqueProcessorOpts {
 	return func(p *GoqueProcessor) {
-		p.processor.workers = count
+		p.processor.workers = newProcessorWorkers(count)
 	}
 }
 
@@ -51,12 +60,10 @@ func WithWorkersPanicHandler(handler func(ctx context.Context) func(any)) GoqueP
 }
 
 // WithTaskProcessingMaxAttempts sets the maximum number of retry attempts for failed tasks.
-func WithTaskProcessingMaxAttempts(maxAttempts int32) GoqueProcessorOpts {
-	if maxAttempts <= 0 {
-		maxAttempts = 1
-	}
+// The value is re-read for every failed task.
+func WithTaskProcessingMaxAttempts(maxAttempts xvalue.Value[int32]) GoqueProcessorOpts {
 	return func(p *GoqueProcessor) {
-		p.processor.maxAttempts = maxAttempts
+		p.processor.maxAttempts = newProcessorMaxAttempts(maxAttempts)
 	}
 }
 
@@ -82,42 +89,48 @@ func WithHooksAfterProcessing(hooks ...HookAfterProcessing) GoqueProcessorOpts {
 }
 
 // WithCleanerUpdatedAtTimeAgo sets the time threshold for considering tasks as old enough to be cleaned.
-func WithCleanerUpdatedAtTimeAgo(updatedAtTimeAgo time.Duration) GoqueProcessorOpts {
+// The value is re-read on every cleaner run.
+func WithCleanerUpdatedAtTimeAgo(updatedAtTimeAgo xvalue.Value[time.Duration]) GoqueProcessorOpts {
 	return func(q *GoqueProcessor) {
 		q.queueCleaner.SetUpdatedAtTimeAgo(updatedAtTimeAgo)
 	}
 }
 
 // WithCleanerTimeout sets the timeout duration for cleaner operations.
-func WithCleanerTimeout(timeout time.Duration) GoqueProcessorOpts {
+// The value is re-read on every cleaner run.
+func WithCleanerTimeout(timeout xvalue.Value[time.Duration]) GoqueProcessorOpts {
 	return func(q *GoqueProcessor) {
 		q.queueCleaner.SetProcessTimeout(timeout)
 	}
 }
 
 // WithCleanerPeriod sets the interval at which the cleaner processor runs.
-func WithCleanerPeriod(period time.Duration) GoqueProcessorOpts {
+// A changed value takes effect after the current period elapses.
+func WithCleanerPeriod(period xvalue.Value[time.Duration]) GoqueProcessorOpts {
 	return func(q *GoqueProcessor) {
 		q.queueCleaner.SetProcessPeriod(period)
 	}
 }
 
 // WithHealerUpdatedAtTimeAgo sets the time threshold for considering a task as stuck.
-func WithHealerUpdatedAtTimeAgo(updatedAtTimeAgo time.Duration) GoqueProcessorOpts {
+// The value is re-read on every healer run.
+func WithHealerUpdatedAtTimeAgo(updatedAtTimeAgo xvalue.Value[time.Duration]) GoqueProcessorOpts {
 	return func(q *GoqueProcessor) {
 		q.queueHealer.SetUpdatedAtTimeAgo(updatedAtTimeAgo)
 	}
 }
 
 // WithHealerTimeout sets the timeout duration for healer operations.
-func WithHealerTimeout(timeout time.Duration) GoqueProcessorOpts {
+// The value is re-read on every healer run.
+func WithHealerTimeout(timeout xvalue.Value[time.Duration]) GoqueProcessorOpts {
 	return func(q *GoqueProcessor) {
 		q.queueHealer.SetProcessTimeout(timeout)
 	}
 }
 
 // WithHealerPeriod sets the interval at which the healer processor runs.
-func WithHealerPeriod(period time.Duration) GoqueProcessorOpts {
+// A changed value takes effect after the current period elapses.
+func WithHealerPeriod(period xvalue.Value[time.Duration]) GoqueProcessorOpts {
 	return func(q *GoqueProcessor) {
 		q.queueHealer.SetProcessPeriod(period)
 	}
@@ -130,4 +143,31 @@ func WithDisableVerboseLogging() GoqueProcessorOpts {
 	return func(q *GoqueProcessor) {
 		q.processor.verboseLogging = false
 	}
+}
+
+// Validated option values. Each falls back to its default when the configured
+// value is missing or not positive.
+
+func newFetchMaxTasks(v xvalue.Value[int64]) *xvalue.Positive[int64] {
+	return xvalue.NewPositive("fetcher.max_tasks", v, defaultFetchMaxTasks)
+}
+
+func newFetchTick(v xvalue.Value[time.Duration]) *xvalue.Positive[time.Duration] {
+	return xvalue.NewPositive("fetcher.tick", v, defaultFetchTick)
+}
+
+func newFetchTimeout(v xvalue.Value[time.Duration]) *xvalue.Positive[time.Duration] {
+	return xvalue.NewPositive("fetcher.timeout", v, defaultFetchTimeout)
+}
+
+func newProcessorWorkers(v xvalue.Value[int]) *xvalue.Positive[int] {
+	return xvalue.NewPositive("processor.workers", v, defaultProcessorWorkers)
+}
+
+func newProcessorTimeout(v xvalue.Value[time.Duration]) *xvalue.Positive[time.Duration] {
+	return xvalue.NewPositive("processor.timeout", v, defaultProcessorTimeout)
+}
+
+func newProcessorMaxAttempts(v xvalue.Value[int32]) *xvalue.Positive[int32] {
+	return xvalue.NewPositive("processor.max_attempts", v, defaultProcessorMaxAttempts)
 }

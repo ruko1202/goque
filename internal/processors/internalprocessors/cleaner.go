@@ -8,6 +8,7 @@ import (
 	"github.com/ruko1202/xlog"
 
 	"github.com/ruko1202/goque/internal/entity"
+	"github.com/ruko1202/goque/internal/utils/xvalue"
 )
 
 const (
@@ -26,14 +27,18 @@ type QueueCleaner struct {
 	*baseProcessor
 	taskStorage CleanerTaskStorage
 
-	updatedAtTimeAgo time.Duration
+	updatedAtTimeAgo *xvalue.Positive[time.Duration]
 }
 
 // NewQueueCleaner creates a new queue cleaner with the specified storage and options.
 func NewQueueCleaner(taskStorage CleanerTaskStorage, taskType entity.TaskType) *QueueCleaner {
 	q := &QueueCleaner{
-		taskStorage:      taskStorage,
-		updatedAtTimeAgo: defaultCleanerUpdatedAtTimeAgo,
+		taskStorage: taskStorage,
+		updatedAtTimeAgo: xvalue.NewPositive(
+			entity.OperationCleanup+".updated_at_time_ago",
+			xvalue.NewStaticValue(defaultCleanerUpdatedAtTimeAgo),
+			defaultCleanerUpdatedAtTimeAgo,
+		),
 	}
 	q.baseProcessor = newBaseProcessor(
 		entity.OperationCleanup,
@@ -47,8 +52,9 @@ func NewQueueCleaner(taskStorage CleanerTaskStorage, taskType entity.TaskType) *
 }
 
 // SetUpdatedAtTimeAgo sets the time threshold for considering tasks as old enough to be cleaned.
-func (q *QueueCleaner) SetUpdatedAtTimeAgo(updatedAtTimeAgo time.Duration) {
-	q.updatedAtTimeAgo = updatedAtTimeAgo
+// The value is re-read on every run. Must be called before Run.
+func (q *QueueCleaner) SetUpdatedAtTimeAgo(updatedAtTimeAgo xvalue.Value[time.Duration]) {
+	q.updatedAtTimeAgo = xvalue.NewPositive(q.processorName+".updated_at_time_ago", updatedAtTimeAgo, defaultCleanerUpdatedAtTimeAgo)
 }
 
 // CleanTasksQueue removes old tasks with done, canceled, or attempts_left status from the queue.
@@ -60,7 +66,7 @@ func (q *QueueCleaner) CleanTasksQueue(ctx context.Context, taskType entity.Task
 		entity.TaskStatusDone,
 		entity.TaskStatusCanceled,
 		entity.TaskStatusAttemptsLeft,
-	}, q.updatedAtTimeAgo)
+	}, q.updatedAtTimeAgo.Load(ctx))
 	if err != nil {
 		return nil, fmt.Errorf("failed to clean the queue: %w", err)
 	}

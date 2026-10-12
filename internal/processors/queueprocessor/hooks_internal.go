@@ -39,7 +39,7 @@ func (p *GoqueProcessor) updateTaskState(ctx context.Context, task *entity.Task,
 		task.Attempts = lo.Ternary(task.Attempts == 0, 1, task.Attempts+1)
 		task.AddError(taskErr)
 
-		if task.Attempts >= p.processor.maxAttempts {
+		if task.Attempts >= p.processor.maxAttempts.Load(ctx) {
 			task.Status = entity.TaskStatusAttemptsLeft
 		} else {
 			task.Status = entity.TaskStatusError

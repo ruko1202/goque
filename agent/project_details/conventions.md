@@ -502,18 +502,12 @@ count = 0
 
 ### Functional Options
 ```go
-// Good
-type options struct {
-    workers     int
-    maxAttempts int32
-    timeout     time.Duration
-}
+// Good: scalar options take a Value so they can change at runtime
+type GoqueProcessorOpts func(*GoqueProcessor)
 
-type GoqueProcessorOpts func(*options)
-
-func WithWorkers(n int) GoqueProcessorOpts {
-    return func(o *options) {
-        o.workers = n
+func WithWorkersCount(count xvalue.Value[int]) GoqueProcessorOpts {
+    return func(p *GoqueProcessor) {
+        p.processor.workers = newProcessorWorkers(count) // validated, falls back to default
     }
 }
 
@@ -522,8 +516,8 @@ processor := NewGoqueProcessor(
     storage,
     "email",
     emailProcessor,
-    WithWorkers(10),
-    WithMaxAttempts(3),
+    WithWorkersCount(xvalue.NewStaticValue(10)),
+    WithTaskProcessingMaxAttempts(xvalue.NewStaticValue[int32](3)),
 )
 ```
 

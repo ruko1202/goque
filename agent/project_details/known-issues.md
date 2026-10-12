@@ -31,7 +31,7 @@ processor := NewGoqueProcessor(
     storage,
     "email",
     emailProcessor,
-    WithWorkers(5),  // Reduce from 10
+    WithWorkersCount(goque.NewStaticValue(5)),  // Reduce from 10
 )
 ```
 
@@ -57,16 +57,16 @@ processor := NewGoqueProcessor(
 goque.RegisterProcessor(
     "long_task",
     longTaskProcessor,
-    WithWorkers(2),  // Few workers for long tasks
-    WithTaskTimeout(5*time.Minute),  // Longer timeout
+    WithWorkersCount(goque.NewStaticValue(2)),  // Few workers for long tasks
+    WithTaskProcessingTimeout(goque.NewStaticValue(5*time.Minute)),  // Longer timeout
 )
 
 // Many workers for quick tasks
 goque.RegisterProcessor(
     "quick_task",
     quickTaskProcessor,
-    WithWorkers(50),  // Many workers
-    WithTaskTimeout(30*time.Second),
+    WithWorkersCount(goque.NewStaticValue(50)),  // Many workers
+    WithTaskProcessingTimeout(goque.NewStaticValue(30*time.Second)),
 )
 ```
 
@@ -164,7 +164,7 @@ processor := NewGoqueProcessor(
     storage,
     "ordered_task",
     processor,
-    WithWorkers(1),  // Single worker = strict ordering
+    WithWorkersCount(goque.NewStaticValue(1)),  // Single worker = strict ordering
 )
 
 // Or use external ordering key
@@ -404,8 +404,8 @@ processor := NewGoqueProcessor(
     storage,
     "email",
     emailProcessor,
-    WithWorkers(10),
-    WithMaxAttempts(3),
+    WithWorkersCount(goque.NewStaticValue(10)),
+    WithTaskProcessingMaxAttempts(goque.NewStaticValue[int32](3)),
 )
 ```
 

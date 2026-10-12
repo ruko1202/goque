@@ -59,9 +59,9 @@ func testHealer(t *testing.T, storage storages.AdvancedTaskStorage) {
 		goq.RegisterProcessor(
 			taskType,
 			goque.NoopTaskProcessor(),
-			goque.WithHealerPeriod(10*time.Millisecond),
-			goque.WithHealerUpdatedAtTimeAgo(time.Hour),
-			goque.WithHealerTimeout(time.Second),
+			goque.WithHealerPeriod(goque.NewStaticValue(10*time.Millisecond)),
+			goque.WithHealerUpdatedAtTimeAgo(goque.NewStaticValue(time.Hour)),
+			goque.WithHealerTimeout(goque.NewStaticValue(time.Second)),
 		)
 		err := goq.Run(ctx)
 		require.NoError(t, err)

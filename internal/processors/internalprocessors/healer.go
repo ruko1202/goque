@@ -8,6 +8,7 @@ import (
 	"github.com/ruko1202/xlog"
 
 	"github.com/ruko1202/goque/internal/entity"
+	"github.com/ruko1202/goque/internal/utils/xvalue"
 )
 
 const (
@@ -26,14 +27,18 @@ type QueueHealer struct {
 	*baseProcessor
 	taskStorage HealerTaskStorage
 
-	updatedAtTimeAgo time.Duration
+	updatedAtTimeAgo *xvalue.Positive[time.Duration]
 }
 
 // NewQueueHealer creates a new queue healer with the specified storage and options.
 func NewQueueHealer(taskStorage HealerTaskStorage, taskType entity.TaskType) *QueueHealer {
 	q := &QueueHealer{
-		taskStorage:      taskStorage,
-		updatedAtTimeAgo: defaultHealerUpdatedAtTimeAgo,
+		taskStorage: taskStorage,
+		updatedAtTimeAgo: xvalue.NewPositive(
+			entity.OperationHealth+".updated_at_time_ago",
+			xvalue.NewStaticValue(defaultHealerUpdatedAtTimeAgo),
+			defaultHealerUpdatedAtTimeAgo,
+		),
 	}
 	q.baseProcessor = newBaseProcessor(
 		entity.OperationHealth,
@@ -47,8 +52,9 @@ func NewQueueHealer(taskStorage HealerTaskStorage, taskType entity.TaskType) *Qu
 }
 
 // SetUpdatedAtTimeAgo sets the time threshold for considering a task as stuck.
-func (q *QueueHealer) SetUpdatedAtTimeAgo(updatedAtTimeAgo time.Duration) {
-	q.updatedAtTimeAgo = updatedAtTimeAgo
+// The value is re-read on every run. Must be called before Run.
+func (q *QueueHealer) SetUpdatedAtTimeAgo(updatedAtTimeAgo xvalue.Value[time.Duration]) {
+	q.updatedAtTimeAgo = xvalue.NewPositive(q.processorName+".updated_at_time_ago", updatedAtTimeAgo, defaultHealerUpdatedAtTimeAgo)
 }
 
 // CureTasks marks stuck tasks in pending status as errored based on the configured time threshold.
@@ -60,7 +66,7 @@ func (q *QueueHealer) CureTasks(ctx context.Context, taskType entity.TaskType) (
 	tasks, err := q.taskStorage.CureTasks(ctx, taskType, []entity.TaskStatus{
 		entity.TaskStatusProcessing,
 		entity.TaskStatusPending,
-	}, q.updatedAtTimeAgo, comment)
+	}, q.updatedAtTimeAgo.Load(ctx), comment)
 	if err != nil {
 		return nil, fmt.Errorf("failed to cure the queue: %w", err)
 	}

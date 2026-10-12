@@ -5,11 +5,13 @@ import (
 	"sync"
 	"sync/atomic"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/stretchr/testify/require"
 
 	"github.com/ruko1202/goque/internal/entity"
+	"github.com/ruko1202/goque/internal/utils/xvalue"
 )
 
 // TestDefaultStartupJitter_IsRandomized confirms the default jitter
@@ -46,34 +48,127 @@ func TestDefaultStartupJitter_ZeroPeriodReturnsZero(t *testing.T) {
 	require.Equal(t, time.Duration(0), defaultStartupJitter(-1*time.Second))
 }
 
-// TestBaseProcessor_NonPositivePeriodExitsCleanly defends against a
-// misconfigured processor (period <= 0) starting up: it must log and
-// exit without panicking. Before the guard, time.NewTicker(0) would
-// panic on the next line.
-func TestBaseProcessor_NonPositivePeriodExitsCleanly(t *testing.T) {
+// TestBaseProcessor_NonPositivePeriodFallsBackToDefault pins that an
+// invalid (<= 0) period never reaches time.NewTicker (which panics on it):
+// the processor keeps running on its default period instead.
+func TestBaseProcessor_NonPositivePeriodFallsBackToDefault(t *testing.T) {
 	t.Parallel()
+	synctest.Test(t, func(t *testing.T) {
+		const defaultPeriod = time.Second
 
-	bp := newBaseProcessor(
-		"misconfig-test",
-		entity.TaskType("t"),
-		1*time.Second,
-		0, // invalid
-		func(_ context.Context, _ entity.TaskType) ([]*entity.Task, error) {
-			t.Fatal("processQueueFunc must not be called on misconfigured processor")
-			return nil, nil
-		},
-	)
+		calls := atomic.Int32{}
+		bp := newBaseProcessor(
+			"misconfig-test",
+			entity.TaskType("t"),
+			time.Second,
+			defaultPeriod,
+			func(_ context.Context, _ entity.TaskType) ([]*entity.Task, error) {
+				calls.Add(1)
+				return nil, nil
+			},
+		)
+		bp.startupJitter = func(time.Duration) time.Duration { return 0 }
+		bp.SetProcessPeriod(xvalue.NewStaticValue(time.Duration(0)))
 
-	require.NotPanics(t, func() { bp.Run(t.Context()) })
+		require.NotPanics(t, func() { bp.Run(t.Context()) })
 
-	// The goroutine should close gracefulStoppedCh immediately
-	// because the misconfig-guard returns before any tick loop.
-	select {
-	case <-bp.gracefulStoppedCh:
-	case <-time.After(time.Second):
-		t.Fatal("baseProcessor did not exit on non-positive period")
-	}
+		time.Sleep(3*defaultPeriod + time.Millisecond)
+		synctest.Wait()
+		require.EqualValues(t, 3, calls.Load())
+
+		bp.Stop()
+	})
 }
+
+// TestBaseProcessor_DynamicPeriod pins that a period change is applied by
+// the run loop on the next tick, without restarting the processor.
+func TestBaseProcessor_DynamicPeriod(t *testing.T) {
+	t.Parallel()
+	synctest.Test(t, func(t *testing.T) {
+		period := newTestDuration(10 * time.Second)
+
+		calls := atomic.Int32{}
+		bp := newBaseProcessor(
+			"period-test",
+			entity.TaskType("t"),
+			time.Second,
+			time.Minute,
+			func(_ context.Context, _ entity.TaskType) ([]*entity.Task, error) {
+				calls.Add(1)
+				return nil, nil
+			},
+		)
+		bp.startupJitter = func(time.Duration) time.Duration { return 0 }
+		bp.SetProcessPeriod(period)
+		bp.Run(t.Context())
+
+		time.Sleep(10*time.Second + time.Millisecond)
+		synctest.Wait()
+		require.EqualValues(t, 1, calls.Load())
+
+		// The new period is picked up at the next fire of the old one.
+		period.Set(time.Second)
+		time.Sleep(10 * time.Second)
+		synctest.Wait()
+		require.EqualValues(t, 2, calls.Load())
+
+		time.Sleep(3 * time.Second)
+		synctest.Wait()
+		require.EqualValues(t, 5, calls.Load())
+
+		bp.Stop()
+	})
+}
+
+// TestBaseProcessor_DynamicTimeout pins that the process timeout is read on
+// every run.
+func TestBaseProcessor_DynamicTimeout(t *testing.T) {
+	t.Parallel()
+	synctest.Test(t, func(t *testing.T) {
+		timeout := newTestDuration(5 * time.Second)
+
+		deadlines := make(chan time.Duration, 10)
+		bp := newBaseProcessor(
+			"timeout-test",
+			entity.TaskType("t"),
+			time.Minute,
+			time.Second,
+			func(ctx context.Context, _ entity.TaskType) ([]*entity.Task, error) {
+				deadline, _ := ctx.Deadline()
+				deadlines <- time.Until(deadline)
+				return nil, nil
+			},
+		)
+		bp.startupJitter = func(time.Duration) time.Duration { return 0 }
+		bp.SetProcessTimeout(timeout)
+		bp.Run(t.Context())
+
+		time.Sleep(time.Second + time.Millisecond)
+		synctest.Wait()
+		require.Equal(t, 5*time.Second, <-deadlines)
+
+		timeout.Set(2 * time.Second)
+		time.Sleep(time.Second)
+		synctest.Wait()
+		require.Equal(t, 2*time.Second, <-deadlines)
+
+		bp.Stop()
+	})
+}
+
+// testDuration is a Value[time.Duration] the test changes directly.
+type testDuration struct {
+	v atomic.Int64
+}
+
+func newTestDuration(v time.Duration) *testDuration {
+	d := &testDuration{}
+	d.Set(v)
+	return d
+}
+
+func (d *testDuration) Set(v time.Duration) { d.v.Store(int64(v)) }
+func (d *testDuration) Get() time.Duration  { return time.Duration(d.v.Load()) }
 
 // TestBaseProcessor_FirstTickHonorsJitter pins the contract that the
 // jitter actually delays the first tick. We pick jitter (80ms) >>
@@ -229,4 +324,80 @@ func TestBaseProcessor_JitterSpreadsConcurrentStarts(t *testing.T) {
 	// still differentiates "jittered" from "in-lockstep".
 	require.Greater(t, spread, period/10,
 		"first-tick spread too small (%s) — jitter not effective", spread)
+}
+
+// TestBaseProcessor_PeriodChangedDuringJitter pins the startup path: the
+// jitter is computed from the period read at start, and the ticker is
+// created after the jitter with a fresh read of the period.
+func TestBaseProcessor_PeriodChangedDuringJitter(t *testing.T) {
+	t.Parallel()
+	synctest.Test(t, func(t *testing.T) {
+		period := newTestDuration(10 * time.Second)
+
+		calls := atomic.Int32{}
+		bp := newBaseProcessor(
+			"jitter-period-test",
+			entity.TaskType("t"),
+			time.Second,
+			time.Minute,
+			func(_ context.Context, _ entity.TaskType) ([]*entity.Task, error) {
+				calls.Add(1)
+				return nil, nil
+			},
+		)
+		var jitterPeriod time.Duration
+		bp.startupJitter = func(p time.Duration) time.Duration {
+			jitterPeriod = p
+			return 5 * time.Second
+		}
+		bp.SetProcessPeriod(period)
+		bp.Run(t.Context())
+
+		time.Sleep(time.Second)
+		synctest.Wait()
+		require.Equal(t, 10*time.Second, jitterPeriod)
+		period.Set(2 * time.Second)
+
+		// First run at jitter (5s) + new period (2s), not jitter + old period (15s).
+		time.Sleep(6*time.Second + time.Millisecond)
+		synctest.Wait()
+		require.EqualValues(t, 1, calls.Load())
+
+		bp.Stop()
+	})
+}
+
+// TestBaseProcessor_InvalidPeriodKeepsLastValid pins that an invalid period
+// seen at runtime keeps the last valid period, not the default one.
+func TestBaseProcessor_InvalidPeriodKeepsLastValid(t *testing.T) {
+	t.Parallel()
+	synctest.Test(t, func(t *testing.T) {
+		period := newTestDuration(2 * time.Second)
+
+		calls := atomic.Int32{}
+		bp := newBaseProcessor(
+			"invalid-period-test",
+			entity.TaskType("t"),
+			time.Second,
+			time.Minute,
+			func(_ context.Context, _ entity.TaskType) ([]*entity.Task, error) {
+				calls.Add(1)
+				return nil, nil
+			},
+		)
+		bp.startupJitter = func(time.Duration) time.Duration { return 0 }
+		bp.SetProcessPeriod(period)
+		bp.Run(t.Context())
+
+		time.Sleep(2*time.Second + time.Millisecond)
+		synctest.Wait()
+		require.EqualValues(t, 1, calls.Load())
+
+		period.Set(0)
+		time.Sleep(4 * time.Second)
+		synctest.Wait()
+		require.EqualValues(t, 3, calls.Load(), "keeps running every 2s, not the 1m default")
+
+		bp.Stop()
+	})
 }

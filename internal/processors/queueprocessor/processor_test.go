@@ -19,6 +19,7 @@ import (
 
 	"github.com/ruko1202/goque/internal/entity"
 	"github.com/ruko1202/goque/internal/utils/xtime"
+	"github.com/ruko1202/goque/internal/utils/xvalue"
 	"github.com/ruko1202/goque/test/testutils"
 )
 
@@ -50,9 +51,9 @@ func TestGoqueProcessor(t *testing.T) {
 				processedTasks.Add(1)
 				return nil
 			}),
-			WithTaskFetcherTick(100*time.Millisecond),
-			WithTaskFetcherMaxTasks(defaultFetchMaxTasks),
-			WithWorkersCount(10),
+			WithTaskFetcherTick(xvalue.NewStaticValue(100*time.Millisecond)),
+			WithTaskFetcherMaxTasks(xvalue.NewStaticValue(defaultFetchMaxTasks)),
+			WithWorkersCount(xvalue.NewStaticValue(10)),
 		)
 
 		defaultFetcherMock(mocks, task.Type, []*entity.Task{task})
@@ -115,8 +116,8 @@ func TestGoqueProcessor(t *testing.T) {
 					return nil
 				}
 			}),
-			WithTaskFetcherTick(100*time.Millisecond),
-			WithTaskProcessingTimeout(100*time.Millisecond),
+			WithTaskFetcherTick(xvalue.NewStaticValue(100*time.Millisecond)),
+			WithTaskProcessingTimeout(xvalue.NewStaticValue(100*time.Millisecond)),
 			WithTaskProcessingNextAttemptAtFunc(StaticNextAttemptAtFunc(time.Minute)),
 		)
 
@@ -172,8 +173,8 @@ func TestGoqueProcessor(t *testing.T) {
 				processedTasks.Add(1)
 				return errors.New("task processing error")
 			}),
-			WithTaskFetcherTick(100*time.Millisecond),
-			WithTaskProcessingMaxAttempts(1),
+			WithTaskFetcherTick(xvalue.NewStaticValue(100*time.Millisecond)),
+			WithTaskProcessingMaxAttempts(xvalue.NewStaticValue[int32](1)),
 		)
 
 		defaultFetcherMock(mocks, task.Type, []*entity.Task{task})
@@ -227,8 +228,8 @@ func TestGoqueProcessor(t *testing.T) {
 				processedTasks.Add(1)
 				return entity.ErrTaskCancel
 			}),
-			WithTaskFetcherTick(100*time.Millisecond),
-			WithTaskProcessingMaxAttempts(1),
+			WithTaskFetcherTick(xvalue.NewStaticValue(100*time.Millisecond)),
+			WithTaskProcessingMaxAttempts(xvalue.NewStaticValue[int32](1)),
 		)
 
 		defaultFetcherMock(mocks, task.Type, []*entity.Task{task})
@@ -282,7 +283,7 @@ func TestGoqueProcessor(t *testing.T) {
 				processedTasks.Add(1)
 				return entity.ErrTaskCancel
 			}),
-			WithTaskFetcherTick(100*time.Millisecond),
+			WithTaskFetcherTick(xvalue.NewStaticValue(100*time.Millisecond)),
 			WithTaskProcessingNextAttemptAtFunc(RoundStepNextAttemptAtFunc([]time.Duration{time.Minute})),
 			WithHooksBeforeProcessing(func(_ context.Context, task *entity.Task) {
 				processedTasks.Add(1)
@@ -351,8 +352,8 @@ func TestGoqueProcessor(t *testing.T) {
 
 				return nil
 			}),
-			WithTaskFetcherTick(100*time.Millisecond),
-			WithWorkersCount(5),
+			WithTaskFetcherTick(xvalue.NewStaticValue(100*time.Millisecond)),
+			WithWorkersCount(xvalue.NewStaticValue(5)),
 		)
 
 		defaultFetcherMock(mocks, task.Type, lo.RepeatBy(100, func(_ int) *entity.Task {
@@ -402,7 +403,7 @@ func TestGoqueProcessor(t *testing.T) {
 				processedTasks.Add(1)
 				return nil
 			}),
-			WithTaskFetcherTick(100*time.Millisecond),
+			WithTaskFetcherTick(xvalue.NewStaticValue(100*time.Millisecond)),
 			WithDisableVerboseLogging(),
 			WithHooksBeforeProcessing(func(_ context.Context, _ *entity.Task) {}),
 			WithHooksAfterProcessing(func(_ context.Context, _ *entity.Task, _ error) {}),
