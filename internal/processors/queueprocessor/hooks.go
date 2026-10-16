@@ -16,8 +16,17 @@ import (
 
 type (
 	// HookBeforeProcessing defines a hook function called before task processing begins.
+	// It runs for every fetched task, after the attempt to move it to processing,
+	// and every call is paired with an after-processing call.
 	HookBeforeProcessing func(ctx context.Context, task *entity.Task)
 	// HookAfterProcessing defines a hook function called after task processing completes.
+	// err is the processing error (entity.ErrTaskPanic if processing panicked),
+	// or entity.ErrTaskAttemptsExhausted if the task was moved to attempts_left
+	// without running. If moving the task to processing
+	// failed (for example with entity.ErrTaskVersionConflict), the task was not
+	// processed, keeps its pending status and err is that write error. If writing
+	// the result failed, err also wraps that error and the task holds the result
+	// that was not persisted.
 	HookAfterProcessing func(ctx context.Context, task *entity.Task, err error)
 )
 

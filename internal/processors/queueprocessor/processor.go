@@ -89,11 +89,9 @@ func NewGoqueProcessor(
 		maxAttempts:        newProcessorMaxAttempts(xvalue.NewStaticValue[int32](defaultProcessorMaxAttempts)),
 		nextAttemptAtFunc:  StaticNextAttemptAtFunc(defaultProcessorStaticNextAttemptPeriod),
 		hooksBeforeProcessing: []HookBeforeProcessing{
-			p.updateTaskStateBeforeProcessing,
 			p.metricsBeforeProcessing,
 		},
 		hooksAfterProcessing: []HookAfterProcessing{
-			p.updateTaskState,
 			p.metricsAfterProcessing,
 		},
 		verboseLogging: true,
@@ -271,7 +269,7 @@ func (p *GoqueProcessor) fetchAndProcess(ctx context.Context, workerPool *ants.P
 
 			select {
 			case <-ctx.Done():
-				p.returnTaskWhenGracefulShutdown(ctx, task)
+				_ = p.returnTaskWhenGracefulShutdown(ctx, task)
 				return
 			default:
 			}
@@ -332,15 +330,47 @@ func (p *GoqueProcessor) callHooksAfter(ctx context.Context, task *entity.Task, 
 	})
 }
 
+// doProcessTask persists the start, runs the task and persists the result.
+// Hooks always run in pairs and get every error, including a failed start, in
+// which case the task is not processed. A panic is recovered and fails the
+// task with ErrTaskPanic like any processing error.
 func (p *GoqueProcessor) doProcessTask(ctx context.Context, task *entity.Task) {
+	var (
+		err     error
+		started bool
+	)
+	defer func() {
+		if r := recover(); r != nil {
+			err = fmt.Errorf("%w: %v", entity.ErrTaskPanic, r)
+			xlog.Error(ctx, "task processing panicked",
+				xfield.Any("panic", r),
+				xfield.Binary("stack", debug.Stack()),
+			)
+		}
+		if started {
+			if updateErr := p.updateTaskState(ctx, task, err); updateErr != nil {
+				err = errors.Join(err, updateErr)
+			}
+		}
+		p.callHooksAfter(ctx, task, err)
+	}()
+
+	err = p.updateTaskStateBeforeProcessing(ctx, task)
+	started = err == nil
+
 	p.callHooksBefore(ctx, task)
-
-	taskErr := p.processTask(ctx, task)
-
-	p.callHooksAfter(ctx, task, taskErr)
+	if started {
+		err = p.processTask(ctx, task)
+	}
 }
 
 func (p *GoqueProcessor) processTask(ctx context.Context, task *entity.Task) error {
+	// Cures from processing count as attempts: a task that used them all up
+	// is not run again.
+	if task.Attempts >= p.processor.maxAttempts.Load(ctx) {
+		return entity.ErrTaskAttemptsExhausted
+	}
+
 	timeout := p.processor.timeout.Load(ctx)
 	ctx, span := xlog.WithOperationSpan(ctx, "queue_processor.processTask",
 		xfield.Duration("timeout", timeout),

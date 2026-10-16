@@ -25,6 +25,12 @@ var (
 	// stored version no longer matches the writer's Task.Version: another writer
 	// (healer, cancel, reset or another worker) changed the task, or the task was deleted.
 	ErrTaskVersionConflict = errors.New("task version conflict")
+	// ErrTaskAttemptsExhausted is passed to after-processing hooks when a fetched task
+	// already used all its attempts (for example, it was cured by the healer repeatedly)
+	// and is moved to attempts_left without being processed.
+	ErrTaskAttemptsExhausted = errors.New("attempts exhausted")
+	// ErrTaskPanic fails a task whose processing panicked.
+	ErrTaskPanic = errors.New("task processor panicked")
 )
 
 // RescheduleError carries the delay requested by RescheduleTask.
