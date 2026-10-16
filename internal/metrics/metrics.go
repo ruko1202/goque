@@ -16,6 +16,21 @@ const (
 	labelStatus                   = "status"
 	labelTaskType                 = "task_type"
 	labelTaskProcessingOperations = "operation"
+	labelStage                    = "stage"
+)
+
+// VersionConflictStage names the processor step whose write lost a task to
+// another writer.
+type VersionConflictStage string
+
+// Version conflict stages.
+const (
+	// VersionConflictStageStart is the pending -> processing (or attempts_left) write.
+	VersionConflictStageStart VersionConflictStage = "start"
+	// VersionConflictStageFinish is the write of the processing result.
+	VersionConflictStageFinish VersionConflictStage = "finish"
+	// VersionConflictStageReturn is the write returning a task to the queue on shutdown.
+	VersionConflictStageReturn VersionConflictStage = "return"
 )
 
 var (
@@ -103,6 +118,16 @@ var (
 		},
 		[]string{labelTaskType, labelTaskProcessingOperations},
 	)
+	taskVersionConflictsTotal = promauto.NewCounterVec(
+		prometheus.CounterOpts{
+			Namespace:   namespace,
+			Subsystem:   promSubsystem,
+			Name:        "task_version_conflicts_total",
+			Help:        "Total number of task writes dropped because another writer changed the task, by task type and stage",
+			ConstLabels: constLabels,
+		},
+		[]string{labelTaskType, labelStage},
+	)
 )
 
 // IncProcessingTasks increments the counter of processed tasks for the given task type and status.
@@ -155,4 +180,12 @@ func SetOperationsTotal(taskType entity.TaskType, operations entity.TaskProcessi
 		labelTaskType:                 taskType,
 		labelTaskProcessingOperations: operations,
 	}).Add(float64(count))
+}
+
+// IncTaskVersionConflicts increments the counter of task writes dropped on a version conflict.
+func IncTaskVersionConflicts(taskType entity.TaskType, stage VersionConflictStage) {
+	taskVersionConflictsTotal.With(prometheus.Labels{
+		labelTaskType: taskType,
+		labelStage:    string(stage),
+	}).Inc()
 }
