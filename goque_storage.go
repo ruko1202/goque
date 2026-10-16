@@ -14,6 +14,9 @@ import (
 )
 
 // TaskStorage defines the interface for task persistence operations.
+// Task writes are fenced by Task.Version: UpdateTask returns
+// ErrTaskVersionConflict when the task was changed by another writer since it
+// was read.
 type TaskStorage = storages.Task
 
 // NewStorage creates a new task storage instance based on the database driver.

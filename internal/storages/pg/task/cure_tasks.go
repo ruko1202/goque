@@ -8,7 +8,6 @@ import (
 	"github.com/go-jet/jet/v2/postgres"
 	"github.com/ruko1202/xlog"
 	"github.com/ruko1202/xlog/xfield"
-	"github.com/samber/lo"
 	semconv "go.opentelemetry.io/otel/semconv/v1.40.0"
 
 	"github.com/ruko1202/goque/internal/entity"
@@ -17,44 +16,57 @@ import (
 	"github.com/ruko1202/goque/internal/utils/xtime"
 )
 
-// CureTasks updates stuck tasks to error status for retry.
+// CureTasks moves tasks stuck in status to error and bumps their version.
+// A task cured from processing may have run, so it also consumes an attempt
+// and gets the comment appended to its errors; a task cured from pending never
+// started and keeps both.
 func (s *Storage) CureTasks(
 	ctx context.Context,
 	taskType entity.TaskType,
-	statuses []entity.TaskStatus,
+	status entity.TaskStatus,
 	updatedAtTimeAgo time.Duration,
 	comment string,
 ) ([]*entity.Task, error) {
 	ctx, span := xlog.WithOperationSpan(ctx, "storage.CureTasks",
-		xfield.Any("statuses", statuses),
+		xfield.String("status", status),
 		xfield.Duration("updated_at_time_ago", updatedAtTimeAgo),
 	)
 	span.SetAttributes(semconv.DBSystemNamePostgreSQL)
 	defer span.End()
 
+	// A task cured from pending never started: errors and attempts stay as is.
+	var errs, attempts postgres.Expression = table.GoqueTask.Errors, table.GoqueTask.Attempts
+	if status == entity.TaskStatusProcessing {
+		errs = postgres.CONCAT(
+			postgres.COALESCE(table.GoqueTask.Errors, postgres.String("")),
+			// comment by format: `attempt <task.Attempts>: <comment>\n`
+			postgres.String("attempt ").
+				CONCAT(table.GoqueTask.Attempts).
+				CONCAT(postgres.String(fmt.Sprintf(": %s\n", comment))),
+		)
+		attempts = table.GoqueTask.Attempts.ADD(postgres.Int(1))
+	}
+
 	stmt := table.GoqueTask.
 		UPDATE(
 			table.GoqueTask.Status,
 			table.GoqueTask.Errors,
+			table.GoqueTask.Attempts,
 			table.GoqueTask.UpdatedAt,
+			table.GoqueTask.Version,
 		).
 		SET(
 			postgres.String(entity.TaskStatusError),
-			postgres.CONCAT(
-				postgres.COALESCE(table.GoqueTask.Errors, postgres.String("")),
-				// commen by format: `attempt <task.Attempts>: <comment>\n`
-				postgres.String("attempt ").
-					CONCAT(table.GoqueTask.Attempts).
-					CONCAT(postgres.String(fmt.Sprintf(": %s\n", comment))),
-			),
+			errs,
+			attempts,
 			postgres.TimestampzT(xtime.Now()),
+			// Invalidates the version held by the task's current holder.
+			table.GoqueTask.Version.ADD(postgres.Int(1)),
 		).
 		WHERE(
 			postgres.AND(
 				table.GoqueTask.Type.EQ(postgres.String(taskType)),
-				table.GoqueTask.Status.IN(lo.Map(statuses, func(item entity.TaskStatus, _ int) postgres.Expression {
-					return postgres.String(item)
-				})...),
+				table.GoqueTask.Status.EQ(postgres.String(status)),
 				table.GoqueTask.UpdatedAt.LT_EQ(
 					postgres.TimestampzT(xtime.Now().Add(-updatedAtTimeAgo.Abs())),
 				),

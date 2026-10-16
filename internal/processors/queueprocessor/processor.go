@@ -69,8 +69,11 @@ func NewGoqueProcessor(
 		gracefulStoppedCh: make(chan struct{}),
 		taskStorage:       taskStorage,
 		queueCleaner:      internalprocessors.NewQueueCleaner(taskStorage, taskType),
-		queueHealer:       internalprocessors.NewQueueHealer(taskStorage, taskType),
 	}
+
+	p.queueHealer = internalprocessors.NewQueueHealer(taskStorage, taskType, func(ctx context.Context) time.Duration {
+		return p.processor.timeout.Load(ctx)
+	})
 
 	p.fetcher = &taskFetcher{
 		taskType: taskType,

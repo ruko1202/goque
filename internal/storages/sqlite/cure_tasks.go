@@ -16,20 +16,24 @@ import (
 	"github.com/ruko1202/goque/internal/pkg/generated/sqlite3/model"
 	"github.com/ruko1202/goque/internal/pkg/generated/sqlite3/table"
 	"github.com/ruko1202/goque/internal/storages/dbentity"
+	"github.com/ruko1202/goque/internal/storages/dbutils"
 	"github.com/ruko1202/goque/internal/utils/xtime"
 )
 
-// CureTasks updates stuck tasks to error status for retry.
+// CureTasks moves tasks stuck in status to error and bumps their version.
+// A task cured from processing may have run, so it also consumes an attempt
+// and gets the comment appended to its errors; a task cured from pending never
+// started and keeps both.
 func (s *Storage) CureTasks(
 	ctx context.Context,
 	taskType entity.TaskType,
-	statuses []entity.TaskStatus,
+	status entity.TaskStatus,
 	updatedAtTimeAgo time.Duration,
 	comment string,
 ) ([]*entity.Task, error) {
 	ctx, span := xlog.WithOperationSpan(ctx, "storage.CureTasks",
 		xfield.String("db.type", "sqlite"),
-		xfield.Any("statuses", statuses),
+		xfield.String("status", status),
 		xfield.Duration("updated_at_time_ago", updatedAtTimeAgo),
 	)
 	defer span.End()
@@ -39,14 +43,14 @@ func (s *Storage) CureTasks(
 		var err error
 		tasks, err = s.getTasksByFilter(ctx, &dbentity.GetTasksFilter{
 			TaskType:         lo.ToPtr(taskType),
-			Statuses:         statuses,
+			Statuses:         []entity.TaskStatus{status},
 			UpdatedAtTimeAgo: lo.ToPtr(updatedAtTimeAgo),
 		}, 1000)
 		if err != nil {
 			return err
 		}
 
-		return s.cureTask(ctx, tasks, comment)
+		return s.cureTask(ctx, tasks, comment, status == entity.TaskStatusProcessing)
 	})
 	if err != nil {
 		xlog.Error(ctx, "failed to cure tasks", xfield.Error(err))
@@ -56,7 +60,7 @@ func (s *Storage) CureTasks(
 	return fromDBModels(ctx, tasks)
 }
 
-func (s *Storage) cureTask(ctx context.Context, tasks []*model.GoqueTask, comment string) error {
+func (s *Storage) cureTask(ctx context.Context, tasks []*model.GoqueTask, comment string, consumeAttempt bool) error {
 	ctx, span := xlog.WithOperationSpan(ctx, "storage.cureTask")
 	defer span.End()
 
@@ -64,35 +68,58 @@ func (s *Storage) cureTask(ctx context.Context, tasks []*model.GoqueTask, commen
 		return nil
 	}
 
-	// SQLite uses || for concatenation and CAST(x AS TEXT) for type conversion
+	now := xtime.Now()
+	// A task cured from pending never started: errors and attempts stay as is.
+	// The comment carries the attempt number before the cure.
+	var errs, attempts sqlite.Expression = table.GoqueTask.Errors, table.GoqueTask.Attempts
+	if consumeAttempt {
+		// In SQLite: '' || COALESCE(errors, '') || 'attempt ' || <task.Attempts> || ': <comment>\n'
+		errs = sqlite.String("").
+			CONCAT(sqlite.COALESCE(table.GoqueTask.Errors, sqlite.String(""))).
+			CONCAT(sqlite.String("attempt ")).
+			CONCAT(table.GoqueTask.Attempts).
+			CONCAT(sqlite.String(fmt.Sprintf(": %s\n", comment)))
+		attempts = table.GoqueTask.Attempts.ADD(sqlite.Int(1))
+	}
+
 	updateStmt := table.GoqueTask.
 		UPDATE(
 			table.GoqueTask.Status,
 			table.GoqueTask.Errors,
+			table.GoqueTask.Attempts,
 			table.GoqueTask.UpdatedAt,
+			table.GoqueTask.Version,
 		).
 		SET(
 			sqlite.String(entity.TaskStatusError),
-			// In SQLite: '' || COALESCE(errors, '') || 'attempt ' || <task.Attempts> || ': <comment>\n'
-			sqlite.String("").
-				CONCAT(sqlite.COALESCE(table.GoqueTask.Errors, sqlite.String(""))).
-				//comment by format: `attempt <task.Attempts>: <comment>\n`
-				CONCAT(sqlite.String("attempt ")).
-				CONCAT(table.GoqueTask.Attempts).
-				CONCAT(sqlite.String(fmt.Sprintf(": %s\n", comment))),
-			sqlite.String(timeToString(xtime.Now())),
+			errs,
+			attempts,
+			sqlite.String(timeToString(now)),
+			// Invalidates the version held by the task's current holder.
+			table.GoqueTask.Version.ADD(sqlite.Int(1)),
 		).
-		WHERE(
-			table.GoqueTask.ID.IN(lo.Map(tasks, func(item *model.GoqueTask, _ int) sqlite.Expression {
-				return sqlite.String(lo.FromPtr(item.ID))
-			})...),
-		)
+		WHERE(versionPredicate(tasks))
 
 	query, args := updateStmt.Sql()
-	_, err := s.db.Executor(ctx).ExecContext(ctx, query, args...)
+	res, err := s.db.Executor(ctx).ExecContext(ctx, query, args...)
 	if err != nil {
 		return err
 	}
+	if err := dbutils.ExpectRowsAffected(res, int64(len(tasks)), "cure tasks"); err != nil {
+		return err
+	}
+
+	// Mirror the update in the returned models.
+	lo.ForEach(tasks, func(item *model.GoqueTask, _ int) {
+		if consumeAttempt {
+			errs := lo.FromPtr(item.Errors) + fmt.Sprintf("attempt %d: %s\n", item.Attempts, comment)
+			item.Errors = &errs
+			item.Attempts++
+		}
+		item.Status = entity.TaskStatusError
+		item.UpdatedAt = lo.ToPtr(timeToString(now))
+		item.Version++
+	})
 
 	return nil
 }
