@@ -21,6 +21,10 @@ var (
 	ErrTaskTimeout = errors.New("task processing timeout")
 	// ErrTaskReschedule is matched by every error created with RescheduleTask.
 	ErrTaskReschedule = errors.New("task rescheduled")
+	// ErrTaskVersionConflict is returned when a task write is rejected because the
+	// stored version no longer matches the writer's Task.Version: another writer
+	// (healer, cancel, reset or another worker) changed the task, or the task was deleted.
+	ErrTaskVersionConflict = errors.New("task version conflict")
 )
 
 // RescheduleError carries the delay requested by RescheduleTask.

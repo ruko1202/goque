@@ -20,6 +20,11 @@ var (
 	ErrTaskTimeout = entity.ErrTaskTimeout
 	// ErrTaskReschedule is matched by every error created with RescheduleTask.
 	ErrTaskReschedule = entity.ErrTaskReschedule
+	// ErrTaskVersionConflict is returned by TaskStorage.UpdateTask (and the operations
+	// built on it, such as CancelTask and ResetAttempts) when the task was changed by
+	// another writer since it was read, or was deleted. Re-read the task and decide
+	// whether to retry.
+	ErrTaskVersionConflict = entity.ErrTaskVersionConflict
 )
 
 // RescheduleTask returns an error that puts the task back to the queue to be processed

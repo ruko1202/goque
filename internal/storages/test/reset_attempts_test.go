@@ -44,6 +44,24 @@ func testResetAttempts(t *testing.T, storage storages.AdvancedTaskStorage) {
 		task.Attempts = 0
 		task.Status = entity.TaskStatusNew
 		task.Errors = dbTask.Errors
+		task.Version++
 		testutils.EqualTask(t, task, dbTask)
+	})
+
+	t.Run("holder write conflicts after reset", func(t *testing.T) {
+		t.Parallel()
+		ctx := xlog.ContextWithLogger(ctx, xlog.NewZapAdapter(zaptest.NewLogger(t)))
+
+		task := makeTaskWithStatus(ctx, t, storage, "test ResetAttempts holder", entity.TaskStatusProcessing)
+
+		require.NoError(t, storage.ResetAttempts(ctx, task.ID))
+
+		task.Status = entity.TaskStatusDone
+		err := storage.UpdateTask(ctx, task.ID, task)
+		require.ErrorIs(t, err, entity.ErrTaskVersionConflict)
+
+		dbTask, err := storage.GetTask(ctx, task.ID)
+		require.NoError(t, err)
+		require.Equal(t, entity.TaskStatusNew, dbTask.Status)
 	})
 }
