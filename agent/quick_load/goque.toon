@@ -33,7 +33,8 @@ project:
     Extensible hooks,Before/after processing hooks for custom logic
     Typed payload processors,Generic processor adapter decodes JSON payloads into Go structs
     Type-safe queries,PostgreSQL/MySQL use go-jet for type-safe SQL generation
-    Built-in healer,Automatically marks stuck tasks as errored for reprocessing
+    Built-in healer,Automatically marks stuck tasks as errored for reprocessing (a cure from processing consumes an attempt, from pending does not; threshold floored at 2*processing timeout+10s)
+    Version fencing,Task.Version fences every task write so a stale worker can never overwrite the current owner's result (at-least-once delivery)
     Prometheus metrics,Built-in metrics for task counters errors duration payload size and payload decode failures
     Dynamic configuration,Scalar processor options take Value[T] (NewStaticValue / NewDynamicValue polled cache) and are re-read every cycle; workers resize the pool via ants Tune
     Transactional outbox,goque.WithTx(ctx tx) enrolls AddTaskToQueue and most CRUD methods in a caller-provided sqlx.Tx for atomic domain+enqueue writes (worker fetch and ResetAttempts use their own internal tx)
@@ -47,10 +48,12 @@ project:
     attempts_left,Task failed and exhausted all retry attempts,true
     canceled,Task was manually canceled,true
 
-  state_transitions[9]{from_status,to_status,trigger}:
-    new,pending,Task scheduled for processing
-    pending,processing,Worker picks up task
-    pending,error,Healer marks stuck task (cure operation without changing attempts)
+  state_transitions[11]{from_status,to_status,trigger}:
+    new,pending,Task scheduled for processing (version bumped)
+    pending,processing,Worker picks up task (fenced write; on failure task is skipped)
+    processing,attempts_left,Task whose attempts are used up (processing cures count) - not run
+    pending,error,Healer cures stuck task (threshold >= 2*processing timeout+10s; attempts and errors unchanged - never started; version bumped)
+    processing,error,Healer cures stuck task (threshold >= 2*processing timeout+10s; attempts+1; version bumped)
     processing,done,Successful processing
     processing,error,Failed processing with retries left
     processing,canceled,Manual cancellation
@@ -61,7 +64,8 @@ project:
   lifecycle_notes:
     terminal_states: done canceled attempts_left
     flow_diagram: new → pending → processing → done; pending ↔ error; processing → canceled/error; error → attempts_left
-    healer_role: Fixes stuck pending tasks by marking them as error (cure operation)
+    healer_role: Cures tasks stuck in pending/processing by marking them as error; a cure from processing consumes an attempt (from pending it does not)
+    version_fencing: goque_task.version / Task.Version bumped by fetch, cure, reset and every worker write; UpdateTask applies only if stored version == Task.Version else ErrTaskVersionConflict (WARN + goque_task_version_conflicts_total{stage=start|finish|return}); delivery is at-least-once
 
 architecture:
   layers[6]{layer,component,responsibility}:

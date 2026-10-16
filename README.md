@@ -77,16 +77,6 @@ Goque installs a single table named **`goque_task`** plus three indexes
 `goque_task_type_status_updated_at_idx`). The full DDL lives in
 [migrations/](migrations/) — apply it with `make db-up`.
 
-> **Breaking change in this release**: the table was previously named `task`.
-> Existing deployments must rename in place before adopting:
->
-> ```sql
-> ALTER TABLE task RENAME TO goque_task;
-> ALTER INDEX task_type_external_id_idx          RENAME TO goque_task_type_external_id_idx;
-> ALTER INDEX task_type_status_next_attempt_at_idx RENAME TO goque_task_type_status_next_attempt_at_idx;
-> ALTER INDEX task_type_status_updated_at_idx      RENAME TO goque_task_type_status_updated_at_idx;
-> ```
-
 ## Quick Start
 
 ### 1. Prepare database
@@ -505,8 +495,9 @@ new → pending → processing → done
 | Current Status | Next Status | Trigger |
 |----------------|-------------|---------|
 | `new` | `pending` | Task scheduled for processing |
-| `pending` | `processing` | Worker picks up task |
-| `pending` | `error` | Healer marks stuck task (cure operation) |
+| `pending` | `processing` | Worker picks up a task |
+| `processing` | `attempts_left` | Its attempts were already used up (cures from `processing` count as attempts); not run |
+| `pending`, `processing` | `error` | Healer marks a stuck task (cure); a cure from `processing` consumes one attempt, a cure from `pending` does not |
 | `processing` | `done` | Successful processing |
 | `processing` | `error` | Failed processing with retries left |
 | `processing` | `canceled` | Manual cancellation |
@@ -521,11 +512,81 @@ Tasks in these states will not be processed again:
 - **canceled** - Manually canceled by user
 - **attempts_left** - Failed with no remaining retry attempts
 
+## Delivery Guarantees
+
+Goque delivers tasks **at least once**. A task can run more than once, so processors
+must be idempotent.
+
+### What the task version guarantees
+
+Every task row has a `version` (`Task.Version`). Fetching, healing, canceling and
+resetting a task bump it, and every write made by a worker is applied only if the
+stored version still matches the one the worker holds. A write made with a stale
+version is dropped with `goque.ErrTaskVersionConflict` (passed to after-hooks, logged
+and counted in `goque_task_version_conflicts_total`). So a worker that lost its task can never
+overwrite the result of whoever owns the task now. The version protects goque's own
+row only: it cannot undo side effects the stale worker already caused.
+
+### When a task can run twice
+
+- **The healer cures a task that is still running**, e.g. the processor ignores
+  `ctx` and outlives its timeout, pod clocks drift apart, or the process stalls. The
+  healer never uses a processing threshold below `2 × processing timeout + 10s` (a
+  lower configured value is raised and logged), but that is best effort; the version
+  keeps the row correct when it is not enough.
+- **`CancelTask` on a pending or processing task** wins the row but does not stop an
+  in-flight run: its side effects may still happen and its result is dropped.
+  `canceled` means "the result will not be recorded", not "did not execute".
+- **`ResetAttempts` on a pending or processing task** takes it away from the current
+  run; the task may be fetched and run again while the first run is still going.
+
+### What a processor must do
+
+- Use `task.ID` (or your own business key) as the idempotency key for external calls.
+- Make domain state changes conditional (`UPDATE payment SET status = 'captured'
+  WHERE id = $1 AND status = 'authorized'`), not blind writes.
+- Honor `ctx`: stop work when it is canceled or its deadline passes.
+
+### Attempts, hooks and the healer
+
+- A healer cure from `processing` counts as an attempt (and appends
+  `attempt N: task was stuck` to `errors`): a task that keeps overrunning ends in
+  `attempts_left` instead of running forever. A cure from `pending` does not: the task
+  never started, so its `attempts` and `errors` stay as they are. Lowering
+  `maxAttempts` at runtime also moves fetched tasks at or above the new limit to
+  `attempts_left` without another run.
+- Accepted trade-off: a task that keeps getting stuck between fetch and start (healer
+  threshold shorter than the worker backlog, pods dying right after fetch, the start
+  write failing with a database error) is cured and fetched again indefinitely, without
+  ever reaching `attempts_left`. None of these causes is the task's fault; fix the
+  configuration or the infrastructure. Each cycle is one row write per healer tick and
+  the row does not grow.
+- Hooks always run in pairs for every fetched task. If moving the task to `processing`
+  fails (for example with `goque.ErrTaskVersionConflict`), the task is not processed and
+  after-hooks get that error with the task still `pending`.
+- A panic while processing a task (in the processor or a hook) is recovered, logged and
+  fails the task like any error (it uses an attempt); after-hooks get
+  `goque.ErrTaskPanic`.
+- After-hooks may receive `goque.ErrTaskAttemptsExhausted` (task moved to
+  `attempts_left` without running). If writing the result failed, `err` also wraps
+  that error (for example `goque.ErrTaskVersionConflict`) and the task holds the result
+  that was not persisted.
+
+### Transactions
+
+If you call `UpdateTask` inside your own transaction (`WithTx`) and roll it back,
+re-read the task: its in-memory version is ahead of the database.
+
 ## Built-in Features
 
 ### Task Healer
 
-Goque includes a built-in healer processor that automatically monitors and fixes stuck tasks. Tasks that remain in the "pending" status for too long are automatically marked as errored, allowing them to be retried. The healer is automatically registered when you call `goque.NewGoque()`.
+Goque includes a built-in healer processor that automatically monitors and fixes stuck tasks. Tasks that remain in the "pending" or "processing" status for too long are automatically marked as errored, allowing them to be retried; a cure from `processing` consumes one attempt, a cure from `pending` does not. The healer is automatically registered when you call `goque.NewGoque()`.
+
+Tasks are cured after `WithHealerUpdatedAtTimeAgo`, but never earlier than
+`2 × processing timeout + 10s`: a smaller configured value would cure processing tasks a
+live worker still holds, so it is raised and a WARN is logged on every healer run until
+the configuration is fixed. See [Delivery Guarantees](#delivery-guarantees).
 
 You can configure the healer behavior:
 
@@ -560,6 +621,7 @@ Goque includes built-in Prometheus metrics for comprehensive monitoring of your 
 | `goque_task_processing_duration_seconds` | Histogram | `task_type` | Task processing duration distribution in seconds |
 | `goque_task_payload_size_bytes` | Histogram | `task_type` | Task payload size distribution in bytes |
 | `goque_payload_decode_errors_total` | Counter | `task_type` | Typed task payload JSON decode errors by task type |
+| `goque_task_version_conflicts_total` | Counter | `task_type`, `stage` | Task writes dropped because another writer changed the task (`stage`: `start`, `finish`, `return`). Expected ≈ 0; `finish` > 0 means a result was dropped |
 
 ##### Configuration
 

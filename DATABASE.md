@@ -146,6 +146,9 @@ migrations/
 
 Each directory contains version-controlled SQL migrations managed by goose.
 
+`20261016120000_task_version.sql` adds `goque_task.version` (`BIGINT NOT NULL DEFAULT 0`,
+`INTEGER` on SQLite), the fencing token of every task write.
+
 ## Available Commands
 
 All commands work with the database configured in `DB_DRIVER`:
