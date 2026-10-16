@@ -43,6 +43,22 @@ func testAdd(t *testing.T, storage storages.AdvancedTaskStorage) {
 		require.Equal(t, goque.Metadata{"testname": t.Name()}, dbTask.Metadata)
 	})
 
+	t.Run("caller version is ignored", func(t *testing.T) {
+		t.Parallel()
+		ctx := xlog.ContextWithLogger(ctx, xlog.NewZapAdapter(zaptest.NewLogger(t)))
+
+		task := entity.NewTask("test", testutils.ToJSON(t, testutils.TestPayload{Data: "test"}))
+		task.Version = 42
+
+		err := storage.AddTask(ctx, task)
+		require.NoError(t, err)
+		require.Zero(t, task.Version)
+
+		dbTask, err := storage.GetTask(ctx, task.ID)
+		require.NoError(t, err)
+		require.Zero(t, dbTask.Version)
+	})
+
 	t.Run("failed payload", func(t *testing.T) {
 		t.Parallel()
 		ctx := xlog.ContextWithLogger(ctx, xlog.NewZapAdapter(zaptest.NewLogger(t)))

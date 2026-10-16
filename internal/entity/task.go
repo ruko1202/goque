@@ -51,6 +51,11 @@ type Task struct {
 	CreatedAt     time.Time
 	UpdatedAt     *time.Time
 	NextAttemptAt time.Time
+	// Version is the fencing token of the task row. Every ownership change
+	// (fetch, cure, reset) and every worker write increments it, and writes
+	// are applied only if the stored version still matches. A write made with
+	// a stale version fails with ErrTaskVersionConflict.
+	Version int64
 }
 
 // NewTask creates a new task with the specified type and payload.

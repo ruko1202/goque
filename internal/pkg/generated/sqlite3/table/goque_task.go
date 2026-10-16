@@ -28,6 +28,7 @@ type goqueTaskTable struct {
 	CreatedAt     sqlite.ColumnString
 	UpdatedAt     sqlite.ColumnString
 	NextAttemptAt sqlite.ColumnString
+	Version       sqlite.ColumnInteger
 
 	AllColumns     sqlite.ColumnList
 	MutableColumns sqlite.ColumnList
@@ -80,9 +81,10 @@ func newGoqueTaskTableImpl(schemaName, tableName, alias string) goqueTaskTable {
 		CreatedAtColumn     = sqlite.StringColumn("created_at")
 		UpdatedAtColumn     = sqlite.StringColumn("updated_at")
 		NextAttemptAtColumn = sqlite.StringColumn("next_attempt_at")
-		allColumns          = sqlite.ColumnList{IDColumn, TypeColumn, ExternalIDColumn, PayloadColumn, StatusColumn, AttemptsColumn, ErrorsColumn, MetadataColumn, CreatedAtColumn, UpdatedAtColumn, NextAttemptAtColumn}
-		mutableColumns      = sqlite.ColumnList{TypeColumn, ExternalIDColumn, PayloadColumn, StatusColumn, AttemptsColumn, ErrorsColumn, MetadataColumn, CreatedAtColumn, UpdatedAtColumn, NextAttemptAtColumn}
-		defaultColumns      = sqlite.ColumnList{CreatedAtColumn, NextAttemptAtColumn}
+		VersionColumn       = sqlite.IntegerColumn("version")
+		allColumns          = sqlite.ColumnList{IDColumn, TypeColumn, ExternalIDColumn, PayloadColumn, StatusColumn, AttemptsColumn, ErrorsColumn, MetadataColumn, CreatedAtColumn, UpdatedAtColumn, NextAttemptAtColumn, VersionColumn}
+		mutableColumns      = sqlite.ColumnList{TypeColumn, ExternalIDColumn, PayloadColumn, StatusColumn, AttemptsColumn, ErrorsColumn, MetadataColumn, CreatedAtColumn, UpdatedAtColumn, NextAttemptAtColumn, VersionColumn}
+		defaultColumns      = sqlite.ColumnList{CreatedAtColumn, NextAttemptAtColumn, VersionColumn}
 	)
 
 	return goqueTaskTable{
@@ -100,6 +102,7 @@ func newGoqueTaskTableImpl(schemaName, tableName, alias string) goqueTaskTable {
 		CreatedAt:     CreatedAtColumn,
 		UpdatedAt:     UpdatedAtColumn,
 		NextAttemptAt: NextAttemptAtColumn,
+		Version:       VersionColumn,
 
 		AllColumns:     allColumns,
 		MutableColumns: mutableColumns,

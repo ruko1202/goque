@@ -25,6 +25,7 @@ func EqualTask(t *testing.T, expected, actual *entity.Task) {
 	require.Equal(t, FromJSON(t, expected.Payload), FromJSON(t, actual.Payload))
 	require.Equal(t, expected.Status, actual.Status)
 	require.Equal(t, expected.Attempts, actual.Attempts)
+	require.Equal(t, expected.Version, actual.Version)
 	require.Equal(t, lo.FromPtr(expected.Errors), lo.FromPtr(actual.Errors))
 	AssertTimeInWithDelta(t, expected.CreatedAt, actual.CreatedAt, timeDelta)
 	if expected.UpdatedAt == nil {

@@ -28,6 +28,7 @@ type goqueTaskTable struct {
 	CreatedAt     mysql.ColumnTimestamp
 	UpdatedAt     mysql.ColumnTimestamp
 	NextAttemptAt mysql.ColumnTimestamp
+	Version       mysql.ColumnInteger
 
 	AllColumns     mysql.ColumnList
 	MutableColumns mysql.ColumnList
@@ -80,9 +81,10 @@ func newGoqueTaskTableImpl(schemaName, tableName, alias string) goqueTaskTable {
 		CreatedAtColumn     = mysql.TimestampColumn("created_at")
 		UpdatedAtColumn     = mysql.TimestampColumn("updated_at")
 		NextAttemptAtColumn = mysql.TimestampColumn("next_attempt_at")
-		allColumns          = mysql.ColumnList{IDColumn, TypeColumn, ExternalIDColumn, PayloadColumn, StatusColumn, AttemptsColumn, ErrorsColumn, MetadataColumn, CreatedAtColumn, UpdatedAtColumn, NextAttemptAtColumn}
-		mutableColumns      = mysql.ColumnList{TypeColumn, ExternalIDColumn, PayloadColumn, StatusColumn, AttemptsColumn, ErrorsColumn, MetadataColumn, CreatedAtColumn, UpdatedAtColumn, NextAttemptAtColumn}
-		defaultColumns      = mysql.ColumnList{CreatedAtColumn, NextAttemptAtColumn}
+		VersionColumn       = mysql.IntegerColumn("version")
+		allColumns          = mysql.ColumnList{IDColumn, TypeColumn, ExternalIDColumn, PayloadColumn, StatusColumn, AttemptsColumn, ErrorsColumn, MetadataColumn, CreatedAtColumn, UpdatedAtColumn, NextAttemptAtColumn, VersionColumn}
+		mutableColumns      = mysql.ColumnList{TypeColumn, ExternalIDColumn, PayloadColumn, StatusColumn, AttemptsColumn, ErrorsColumn, MetadataColumn, CreatedAtColumn, UpdatedAtColumn, NextAttemptAtColumn, VersionColumn}
+		defaultColumns      = mysql.ColumnList{CreatedAtColumn, NextAttemptAtColumn, VersionColumn}
 	)
 
 	return goqueTaskTable{
@@ -100,6 +102,7 @@ func newGoqueTaskTableImpl(schemaName, tableName, alias string) goqueTaskTable {
 		CreatedAt:     CreatedAtColumn,
 		UpdatedAt:     UpdatedAtColumn,
 		NextAttemptAt: NextAttemptAtColumn,
+		Version:       VersionColumn,
 
 		AllColumns:     allColumns,
 		MutableColumns: mutableColumns,
