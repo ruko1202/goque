@@ -19,4 +19,5 @@ type GoqueTask struct {
 	CreatedAt     string  `db:"goque_task.created_at"`
 	UpdatedAt     *string `db:"goque_task.updated_at"`
 	NextAttemptAt string  `db:"goque_task.next_attempt_at"`
+	Version       int32   `db:"goque_task.version"`
 }

@@ -38,6 +38,8 @@ func toDBModel(ctx context.Context, task *entity.Task) *model.GoqueTask {
 		CreatedAt:     timeToString(task.CreatedAt),
 		UpdatedAt:     updatedAt,
 		NextAttemptAt: timeToString(task.NextAttemptAt),
+		// The generated model maps INTEGER to int32; a task never sees 2^31 writes.
+		Version: int32(task.Version), //nolint:gosec
 	}
 }
 
@@ -63,6 +65,7 @@ func fromDBModel(ctx context.Context, task *model.GoqueTask) (*entity.Task, erro
 		CreatedAt:     timeFromString(task.CreatedAt),
 		UpdatedAt:     updatedAt,
 		NextAttemptAt: timeFromString(task.NextAttemptAt),
+		Version:       int64(task.Version),
 	}, nil
 }
 

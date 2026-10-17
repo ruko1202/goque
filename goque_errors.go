@@ -20,6 +20,19 @@ var (
 	ErrTaskTimeout = entity.ErrTaskTimeout
 	// ErrTaskReschedule is matched by every error created with RescheduleTask.
 	ErrTaskReschedule = entity.ErrTaskReschedule
+	// ErrTaskVersionConflict is returned by TaskStorage.UpdateTask (and the operations
+	// built on it, such as CancelTask and ResetAttempts) when the task was changed by
+	// another writer since it was read, or was deleted. Re-read the task and decide
+	// whether to retry.
+	ErrTaskVersionConflict = entity.ErrTaskVersionConflict
+	// ErrTaskAttemptsExhausted is passed to after-processing hooks when a fetched task
+	// already used all its attempts (each healer cure from processing counts as one) and is moved to
+	// attempts_left without being processed.
+	ErrTaskAttemptsExhausted = entity.ErrTaskAttemptsExhausted
+	// ErrTaskPanic fails a task whose processing (the processor or a hook)
+	// panicked, like any processing error: it uses an attempt and is passed to
+	// after-processing hooks.
+	ErrTaskPanic = entity.ErrTaskPanic
 )
 
 // RescheduleTask returns an error that puts the task back to the queue to be processed

@@ -385,10 +385,10 @@ func TestGoqueProcessor_InvalidMaxAttemptsFallsBackToDefault(t *testing.T) {
 
 	task := newTestTask(taskType)
 	task.Attempts = defaultProcessorMaxAttempts - 2
-	goqueProc.updateTaskState(testCtx(t), task, errors.New("fail"))
+	require.NoError(t, goqueProc.updateTaskState(testCtx(t), task, errors.New("fail")))
 	assert.Equal(t, entity.TaskStatusError, task.Status)
 
-	goqueProc.updateTaskState(testCtx(t), task, errors.New("fail"))
+	require.NoError(t, goqueProc.updateTaskState(testCtx(t), task, errors.New("fail")))
 	assert.EqualValues(t, defaultProcessorMaxAttempts, task.Attempts)
 	assert.Equal(t, entity.TaskStatusAttemptsLeft, task.Status)
 }

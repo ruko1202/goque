@@ -55,8 +55,13 @@ func testGetTaskForProcessing(t *testing.T, storage storages.AdvancedTaskStorage
 
 		for _, expected := range expectedTasks {
 			expected.Status = entity.TaskStatusPending
+			expected.Version++
 			actual := actualTasks[expected.ID]
 			testutils.EqualTask(t, expected, actual)
+
+			dbTask, err := storage.GetTask(ctx, expected.ID)
+			require.NoError(t, err)
+			require.Equal(t, actual.Version, dbTask.Version)
 		}
 	})
 

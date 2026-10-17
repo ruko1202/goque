@@ -14,18 +14,29 @@ import (
 	"github.com/ruko1202/goque/internal/utils/xtime"
 )
 
-func (p *GoqueProcessor) updateTaskStateBeforeProcessing(ctx context.Context, task *entity.Task) {
+// updateTaskStateBeforeProcessing moves the task to processing. On error the
+// task must not be processed and keeps its previous (fetched) status.
+func (p *GoqueProcessor) updateTaskStateBeforeProcessing(ctx context.Context, task *entity.Task) error {
+	prevStatus := task.Status
 	task.Status = entity.TaskStatusProcessing
 
-	err := p.taskStorage.UpdateTask(ctx, task.ID, task)
+	writeCtx, cancel := p.writeContext(ctx)
+	defer cancel()
+
+	err := p.taskStorage.UpdateTask(writeCtx, task.ID, task)
 	if err != nil {
+		task.Status = prevStatus
 		xlog.Error(ctx, "failed to update task state", xfield.Error(err))
+		return err
 	}
+
+	return nil
 }
 
-func (p *GoqueProcessor) updateTaskState(ctx context.Context, task *entity.Task, taskErr error) {
+func (p *GoqueProcessor) updateTaskState(ctx context.Context, task *entity.Task, taskErr error) error {
 	xlog.WithFields(ctx, xfield.String("processor.action", "updateTaskState"))
-	ctx = context.WithoutCancel(ctx)
+	ctx, cancel := p.writeContext(ctx)
+	defer cancel()
 
 	var reschedule *entity.RescheduleError
 	switch {
@@ -35,8 +46,10 @@ func (p *GoqueProcessor) updateTaskState(ctx context.Context, task *entity.Task,
 		}
 		task.Status = entity.TaskStatusCanceled
 	case errors.Is(taskErr, context.Canceled):
-		p.returnTaskWhenGracefulShutdown(ctx, task)
-		return
+		return p.returnTaskWhenGracefulShutdown(ctx, task)
+	case errors.Is(taskErr, entity.ErrTaskAttemptsExhausted):
+		task.AddError(taskErr)
+		task.Status = entity.TaskStatusAttemptsLeft
 	case errors.As(taskErr, &reschedule):
 		task.Status = entity.TaskStatusNew
 		task.NextAttemptAt = xtime.Now().Add(max(reschedule.After, 0))
@@ -56,13 +69,17 @@ func (p *GoqueProcessor) updateTaskState(ctx context.Context, task *entity.Task,
 	err := p.taskStorage.UpdateTask(ctx, task.ID, task)
 	if err != nil {
 		xlog.Error(ctx, "failed to update task state", xfield.Error(err))
+		return err
 	}
+
+	return nil
 }
 
-func (p *GoqueProcessor) returnTaskWhenGracefulShutdown(ctx context.Context, task *entity.Task) {
+func (p *GoqueProcessor) returnTaskWhenGracefulShutdown(ctx context.Context, task *entity.Task) error {
 	ctx, span := xlog.WithOperationSpan(ctx, "queue_processor.returnTaskWhenGracefulShutdown")
 	defer span.End()
-	ctx = context.WithoutCancel(ctx)
+	ctx, cancel := p.writeContext(ctx)
+	defer cancel()
 
 	xlog.Info(ctx, "graceful shutdown: return task to queue")
 	task.Status = entity.TaskStatusNew
@@ -70,7 +87,19 @@ func (p *GoqueProcessor) returnTaskWhenGracefulShutdown(ctx context.Context, tas
 	err := p.taskStorage.UpdateTask(ctx, task.ID, task)
 	if err != nil {
 		xlog.Error(ctx, "failed to update task state", xfield.Error(err))
+		return err
 	}
+
+	return nil
+}
+
+// writeContext returns the context for a task state write. It is detached from
+// the worker's cancellation, because a write canceled after commit would leave
+// the stored version ahead of the in-memory one and every later write would
+// conflict, but bounded by the processing timeout, so a hung database cannot
+// block the worker forever.
+func (p *GoqueProcessor) writeContext(ctx context.Context) (context.Context, context.CancelFunc) {
+	return context.WithTimeout(context.WithoutCancel(ctx), p.processor.timeout.Load(ctx)) //nolint:gosec // callers defer cancel
 }
 
 // metricsBeforeProcessing is a placeholder hook for future extensions.
@@ -80,10 +109,23 @@ func (p *GoqueProcessor) metricsBeforeProcessing(_ context.Context, task *entity
 }
 
 // metricsAfterProcessing collects metrics after task processing completes.
-func (p *GoqueProcessor) metricsAfterProcessing(_ context.Context, task *entity.Task, _ error) {
+func (p *GoqueProcessor) metricsAfterProcessing(_ context.Context, task *entity.Task, err error) {
 	metrics.IncProcessingTasks(task.Type, task.Status)
 
 	if task.Attempts > 0 {
 		metrics.SetTaskRetryAttempts(task.Type, task.Attempts)
+	}
+
+	// A version conflict means another writer (healer, cancel, reset, another
+	// worker) owns the task now and the write was dropped.
+	if errors.Is(err, entity.ErrTaskVersionConflict) {
+		stage := metrics.VersionConflictStageFinish
+		switch {
+		case task.Status == entity.TaskStatusPending: // the start write failed
+			stage = metrics.VersionConflictStageStart
+		case errors.Is(err, context.Canceled): // returned to the queue on shutdown
+			stage = metrics.VersionConflictStageReturn
+		}
+		metrics.IncTaskVersionConflicts(task.Type, stage)
 	}
 }

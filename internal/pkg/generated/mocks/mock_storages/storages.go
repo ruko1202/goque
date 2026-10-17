@@ -84,18 +84,18 @@ func (c *MockTaskAddTaskCall) DoAndReturn(f func(context.Context, *entity.Task) 
 }
 
 // CureTasks mocks base method.
-func (m *MockTask) CureTasks(ctx context.Context, taskType entity.TaskType, unhealthStatuses []entity.TaskStatus, updatedAtTimeAgo time.Duration, comment string) ([]*entity.Task, error) {
+func (m *MockTask) CureTasks(ctx context.Context, taskType entity.TaskType, status entity.TaskStatus, updatedAtTimeAgo time.Duration, comment string) ([]*entity.Task, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "CureTasks", ctx, taskType, unhealthStatuses, updatedAtTimeAgo, comment)
+	ret := m.ctrl.Call(m, "CureTasks", ctx, taskType, status, updatedAtTimeAgo, comment)
 	ret0, _ := ret[0].([]*entity.Task)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // CureTasks indicates an expected call of CureTasks.
-func (mr *MockTaskMockRecorder) CureTasks(ctx, taskType, unhealthStatuses, updatedAtTimeAgo, comment any) *MockTaskCureTasksCall {
+func (mr *MockTaskMockRecorder) CureTasks(ctx, taskType, status, updatedAtTimeAgo, comment any) *MockTaskCureTasksCall {
 	mr.mock.ctrl.T.Helper()
-	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CureTasks", reflect.TypeOf((*MockTask)(nil).CureTasks), ctx, taskType, unhealthStatuses, updatedAtTimeAgo, comment)
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CureTasks", reflect.TypeOf((*MockTask)(nil).CureTasks), ctx, taskType, status, updatedAtTimeAgo, comment)
 	return &MockTaskCureTasksCall{Call: call}
 }
 
@@ -111,13 +111,13 @@ func (c *MockTaskCureTasksCall) Return(arg0 []*entity.Task, arg1 error) *MockTas
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *MockTaskCureTasksCall) Do(f func(context.Context, entity.TaskType, []entity.TaskStatus, time.Duration, string) ([]*entity.Task, error)) *MockTaskCureTasksCall {
+func (c *MockTaskCureTasksCall) Do(f func(context.Context, entity.TaskType, entity.TaskStatus, time.Duration, string) ([]*entity.Task, error)) *MockTaskCureTasksCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *MockTaskCureTasksCall) DoAndReturn(f func(context.Context, entity.TaskType, []entity.TaskStatus, time.Duration, string) ([]*entity.Task, error)) *MockTaskCureTasksCall {
+func (c *MockTaskCureTasksCall) DoAndReturn(f func(context.Context, entity.TaskType, entity.TaskStatus, time.Duration, string) ([]*entity.Task, error)) *MockTaskCureTasksCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
@@ -417,18 +417,18 @@ func (c *MockAdvancedTaskStorageAddTaskCall) DoAndReturn(f func(context.Context,
 }
 
 // CureTasks mocks base method.
-func (m *MockAdvancedTaskStorage) CureTasks(ctx context.Context, taskType entity.TaskType, unhealthStatuses []entity.TaskStatus, updatedAtTimeAgo time.Duration, comment string) ([]*entity.Task, error) {
+func (m *MockAdvancedTaskStorage) CureTasks(ctx context.Context, taskType entity.TaskType, status entity.TaskStatus, updatedAtTimeAgo time.Duration, comment string) ([]*entity.Task, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "CureTasks", ctx, taskType, unhealthStatuses, updatedAtTimeAgo, comment)
+	ret := m.ctrl.Call(m, "CureTasks", ctx, taskType, status, updatedAtTimeAgo, comment)
 	ret0, _ := ret[0].([]*entity.Task)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // CureTasks indicates an expected call of CureTasks.
-func (mr *MockAdvancedTaskStorageMockRecorder) CureTasks(ctx, taskType, unhealthStatuses, updatedAtTimeAgo, comment any) *MockAdvancedTaskStorageCureTasksCall {
+func (mr *MockAdvancedTaskStorageMockRecorder) CureTasks(ctx, taskType, status, updatedAtTimeAgo, comment any) *MockAdvancedTaskStorageCureTasksCall {
 	mr.mock.ctrl.T.Helper()
-	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CureTasks", reflect.TypeOf((*MockAdvancedTaskStorage)(nil).CureTasks), ctx, taskType, unhealthStatuses, updatedAtTimeAgo, comment)
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CureTasks", reflect.TypeOf((*MockAdvancedTaskStorage)(nil).CureTasks), ctx, taskType, status, updatedAtTimeAgo, comment)
 	return &MockAdvancedTaskStorageCureTasksCall{Call: call}
 }
 
@@ -444,13 +444,13 @@ func (c *MockAdvancedTaskStorageCureTasksCall) Return(arg0 []*entity.Task, arg1 
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *MockAdvancedTaskStorageCureTasksCall) Do(f func(context.Context, entity.TaskType, []entity.TaskStatus, time.Duration, string) ([]*entity.Task, error)) *MockAdvancedTaskStorageCureTasksCall {
+func (c *MockAdvancedTaskStorageCureTasksCall) Do(f func(context.Context, entity.TaskType, entity.TaskStatus, time.Duration, string) ([]*entity.Task, error)) *MockAdvancedTaskStorageCureTasksCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *MockAdvancedTaskStorageCureTasksCall) DoAndReturn(f func(context.Context, entity.TaskType, []entity.TaskStatus, time.Duration, string) ([]*entity.Task, error)) *MockAdvancedTaskStorageCureTasksCall {
+func (c *MockAdvancedTaskStorageCureTasksCall) DoAndReturn(f func(context.Context, entity.TaskType, entity.TaskStatus, time.Duration, string) ([]*entity.Task, error)) *MockAdvancedTaskStorageCureTasksCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }

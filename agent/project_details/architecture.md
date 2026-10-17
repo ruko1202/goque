@@ -124,9 +124,13 @@ type TaskProcessor interface {
 **Purpose**: Fix stuck tasks
 
 **Logic**:
-- Periodically scans for tasks in `pending` status
-- If task's `updated_at` is older than threshold (default: 5 min)
-- Marks task as `error` to allow retry
+- Periodically scans for tasks in `pending` and `processing` status
+- If task's `updated_at` is older than threshold (default: 1h), raised to at least
+  `2 × processing timeout + 10s` (injected by `GoqueProcessor`, WARN on every run while
+  raised)
+- Marks task as `error` to allow retry and bumps `version`; a cure from `processing`
+  also consumes one attempt (a cure from `pending` does not: the task never started)
+  (so the previous holder's writes conflict)
 - Prevents tasks from being permanently stuck
 
 **Configuration**:
@@ -222,25 +226,30 @@ GoqueProcessor.Run()
   │   ├─> TaskStorage.GetTasksForProcessing()
   │   │   └─> SELECT ... WHERE status='new' FOR UPDATE SKIP LOCKED
   │   │
-  │   ├─> For each task:
-  │   │   │
-  │   │   ├─> Update status to 'processing'
+  │   ├─> For each task (fetch set status='pending', version+1):
   │   │   │
   │   │   ├─> Submit to worker pool
   │   │   │   │
+  │   │   │   ├─> Start write status='processing' (fenced on version, not cancelable):
+  │   │   │   │   └─> write failed: task not processed, hooks get the error
+  │   │   │   │
   │   │   │   ├─> Execute before hooks
   │   │   │   │
-  │   │   │   ├─> TaskProcessor.ProcessTask()
+  │   │   │   ├─> TaskProcessor.ProcessTask() (skipped with ErrTaskAttemptsExhausted
+  │   │   │   │   if attempts >= max; finish then writes status='attempts_left')
   │   │   │   │   └─> User's business logic
   │   │   │   │
-  │   │   │   ├─> Execute after hooks
+  │   │   │   ├─> Finish write (fenced on the version bumped by start):
+  │   │   │   │   ├─> Success: status='done'
+  │   │   │   │   ├─> RescheduleTask(after): status='new', next_attempt_at=now+after
+  │   │   │   │   ├─> Shutdown: status='new' (conflict → metric stage=return)
+  │   │   │   │   └─> Error:
+  │   │   │   │       ├─> Has retries: status='error', next_attempt_at=...
+  │   │   │   │       └─> No retries: status='attempts_left'
+  │   │   │   │   (conflict → result dropped, WARN + metric stage=finish)
   │   │   │   │
-  │   │   │   └─> Update task status:
-  │   │   │       ├─> Success: status='done'
-  │   │   │       ├─> RescheduleTask(after): status='new', next_attempt_at=now+after
-  │   │   │       └─> Error:
-  │   │   │           ├─> Has retries: status='error', next_attempt_at=...
-  │   │   │           └─> No retries: status='attempts_left'
+  │   │   │   └─> Execute after hooks (on a failed write err also wraps
+  │   │   │       the write error)
   │   │   │
   │   └─> Sleep(FetchTick)
   │
@@ -256,10 +265,10 @@ Healer.Run()
   ├─> Periodic Loop (every interval)
   │   │
   │   ├─> TaskStorage.CureTasks()
-  │   │   └─> UPDATE tasks
-  │   │       SET status='error', attempts=attempts-1
-  │   │       WHERE status='pending'
-  │   │       AND updated_at < NOW() - threshold
+  │   │   └─> UPDATE goque_task
+  │   │       SET status='error', version=version+1[, attempts=attempts+1 -- processing only]
+  │   │       WHERE status = 'pending' | 'processing'   -- one call per status
+  │   │       AND updated_at < NOW() - threshold          -- threshold >= 2*timeout+10s
   │   │
   │   └─> Tasks become available for retry
   │
@@ -340,7 +349,8 @@ CREATE TABLE goque_task (
     metadata        JSONB,
     created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at      TIMESTAMPTZ,
-    next_attempt_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    next_attempt_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    version         BIGINT      NOT NULL DEFAULT 0   -- fencing token, see "Delivery Guarantees" in README
 );
 
 CREATE UNIQUE INDEX goque_task_type_external_id_idx          ON goque_task (type, external_id);

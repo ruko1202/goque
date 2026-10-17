@@ -60,14 +60,14 @@ func TestGoqueProcessor(t *testing.T) {
 
 		gomock.InOrder(
 			mocks.taskStorage.EXPECT().
-				UpdateTask(gomock.Any(), task.ID, task).
+				UpdateTask(gomock.Any(), task.ID, gomock.Any()).
 				DoAndReturn(func(_ context.Context, taskID uuid.UUID, task *entity.Task) error {
 					assert.Equal(t, task.ID, taskID)
 					assert.Equal(t, entity.TaskStatusProcessing, task.Status)
 					return nil
 				}),
 			mocks.taskStorage.EXPECT().
-				UpdateTask(gomock.Any(), task.ID, task).
+				UpdateTask(gomock.Any(), task.ID, gomock.Any()).
 				DoAndReturn(func(_ context.Context, taskID uuid.UUID, task *entity.Task) error {
 					assert.Equal(t, task.ID, taskID)
 					assert.Equal(t, entity.TaskStatusDone, task.Status)
@@ -411,7 +411,7 @@ func TestGoqueProcessor(t *testing.T) {
 
 		defaultFetcherMock(mocks, task.Type, []*entity.Task{task})
 		mocks.taskStorage.EXPECT().
-			UpdateTask(gomock.Any(), task.ID, task).
+			UpdateTask(gomock.Any(), task.ID, gomock.Any()).
 			Return(nil).
 			AnyTimes()
 

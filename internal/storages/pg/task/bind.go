@@ -24,6 +24,7 @@ func toDBModel(ctx context.Context, task *entity.Task) *model.GoqueTask {
 		CreatedAt:     task.CreatedAt,
 		UpdatedAt:     task.UpdatedAt,
 		NextAttemptAt: task.NextAttemptAt,
+		Version:       task.Version,
 	}
 }
 
@@ -40,6 +41,7 @@ func fromDBModel(ctx context.Context, task *model.GoqueTask) *entity.Task {
 		CreatedAt:     task.CreatedAt,
 		UpdatedAt:     task.UpdatedAt,
 		NextAttemptAt: task.NextAttemptAt,
+		Version:       task.Version,
 	}
 }
 

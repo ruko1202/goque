@@ -38,7 +38,7 @@ func (s *Storage) ResetAttempts(ctx context.Context, id uuid.UUID) error {
 		taskErr += fmt.Sprintf("reset attempts: %s\n", task.NextAttemptAt.Format(time.RFC3339))
 		task.Errors = &taskErr
 
-		return s.updateTask(ctx, task.ID, task)
+		return s.updateTask(ctx, task.ID, task, true)
 	})
 	if err != nil {
 		return fmt.Errorf("reset attempts failed: %w", err)

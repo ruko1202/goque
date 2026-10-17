@@ -29,6 +29,8 @@ func (s *Storage) AddTask(ctx context.Context, task *entity.Task) error {
 	if !dbutils.IsValidJSON(task.Payload) {
 		return entity.ErrInvalidPayloadFormat
 	}
+	// A new row always starts at version 0, whatever the caller set.
+	task.Version = 0
 	dbTask := toDBModel(ctx, task)
 
 	stmt := table.GoqueTask.
