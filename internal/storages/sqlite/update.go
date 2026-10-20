@@ -58,7 +58,7 @@ func (s *Storage) updateTask(ctx context.Context, taskID string, task *model.Goq
 	where := table.GoqueTask.ID.EQ(sqlite.String(taskID))
 	if fenced {
 		version = table.GoqueTask.Version.ADD(sqlite.Int(1))
-		where = where.AND(table.GoqueTask.Version.EQ(sqlite.Int(int64(task.Version))))
+		where = where.AND(table.GoqueTask.Version.EQ(sqlite.Int(task.Version)))
 	}
 
 	stmt := table.GoqueTask.

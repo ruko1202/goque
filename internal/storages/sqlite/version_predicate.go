@@ -19,7 +19,7 @@ func versionPredicate(tasks []*model.GoqueTask) sqlite.BoolExpression {
 	return balancedOR(lo.Map(tasks, func(task *model.GoqueTask, _ int) sqlite.BoolExpression {
 		return sqlite.AND(
 			table.GoqueTask.ID.EQ(sqlite.String(lo.FromPtr(task.ID))),
-			table.GoqueTask.Version.EQ(sqlite.Int(int64(task.Version))),
+			table.GoqueTask.Version.EQ(sqlite.Int(task.Version)),
 		)
 	}))
 }
