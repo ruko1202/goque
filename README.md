@@ -39,7 +39,7 @@ Goque supports three database backends:
 | Database | Enqueue | Processing, 1 → 50 workers | Best For | Production Ready |
 |----------|---------|----------------------------|----------|------------------|
 | **PostgreSQL** | 0.44 ms | 1,040 → 4,810 tasks/s | High-throughput production systems | ✅ **Recommended** |
-| **MySQL** | 1.26 ms | 380 → 1,920 tasks/s | Teams already running MySQL | ✅ Yes, see [MySQL caveats](#mysql-caveats) |
+| **MySQL** | 1.09 ms | 400 → 2,050 tasks/s | Teams already running MySQL | ✅ Yes, see [MySQL caveats](#mysql-caveats) |
 | **SQLite** | 0.06 ms | 9,840 → 8,170 tasks/s | Local development, testing, CI/CD | ⚠️ **Dev/Test only** |
 
 Measured with `make bench` against Docker databases on one laptop; see
@@ -52,7 +52,9 @@ connection and one process.
 **Size the connection pool for your workers.** Keep `MaxIdleConns` at least at
 the total number of workers plus a few for the fetcher, healer and cleaner.
 Below that, `database/sql` closes and reopens connections on every burst; with
-50 workers on PostgreSQL that cut throughput by almost 3×.
+50 workers on PostgreSQL that cut throughput by almost 3×. Across processes,
+keep `instances × MaxOpenConns` below the server's `max_connections` (151 on
+stock MySQL).
 
 #### SQLite caveats
 

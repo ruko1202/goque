@@ -1,6 +1,6 @@
 # Goque Performance Report
 
-*2026-10-20 · branch `test/fix-benchmarks` · [`test/benchmark_test.go`](test/benchmark_test.go) · replaces the 2026-03-19 report ([what was wrong with it](#a4-corrections-to-the-2026-03-19-report))*
+*2026-10-20 · branch `test/fix-benchmarks` · [`test/benchmark_test.go`](test/benchmark_test.go) · replaces the 2026-03-19 report ([what was wrong with it](#a5-corrections-to-the-2026-03-19-report))*
 
 **Bottom line:** goque's own overhead is small; the database sets the speed.
 Each processed task costs two single-row writes plus a share of one fetch, so
@@ -12,13 +12,15 @@ concurrency found two MySQL bugs, both fixed.
 | | Enqueue latency | Processing, 1 worker | 10 workers | 50 workers |
 |---|---:|---:|---:|---:|
 | **PostgreSQL** | 0.44 ms | 1,040 tasks/s | 4,110 | 4,810 |
-| **MySQL** | 1.26 ms | 380 tasks/s | 1,070 | 1,920 |
+| **MySQL** | 1.09 ms | 400 tasks/s | 1,500 | 2,050 |
 | **SQLite** | 0.06 ms | 9,840 tasks/s | 9,120 | 8,170 |
 
 SQLite leads only because it skips the network (~0.25 ms per round trip to
 Docker here). It is single-writer and single-process, not a production choice.
-Absolute numbers are specific to this machine ([environment](#a1-environment-and-baselines));
-compare them only against runs on the same setup.
+Absolute numbers are specific to this machine: the databases use production
+durability settings but laptop resources ([how close to production](#a2-how-close-is-this-to-production)).
+Compare them only against runs on the same setup, and do not apply them to
+Amazon Aurora at all.
 
 ---
 
@@ -29,14 +31,18 @@ compare them only against runs on the same setup.
    Below that, `database/sql` keeps closing and reopening connections: on
    PostgreSQL with 50 workers throughput fell from 4.8k to 1.7k tasks/s. It
    mattered more than any other setting measured here.
-2. **Add workers until the database saturates, not beyond.** PostgreSQL gained 4×
+2. **Budget connections across instances.** Every goque process holds up to
+   `MaxOpenConns` connections, so `instances × MaxOpenConns` plus everything else
+   that talks to the database must stay below the server's `max_connections`.
+   Stock MySQL allows 151: three processes with a pool of 50 already reach it.
+3. **Add workers until the database saturates, not beyond.** PostgreSQL gained 4×
    up to 10 workers and only 17% more at 50; past that point more workers only add
    load on the database. Where that point lies depends on the database server, so
    measure it on yours.
-3. **Leave allocations alone for now.** go-jet and logging dominate the bytes
+4. **Leave allocations alone for now.** go-jet and logging dominate the bytes
    allocated per task but not CPU ([allocations](#allocations)); reducing them
    would ease GC, not raise throughput.
-4. **If throughput must grow, cut round trips per task.** Merging the `processing`
+5. **If throughput must grow, cut round trips per task.** Merging the `processing`
    and `done` writes, or acknowledging finished tasks in batches, are the levers
    that would move these numbers. This is a hypothesis, not measured, and both
    change how version fencing and the healer see a running task.
@@ -116,10 +122,10 @@ Migration `20261020120000_task_timestamp_precision` changes them to
 ## Detailed results
 
 Median of 5 runs, `-benchtime=1s`; the full spread is in the raw output of
-`make bench`. MySQL rows were measured after both MySQL fixes. Against the run
-before them, some MySQL medians moved by 25–95% in both directions, including
-`EnqueueParallel`, whose code did not change: on this setup that is noise, so do
-not read the difference as a speed-up or slowdown.
+`make bench`. MySQL rows were measured after both MySQL fixes, with the server
+sizing from [A2](#a2-how-close-is-this-to-production). Between runs on this
+setup, MySQL medians moved by up to 25% (once 95%) with no code change, so do
+not read smaller differences as a speed-up or slowdown.
 
 ### Processing (end to end)
 
@@ -127,7 +133,7 @@ not read the difference as a speed-up or slowdown.
 |---|---:|---:|---:|
 | SQLite | 9,840 | 9,120 | 8,170 |
 | PostgreSQL | 1,040 | 4,110 | 4,810 |
-| MySQL | 380 | 1,070 | 1,920 |
+| MySQL | 400 | 1,500 | 2,050 |
 
 Per processed task: 23–26 KB and 400–440 allocations on all three databases.
 
@@ -137,7 +143,7 @@ Per processed task: 23–26 KB and 400–440 allocations on all three databases.
 |---|---:|---:|---:|---:|
 | SQLite | 62 µs | 16,100 | 10.1 KB | 201 |
 | PostgreSQL | 441 µs | 2,270 | 9.8 KB | 221 |
-| MySQL | 1,256 µs | 800 | 9.9 KB | 195 |
+| MySQL | 1,091 µs | 920 | 9.9 KB | 195 |
 
 ### EnqueueParallel (14 goroutines)
 
@@ -145,7 +151,7 @@ Per processed task: 23–26 KB and 400–440 allocations on all three databases.
 |---|---:|---:|---:|
 | SQLite | 13,900 | 10.3 KB | 204 |
 | PostgreSQL | 11,500 | 9.9 KB | 221 |
-| MySQL | 4,450 | 10.0 KB | 195 |
+| MySQL | 4,900 | 10.0 KB | 195 |
 
 ### Fetch
 
@@ -153,7 +159,7 @@ Per processed task: 23–26 KB and 400–440 allocations on all three databases.
 |---|---:|---:|---:|---:|
 | SQLite | 102 µs | 9,800 | 1.5 ms | 68,700 |
 | PostgreSQL | 1.56 ms | 640 | 11.3 ms | 8,800 |
-| MySQL | 3.58 ms | 280 | 21.0 ms | 4,760 |
+| MySQL | 3.38 ms | 300 | 20.0 ms | 5,000 |
 
 Allocations: ~21 KB / 420 allocs for one task, ~400 KB / 7,500 allocs for 100.
 
@@ -199,7 +205,7 @@ time, not throughput: the client CPU is not the bottleneck.
 | Host | Apple M4 Pro (14 cores), macOS, Go 1.25.0 |
 | Docker | colima VM, **2 vCPUs**, 8 GiB |
 | PostgreSQL | 17.10, `synchronous_commit=on`, driver `pgx/v5` |
-| MySQL | 8.4.9, `innodb_flush_log_at_trx_commit=1`, `sync_binlog=1`, binlog on |
+| MySQL | 8.4.9, `innodb_flush_log_at_trx_commit=1`, `sync_binlog=1`, binlog on, buffer pool 1 GiB, redo log 2 GiB |
 | SQLite | `mattn/go-sqlite3` v1.14.32, file DB, `_journal_mode=WAL&_txlock=immediate&_busy_timeout=5000`, 1 connection |
 | Pools (PG, MySQL) | `MaxOpenConns=50`, `MaxIdleConns=50` |
 
@@ -211,7 +217,49 @@ from the environment:
 | `SELECT 1` round trip | 0.24 ms | 0.24 ms |
 | Single-row `INSERT` (autocommit) | 0.34 ms | 1.4 ms |
 
-### A2. What each benchmark measures
+### A2. How close is this to production
+
+Durability matches a production MySQL; resources do not.
+
+| | This setup | Typical production |
+|---|---|---|
+| `innodb_flush_log_at_trx_commit`, `sync_binlog` | 1, 1 | 1, 1: the MySQL defaults, also used by RDS; Cloud SQL does not allow changing the first on a primary |
+| `binlog_format` | ROW | ROW, the default on MySQL and RDS |
+| Isolation | REPEATABLE READ | REPEATABLE READ, the default everywhere |
+| Buffer pool, redo log, `max_connections` | 1 GiB, 2 GiB, 500 (set in `docker-compose.yml`) | buffer pool 50–75% of RAM, redo log several GiB, hundreds of connections |
+| CPU, disk, network | 2 vCPUs in a VM, virtual disk, ~0.25 ms per round trip | dedicated hosts, data-center network |
+
+So the cost structure carries over: each commit waits for durable writes, each
+task costs two of them, and the MySQL deadlock happened under default settings.
+The absolute numbers do not: faster disks and a shorter network path lower every
+round trip.
+
+Raising the server's sizing from the image's stock values (128 MiB buffer pool,
+100 MiB redo log, 151 connections) to the values above did not change the
+results. Two back-to-back runs, median of 5 each:
+
+| MySQL | Stock sizing | Production-like sizing |
+|---|---:|---:|
+| Enqueue latency | 1,111 µs | 1,091 µs |
+| EnqueueParallel | 4,770 tasks/s | 4,900 tasks/s |
+| Fetch batch_100 | 20.8 ms | 20.0 ms |
+| Processing, 1 / 10 / 50 workers | 412 / 1,659 / 2,273 tasks/s | 404 / 1,495 / 2,046 tasks/s |
+
+The differences are within this setup's run-to-run noise. The benchmark table
+holds a few thousand rows and every run lasts seconds, so neither the buffer
+pool nor redo log size comes into play; a long run over a large table could
+behave differently. A run started right after the server restarted was 10–25%
+slower than both, so let the server settle before measuring.
+
+**Amazon Aurora** (MySQL and PostgreSQL) replaces the storage engine's disk
+writes with a quorum write to distributed storage (4 of 6 copies across 3
+availability zones), and its own replicas do not need the binlog. Commit costs
+there are different, so none of the numbers here predict Aurora. It cannot be
+run locally: emulators run a plain MySQL or PostgreSQL underneath. Measure it
+with `make bench` from an EC2 host in the same availability zone, ideally next
+to an RDS for MySQL instance of the same class to isolate the storage effect.
+
+### A3. What each benchmark measures
 
 | Benchmark | One op is | Timed | Not timed |
 |---|---|---|---|
@@ -225,7 +273,7 @@ allocs/op belong to the measured call alone. `Processing` uses a 1 ms fetch tick
 (so the tick does not cap throughput), `maxTasks=100`, and moves the healer and
 cleaner out of the way. Every run uses its own task type and deletes its rows.
 
-### A3. Reproducing
+### A4. Reproducing
 
 ```bash
 make docker-up
@@ -239,7 +287,7 @@ On macOS the Docker VM can answer slowly right after it was idle: one warm-up ru
 was 10× slower than the runs after it. Use `-count` and benchstat, not a single
 run.
 
-### A4. Corrections to the 2026-03-19 report
+### A5. Corrections to the 2026-03-19 report
 
 - **It reported enqueue latency as end-to-end processing.** `BenchmarkTaskProcessingSimple`
   timed only the `AddTaskToQueue` loop. Processing ran in the background and was
