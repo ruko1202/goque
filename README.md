@@ -70,6 +70,20 @@ for goque on SQLite:
 If you need real horizontal scaling, run PostgreSQL or MySQL — they
 have row-level locks and don't have this class of problem.
 
+#### MySQL caveats
+
+goque runs its own MySQL transactions (task fetch, healer, cleaner,
+`ResetAttempts`) at **READ COMMITTED**, whatever the server default is.
+Under InnoDB's default REPEATABLE READ the fetch's locking range scan
+also locks the index gaps around it, and those gaps belong to tasks that
+workers are moving to another status at the same moment; the two
+`UPDATE`s deadlock (`Error 1213`). READ COMMITTED locks only the rows
+the scan returns.
+
+This needs `binlog_format` `ROW` (the default) or `MIXED`. With
+`STATEMENT`, MySQL rejects writes in a READ COMMITTED transaction with
+`Error 1665`.
+
 ### Schema
 
 Goque installs a single table named **`goque_task`** plus three indexes
