@@ -34,29 +34,31 @@ Goque solves the problem of reliable asynchronous task processing in distributed
 ### 4. Task Lifecycle Management
 
 **Task states:**
-- `new` - Ready to be picked up
-- `pending` - Scheduled for future processing (via NextAttemptAt)
+- `new` - Created and waiting until `next_attempt_at` is due
+- `pending` - Taken by a fetcher, waiting for a free worker
 - `processing` - Currently being processed by a worker
 - `done` - Completed successfully ✓ (terminal)
-- `error` - Failed but has retry attempts remaining
-- `attempts_left` - Failed and exhausted all retries ✗ (terminal)
-- `canceled` - Manually canceled ✗ (terminal)
+- `error` - Failed with attempts left; fetched again when `next_attempt_at` is due
+- `attempts_left` - Failed with no attempts left ✗ (terminal)
+- `canceled` - Canceled by `CancelTask` or by the processor ✗ (terminal)
 
 **State flow:**
 ```
-new → pending → processing → ✅ done
-        ↑ ↓         ↓    ↓
-        │ └──error──┘  ❌ canceled
-        │     ↓
-        │  ❌ attempts_left
-        │
-        └──(healer fixes stuck pending)
+new ──→ pending ──→ processing ──┬──→ ✅ done
+ ▲         ▲                     ├──→ ❌ canceled
+ │         │                     ├──→ ❌ attempts_left
+ │         └────── error ◀───────┤   failed, attempts left (fetched again when due)
+ └───────────────────────────────┘   RescheduleTask, or returned on graceful shutdown
+
+Healer:         stuck pending or processing ──→ error
+CancelTask:     any non-terminal status     ──→ canceled
+ResetAttempts:  any status                  ──→ new (attempts reset to 0)
 ```
 
 **Terminal states** (no further processing): `done`, `canceled`, `attempts_left`
 
 ### 5. Built-in Task Healer
-- Monitors stuck tasks in `pending` status
+- Monitors tasks stuck in `pending` or `processing` status
 - Automatically marks them as `error` for retry
 - Prevents tasks from being lost
 

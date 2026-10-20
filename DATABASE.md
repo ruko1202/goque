@@ -5,17 +5,18 @@ Goque supports three database backends: PostgreSQL, MySQL, and SQLite.
 ## Universal Commands
 
 All database operations use the same commands regardless of the database backend.
-Simply set `DB_DRIVER` in `.env.local`:
+Simply set `DB_DRIVER` in `.env.local`, one `KEY: value` pair per line (the
+Makefile reads this format; `KEY=value` lines are ignored):
 
 ```bash
 # .env.local
-DB_DRIVER=postgres
-DB_DSN=postgres://postgres:postgres@localhost:5432/goque?sslmode=disable
+DB_DRIVER: postgres
+DB_DSN: postgres://postgres:postgres@localhost:5432/goque?sslmode=disable
 
 # Or for MySQL
-# DB_DRIVER=mysql
+# DB_DRIVER: mysql
 # Or for SQLite
-# DB_DRIVER=sqlite3
+# DB_DRIVER: sqlite3
 ```
 
 Then use generic commands that automatically work with your configured database:
@@ -46,8 +47,8 @@ make db-models
 
 ```bash
 # Configure in .env.local
-DB_DRIVER=postgres
-DB_DSN=postgres://postgres:postgres@localhost:5432/goque?sslmode=disable
+DB_DRIVER: postgres
+DB_DSN: postgres://postgres:postgres@localhost:5432/goque?sslmode=disable
 
 # Use universal commands
 make db-info    # Show configuration
@@ -60,8 +61,8 @@ make db-models  # Generate models (PostgreSQL only)
 
 ```bash
 # Configure in .env.local
-DB_DRIVER=mysql
-DB_DSN=root:root@tcp(localhost:3306)/goque?parseTime=true&loc=UTC
+DB_DRIVER: mysql
+DB_DSN: root:root@tcp(localhost:3306)/goque?parseTime=true&loc=UTC
 
 # Use universal commands
 make db-info    # Show configuration
@@ -83,8 +84,8 @@ see the [MySQL caveats](README.md#mysql-caveats).
 
 ```bash
 # Configure in .env.local
-DB_DRIVER=sqlite3
-DB_DSN=./goque.db
+DB_DRIVER: sqlite3
+DB_DSN: ./goque.db
 
 # Use universal commands
 make db-info    # Show configuration
@@ -127,16 +128,16 @@ DB_DSN="postgres://user:pass@localhost/mydb" make db-up
 Create `.env.local`:
 ```bash
 # PostgreSQL
-DB_DRIVER=postgres
-DB_DSN=postgres://user:password@localhost:5432/dbname?sslmode=disable
+DB_DRIVER: postgres
+DB_DSN: postgres://user:password@localhost:5432/dbname?sslmode=disable
 
 # Or MySQL
-DB_DRIVER=mysql
-DB_DSN=root:root@tcp(localhost:3306)/goque?parseTime=true&loc=UTC
+DB_DRIVER: mysql
+DB_DSN: root:root@tcp(localhost:3306)/goque?parseTime=true&loc=UTC
 
 # Or SQLite
-DB_DRIVER=sqlite3
-DB_DSN=./goque.db
+DB_DRIVER: sqlite3
+DB_DSN: ./goque.db
 ```
 
 ## Migration Structure
@@ -162,26 +163,22 @@ All commands work with the database configured in `DB_DRIVER`:
 - `make db-up` - Apply all pending migrations
 - `make db-down` - Rollback last migration
 - `make db-status` - Show migration status
-- `make db-models` - Generate models (PostgreSQL only)
+- `make db-models` - Generate models for the current `DB_DRIVER` (`make all-db-models` for all databases)
 
 ### Switching Between Databases
-You can easily switch between databases by changing `DB_DRIVER` in `.env.local`:
+Keep one config file per database and pick it with `ENV_CONFIG_FILE`
+(the default is `.env.local`):
 
 ```bash
-# Switch to MySQL
-echo "DB_DRIVER=mysql" >> .env.local
-make db-info  # Verify configuration
-make db-up    # Apply MySQL migrations
+# .env.mysql.local holds "DB_DRIVER: mysql" and "DB_DSN: ..."
+ENV_CONFIG_FILE=.env.mysql.local make db-info  # Verify configuration
+ENV_CONFIG_FILE=.env.mysql.local make db-up    # Apply MySQL migrations
 
-# Switch to SQLite
-echo "DB_DRIVER=sqlite3" >> .env.local
-make db-info  # Verify configuration
-make db-up    # Apply SQLite migrations
+# .env.sqlite.local holds "DB_DRIVER: sqlite3" and "DB_DSN: ..."
+ENV_CONFIG_FILE=.env.sqlite.local make db-up   # Apply SQLite migrations
 
-# Switch back to PostgreSQL
-echo "DB_DRIVER=postgres" >> .env.local
-make db-info  # Verify configuration
-make db-up    # Apply PostgreSQL migrations
+# Without ENV_CONFIG_FILE, .env.local is used
+make db-up
 ```
 
 Or use environment variable override:

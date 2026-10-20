@@ -2,29 +2,51 @@
 [![pipeline](https://github.com/ruko1202/goque/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/ruko1202/goque/actions/workflows/ci.yml)
 ![Coverage](https://img.shields.io/badge/Coverage-87.0%25-brightgreen)
 
-A robust, database-backed task queue system for Go with built-in worker pools, retry logic, and graceful shutdown support.
-Supports PostgreSQL, MySQL, and SQLite.
+**A task queue in the database you already run.** Reliable background jobs for
+Go on top of PostgreSQL, MySQL or SQLite. No Kafka, RabbitMQ or Redis.
 
-## Features
+## Contents
 
-### Current Features
-- ✅ **Multi-database support** - Works with PostgreSQL, MySQL, and SQLite
-- ✅ **Reliable persistence** - Task storage with ACID guarantees
-- ✅ **Worker pool management** - Configurable concurrent task processing using goroutine pools
-- ✅ **Dynamic configuration** - Change workers, batch size, ticks and timeouts at runtime via `goque.NewDynamicValue`
-- ✅ **Automatic retry logic** - Configurable retry attempts with custom backoff strategies
-- ✅ **Task lifecycle management** - Track task status through multiple states (new, processing, done, error, etc.)
-- ✅ **Graceful shutdown** - Clean worker shutdown with in-flight task handling
-- ✅ **Task timeout handling** - Per-task timeout configuration with context cancellation
-- ✅ **Extensible hooks** - Before/after processing hooks for custom logic (metrics, logging, tracing)
-- ✅ **Type-safe queries** - PostgreSQL/MySQL use go-jet for type-safe SQL query generation
-- ✅ **External ID support** - Associate tasks with external identifiers for idempotency
-- ✅ **Built-in task healer** - Automatically marks stuck tasks as errored for reprocessing
-- ✅ **Multi-processor support** - Manage multiple task types with a single queue manager
-- ✅ **Periodic jobs** - Schedule recurring task creation with cron expressions or custom schedulers
-- ✅ **Structured logging** - Built-in structured logging with xlog (supports zap, slog, and custom adapters)
-- ✅ **Production-ready example** - Complete example service with web dashboard and API
-- ✅ **Prometheus metrics** - Built-in Prometheus metrics for monitoring task queue performance
+- [Why goque](#why-goque)
+- [Installation](#installation)
+- [Quick Start](#quick-start)
+- [Managing tasks](#managing-tasks)
+- [Example service](#example-service)
+- [Databases](#databases)
+- [Configuration Options](#configuration-options)
+- [Task Status Lifecycle](#task-status-lifecycle)
+- [Delivery Guarantees](#delivery-guarantees)
+- [Built-in Features](#built-in-features)
+- [Development](#development)
+- [Project Structure](#project-structure)
+
+## Why goque
+
+Emails, webhooks, polling external systems, reports: background work usually
+gets its own broker, which has to be deployed, monitored and upgraded. The broker
+is also outside your database transaction, so an order can be saved while the
+task for it is lost.
+
+goque keeps the queue in a table of the database you already have:
+
+- **Transactional outbox in one line:** enqueue a task in the same transaction as
+  your domain write, so both are committed or neither is ([example](#5-transactional-outbox)).
+- **One table, the same code on three databases:** `goque_task` with three indexes
+  on PostgreSQL, MySQL or SQLite; SQL is type-safe through go-jet.
+- **Safe with many instances:** the fetch uses `FOR UPDATE SKIP LOCKED`, so two
+  instances never take the same task, and a task version stops a worker that lost
+  its task from overwriting the new owner's result.
+- **Many task types, one manager:** each type gets its own worker pool and settings.
+- **Retries, timeouts and a healer:** retries with your own backoff, a per-task
+  timeout through `ctx`, stuck tasks returned to work, panics recovered, graceful
+  shutdown.
+- **Less code around each task:** typed payloads, `RescheduleTask` for "not ready
+  yet" without spending an attempt, duplicate protection by external ID, cron jobs,
+  before/after hooks.
+- **Settings change without a restart:** workers, batch size, intervals and
+  timeouts take a `Value[T]` that can follow your config or feature flags.
+- **Observable:** Prometheus metrics with a ready Grafana dashboard, structured
+  logs (zap or slog), OpenTelemetry tracing.
 
 ## Installation
 
@@ -32,124 +54,26 @@ Supports PostgreSQL, MySQL, and SQLite.
 go get github.com/ruko1202/goque
 ```
 
-## Database Support
-
-Goque supports three database backends:
-
-| Database | Enqueue | Processing, 1 → 50 workers | Best For | Production Ready |
-|----------|---------|----------------------------|----------|------------------|
-| **PostgreSQL** | 0.44 ms | 1,040 → 4,810 tasks/s | High-throughput production systems | ✅ **Recommended** |
-| **MySQL** | 1.09 ms | 400 → 2,050 tasks/s | Teams already running MySQL | ✅ Yes, see [MySQL caveats](#mysql-caveats) |
-| **SQLite** | 0.06 ms | 9,840 → 8,170 tasks/s | Local development, testing, CI/CD | ⚠️ **Dev/Test only** |
-
-Measured with `make bench` against Docker databases on one laptop; see
-[PERFORMANCE_ANALYSIS.md](PERFORMANCE_ANALYSIS.md) for the setup and what each
-number means. Throughput is bound by database round trips: each processed task
-costs two single-row writes plus a share of one fetch transaction. SQLite looks
-fastest only because it has no network hop; it serializes all writes on one
-connection and one process.
-
-**Size the connection pool for your workers.** Keep `MaxIdleConns` at least at
-the total number of workers plus a few for the fetcher, healer and cleaner.
-Below that, `database/sql` closes and reopens connections on every burst; with
-50 workers on PostgreSQL that cut throughput by almost 3×. Across processes,
-keep `instances × MaxOpenConns` below the server's `max_connections` (151 on
-stock MySQL).
-
-#### SQLite caveats
-
-SQLite serializes writes at the file level. Two practical consequences
-for goque on SQLite:
-
-- **Concurrent writers deadlock under the default `BEGIN DEFERRED`
-  transaction mode.** Operations like `CureTasks` and
-  `GetTasksForProcessing` open their own transactions via
-  `dbtx.WithinTx`; when several workers call them in parallel, one
-  SELECT takes a SHARED lock and the next UPDATE can't upgrade to
-  RESERVED — SQLite returns `SQLITE_BUSY` immediately and the
-  `_busy_timeout` parameter does **not** apply to lock upgrades.
-  Mitigation: pass `?_txlock=immediate&_journal_mode=WAL&_busy_timeout=5000`
-  in your DSN so all transactions start as `BEGIN IMMEDIATE` and
-  multiple readers can coexist with the single writer.
-- **One process at a time.** Even with the DSN tuning above, a single
-  SQLite database file should be opened by a single goque process.
-  Spinning up two binaries that both write to `goque.sqlite.db` will
-  see `database is locked` errors no matter what.
-
-If you need real horizontal scaling, run PostgreSQL or MySQL — they
-have row-level locks and don't have this class of problem.
-
-#### MySQL caveats
-
-goque runs its own MySQL transactions (task fetch, healer, cleaner,
-`ResetAttempts`) at **READ COMMITTED**, whatever the server default is.
-Under InnoDB's default REPEATABLE READ the fetch's locking range scan
-also locks the index gaps around it, and those gaps belong to tasks that
-workers are moving to another status at the same moment; the two
-`UPDATE`s deadlock (`Error 1213`). READ COMMITTED locks only the rows
-the scan returns.
-
-This needs `binlog_format` `ROW` (the default) or `MIXED`. With
-`STATEMENT`, MySQL rejects writes in a READ COMMITTED transaction with
-`Error 1665`.
-
-### Schema
-
-Goque installs a single table named **`goque_task`** plus three indexes
-(`goque_task_type_external_id_idx`, `goque_task_type_status_next_attempt_at_idx`,
-`goque_task_type_status_updated_at_idx`). The full DDL lives in
-[migrations/](migrations/) — apply it with `make db-up`.
+Requirements: Go 1.25+ and one of PostgreSQL 12+, MySQL 8+ (with `binlog_format`
+`ROW` or `MIXED`, see [MySQL caveats](#mysql-caveats)) or SQLite 3+ for
+development and tests.
 
 ## Quick Start
 
-### 1. Prepare database
+### 1. Apply migrations
 
-Choose the database backend that fits your deployment requirements.
-
-#### Production
-
-For production deployments, apply migrations from the `migrations/` directory to your database:
+Apply the migrations from [`migrations/`](migrations/) with
+[goose](https://github.com/pressly/goose):
 
 ```bash
-# Install goose migration tool
 go install github.com/pressly/goose/v3/cmd/goose@latest
 
-# Apply PostgreSQL migrations
-goose -dir migrations/pg postgres "your-production-dsn" up
-
-# Or for MySQL
-goose -dir migrations/mysql mysql "your-production-dsn" up
+goose -dir migrations/pg postgres "your-dsn" up      # PostgreSQL
+goose -dir migrations/mysql mysql "your-dsn" up      # MySQL
+goose -dir migrations/sqlite sqlite3 "your-dsn" up   # SQLite
 ```
 
-#### Local Development
-
-For local development, use Docker Compose and Make commands:
-
-```bash
-# Start PostgreSQL and MySQL with Docker Compose
-make docker-up
-
-# Configure your database connection in .env.local
-# For PostgreSQL (recommended):
-echo 'DB_DRIVER=postgres' > .env.local
-echo 'DB_DSN=postgres://postgres:postgres@localhost:5432/goque?sslmode=disable' >> .env.local
-
-# For MySQL:
-# echo 'DB_DRIVER=mysql' > .env.local
-# echo 'DB_DSN=root:root@tcp(localhost:3306)/goque?parseTime=true&loc=UTC' >> .env.local
-
-# For SQLite (dev/test only):
-# echo 'DB_DRIVER=sqlite3' > .env.local
-# echo 'DB_DSN=./goque.db' >> .env.local
-
-# Install database tools (goose)
-make bin-deps-db
-
-# Apply migrations
-make db-up
-```
-
-For detailed database setup instructions, see [DATABASE.md](DATABASE.md).
+To run the databases locally with Docker, see [Development](#development).
 
 ### 2. Create a Task Processor
 
@@ -158,7 +82,7 @@ Implement the `TaskProcessor` interface to define how your tasks should be proce
 ```go
 type EmailProcessor struct{}
 
-func (p *EmailProcessor) ProcessTask(ctx context.Context, task *entity.Task) error {
+func (p *EmailProcessor) ProcessTask(ctx context.Context, task *goque.Task) error {
     // Your task processing logic here
     return sendEmail(task.Payload)
 }
@@ -199,13 +123,17 @@ e.g. while polling an external status. The task goes back to `new` and runs agai
 `attempts` and `errors` stay unchanged. Rescheduling is unbounded, so the processor should
 enforce its own deadline (e.g. based on `task.CreatedAt`).
 
-### 3. Initialize and Run the Queue Manager (Recommended)
+### 3. Run Goque
 
 ```go
 package main
 
 import (
     "context"
+    "log"
+    "os"
+    "os/signal"
+    "syscall"
     "time"
 
     "github.com/ruko1202/goque"
@@ -215,73 +143,87 @@ import (
 )
 
 func main() {
+    if err := run(); err != nil {
+        log.Fatal(err)
+    }
+}
+
+func run() error {
     ctx := context.Background()
 
-    // Configure structured logging with xlog
+    // Structured logging with xlog (zap, slog or a custom adapter)
     logger := xlog.NewZapAdapter(zap.Must(zap.NewProduction()))
     xlog.ReplaceGlobalLogger(logger)
     ctx = xlog.ContextWithLogger(ctx, logger)
 
-    // Optional: Configure OpenTelemetry tracing
-    // goque.SetTracerProvider(tracerProvider) // See "Observability" section
+    // Optional: OpenTelemetry tracing, set before creating Goque
+    // goque.SetTracerProvider(tracerProvider)
 
-    // Initialize database connection
-    db, err := goquestorage.NewDBConn(ctx, &goquestorage.Config{
-        DSN: "postgres://user:pass@localhost:5432/goque?sslmode=disable",
-        Driver: goquestorage.PgxDriver,
-    })
-    if err != nil {
-        xlog.Panic(ctx, err.Error())
-    }
-
-    // Create task storage (works with any supported database)
-    taskStorage, err := goque.NewStorage(db)
-    if err != nil {
-        panic(err)
-    }
-
-    // Optional: Configure metrics with service name
+    // Optional: service name for metrics labels
     goque.SetMetricsServiceName("my-service")
 
-    // Create Goque manager (includes built-in healer processor)
-    goq := goque.NewGoque(taskStorage)
+    db, err := goquestorage.NewDBConn(ctx, &goquestorage.Config{
+        DSN:         "postgres://user:pass@localhost:5432/goque?sslmode=disable",
+        Driver:      goquestorage.PgxDriver,
+        MaxOpenConn: 20,
+        MaxIdleConn: 20, // at least the workers count, see "Databases"
+    })
+    if err != nil {
+        return err
+    }
 
-    // Register your task processors
+    // Task storage for whichever database the connection points to
+    taskStorage, err := goque.NewStorage(db)
+    if err != nil {
+        return err
+    }
+
+    // The Goque manager also runs the built-in healer and cleaner
+    goq := goque.NewGoque(taskStorage)
     goq.RegisterProcessor(
         "send_email",
         &EmailProcessor{},
         goque.WithWorkersCount(goque.NewStaticValue(10)),
         goque.WithTaskProcessingMaxAttempts(goque.NewStaticValue[int32](3)),
-        goque.WithTaskProcessingTimeout(goque.NewStaticValue(30 * time.Second)),
+        goque.WithTaskProcessingTimeout(goque.NewStaticValue(30*time.Second)),
     )
 
-    // Run all processors
-    goq.Run(ctx)
-
-    // Graceful shutdown
+    if err := goq.Run(ctx); err != nil {
+        return err
+    }
+    // Graceful shutdown: in-flight tasks finish before Stop returns
     defer goq.Stop()
+
+    // Serve until SIGINT or SIGTERM
+    sigCtx, stop := signal.NotifyContext(ctx, os.Interrupt, syscall.SIGTERM)
+    defer stop()
+    <-sigCtx.Done()
+
+    return nil
 }
 ```
 
-### 4. Adding Tasks to the Queue
+### 4. Add Tasks to the Queue
 
 ```go
-payload := `{"to": "user@example.com", "subject": "Hello"}`
-// Create a new task
-task := goque.NewTask("send_email", payload)
+taskQueueManager := goque.NewTaskQueueManager(taskStorage)
 
-// Or with external ID for idempotency
-task := goque.NewTaskWithExternalID("send_email", payload, "external-order-123")
+// A task with a raw JSON payload
+task := goque.NewTask("send_email", `{"to": "user@example.com", "subject": "Hello"}`)
+err := taskQueueManager.AddTaskToQueue(ctx, task)
 
-// Or marshal a typed payload as JSON
-task, err := goque.NewTaskWithPayload("send_email", EmailPayload{
+// With an external ID: enqueuing the same ID again returns goque.ErrDuplicateTask
+dedupTask := goque.NewTaskWithExternalID("send_email", payload, "external-order-123")
+err = taskQueueManager.AddTaskToQueue(ctx, dedupTask)
+
+// With a typed payload marshaled to JSON
+typedTask, err := goque.NewTaskWithPayload("send_email", EmailPayload{
     To:      "user@example.com",
     Subject: "Hello",
 })
-
-// Add to queue using TaskQueueManager (recommended - includes metrics)
-taskQueueManager := goque.NewTaskQueueManager(taskStorage)
-err := taskQueueManager.AddTaskToQueue(ctx, task)
+if err == nil {
+    err = taskQueueManager.AddTaskToQueue(ctx, typedTask)
+}
 ```
 
 ### 5. Transactional Outbox
@@ -335,11 +277,106 @@ directly to the storage's `*sqlx.DB`.
 > against `*sqlx.DB` and is no longer atomic with your domain write.
 > Always use the synchronous `AddTaskToQueue` for outbox.
 
-## Example Application
+## Managing tasks
 
-A complete, production-ready example service demonstrating real-world Goque usage is available in the `examples/service` directory.
+`TaskQueueManager` (from `goque.NewTaskQueueManager`) covers the rest of a task's life:
 
-For detailed instructions and API documentation, see [examples/service/README.md](examples/service/README.md).
+| Method | What it does |
+|---|---|
+| `AddTaskToQueue(ctx, task)` | Enqueues synchronously; joins a tx attached with `goque.WithTx` |
+| `AsyncAddTaskToQueue(ctx, task)` | Enqueues in a background goroutine; errors are logged, not returned; never joins a tx |
+| `GetTask(ctx, id)` | Returns one task |
+| `GetTasks(ctx, filter, limit)` | Returns tasks matching a `goque.TaskFilter` (IDs, type, statuses, age) |
+| `CancelTask(ctx, id)` | Moves a non-terminal task to `canceled`; a run already in flight is not stopped, its result is dropped |
+| `ResetAttempts(ctx, id)` | Sets the task back to `new` with zero attempts |
+| `WaitAsyncEnqueues()` | Waits for `AsyncAddTaskToQueue` goroutines; `Goque.Stop` calls it for you |
+
+`CancelTask` and `ResetAttempts` return `goque.ErrTaskVersionConflict` if the task
+changed between their read and write; see [Delivery Guarantees](#delivery-guarantees).
+
+## Example service
+
+A complete example service lives in [`examples/service`](examples/service/):
+
+```bash
+cd examples/service
+make docker-up
+# localhost:8080  dashboard and API
+# localhost:3000  Grafana
+# outbox on orders: POST /api/orders
+```
+
+It runs PostgreSQL, Prometheus, Loki, Grafana, Jaeger and an OpenTelemetry
+collector, five task types and a load generator. See
+[examples/service/README.md](examples/service/README.md) for the API and dashboards.
+
+## Databases
+
+| Database | Enqueue | Processing, 1 → 50 workers | Best For | Production Ready |
+|----------|---------|----------------------------|----------|------------------|
+| **PostgreSQL** | 0.44 ms | 1,040 → 4,810 tasks/s | High-throughput production systems | ✅ **Recommended** |
+| **MySQL** | 1.09 ms | 400 → 2,050 tasks/s | Teams already running MySQL | ✅ Yes, see [MySQL caveats](#mysql-caveats) |
+| **SQLite** | 0.06 ms | 9,840 → 8,170 tasks/s | Local development, testing, CI/CD | ⚠️ **Dev/Test only** |
+
+Measured with `make bench` against Docker databases on one laptop; see
+[PERFORMANCE_ANALYSIS.md](PERFORMANCE_ANALYSIS.md) for the setup and what each
+number means. Throughput is bound by database round trips: each processed task
+costs two single-row writes plus a share of one fetch transaction. SQLite looks
+fastest only because it has no network hop; it serializes all writes on one
+connection and one process.
+
+**Size the connection pool for your workers.** Keep `MaxIdleConns` at least at
+the total number of workers plus a few for the fetcher, healer and cleaner.
+Below that, `database/sql` closes and reopens connections on every burst; with
+50 workers on PostgreSQL that cut throughput by almost 3×. Across processes,
+keep `instances × MaxOpenConns` below the server's `max_connections` (151 on
+stock MySQL).
+
+### Production notes
+
+#### SQLite caveats
+
+SQLite serializes writes at the file level. Two practical consequences
+for goque on SQLite:
+
+- **Concurrent writers deadlock under the default `BEGIN DEFERRED`
+  transaction mode.** Operations like `CureTasks` and
+  `GetTasksForProcessing` open their own transactions via
+  `dbtx.WithinTx`; when several workers call them in parallel, one
+  SELECT takes a SHARED lock and the next UPDATE can't upgrade to
+  RESERVED — SQLite returns `SQLITE_BUSY` immediately and the
+  `_busy_timeout` parameter does **not** apply to lock upgrades.
+  Mitigation: pass `?_txlock=immediate&_journal_mode=WAL&_busy_timeout=5000`
+  in your DSN so all transactions start as `BEGIN IMMEDIATE` and
+  multiple readers can coexist with the single writer.
+- **One process at a time.** Even with the DSN tuning above, a single
+  SQLite database file should be opened by a single goque process.
+  Spinning up two binaries that both write to `goque.sqlite.db` will
+  see `database is locked` errors no matter what.
+
+If you need real horizontal scaling, run PostgreSQL or MySQL — they
+have row-level locks and don't have this class of problem.
+
+#### MySQL caveats
+
+goque runs its own MySQL transactions (task fetch, healer, cleaner,
+`ResetAttempts`) at **READ COMMITTED**, whatever the server default is.
+Under InnoDB's default REPEATABLE READ the fetch's locking range scan
+also locks the index gaps around it, and those gaps belong to tasks that
+workers are moving to another status at the same moment; the two
+`UPDATE`s deadlock (`Error 1213`). READ COMMITTED locks only the rows
+the scan returns.
+
+This needs `binlog_format` `ROW` (the default) or `MIXED`. With
+`STATEMENT`, MySQL rejects writes in a READ COMMITTED transaction with
+`Error 1665`.
+
+#### Schema
+
+Goque installs a single table named **`goque_task`** plus three indexes
+(`goque_task_type_external_id_idx`, `goque_task_type_status_next_attempt_at_idx`,
+`goque_task_type_status_updated_at_idx`). The full DDL lives in
+[migrations/](migrations/) — apply it with `make db-up`.
 
 ## Configuration Options
 
@@ -399,26 +436,6 @@ When changes are applied:
   place and in-flight tasks are not interrupted. When the pool is full, growth applies once a running
   task finishes; after a shrink, extra workers retire as they finish their current task;
 - fetch tick and healer/cleaner period - after the current tick/period elapses.
-
-#### Migrating from scalar options
-
-Scalar arguments are replaced by values: wrap constants with `goque.NewStaticValue`.
-
-```go
-// before
-goque.WithWorkersCount(10)
-goque.WithTaskFetcherMaxTasks(100)
-goque.WithTaskProcessingMaxAttempts(3)
-
-// after
-goque.WithWorkersCount(goque.NewStaticValue(10))
-goque.WithTaskFetcherMaxTasks(goque.NewStaticValue[int64](100))      // Go infers int from an untyped constant,
-goque.WithTaskProcessingMaxAttempts(goque.NewStaticValue[int32](3))  // so int64/int32 options need a type argument
-```
-
-Other behavior changes: `WithTaskProcessingMaxAttempts` with a value `<= 0` no longer clamps to 1 (the
-last valid value or default 5 is used), and a non-positive healer/cleaner period no longer disables that
-processor (the last valid value or default period is used).
 
 ### Periodic Jobs
 
@@ -491,45 +508,47 @@ task := goque.NewTaskWithExternalID("quarter_hour_report", payload, externalID)
 Tasks flow through the following states:
 
 ```
-new → pending → processing → done
-        ↑ ↓         ↓    ↓
-        │ └──error──┘  canceled
-        │     ↓
-        │  attempts_left
-        │
-        └──(healer fixes stuck pending tasks)
+new ──→ pending ──→ processing ──┬──→ done
+ ▲         ▲                     ├──→ canceled
+ │         │                     ├──→ attempts_left
+ │         └────── error ◀───────┤   failed, attempts left (fetched again when due)
+ └───────────────────────────────┘   RescheduleTask, or returned on graceful shutdown
+
+Healer:         stuck pending or processing ──→ error
+CancelTask:     any non-terminal status     ──→ canceled
+ResetAttempts:  any status                  ──→ new (attempts reset to 0)
 ```
 
 ### Status Descriptions
 
-- **new** - Task created and ready to be picked up
-- **pending** - Task scheduled for future processing (via NextAttemptAt)
-- **processing** - Task currently being processed by a worker
-- **done** - Task completed successfully ✓ (terminal)
-- **error** - Task failed but has retry attempts remaining
-- **attempts_left** - Task failed and exhausted all retry attempts ✗ (terminal)
-- **canceled** - Task was manually canceled ✗ (terminal)
+- **new** - Created and waiting until `next_attempt_at` is due
+- **pending** - Taken by a fetcher, waiting for a free worker
+- **processing** - Being processed by a worker
+- **done** - Completed successfully ✓ (terminal)
+- **error** - Failed with attempts left; fetched again once `next_attempt_at` (set by the backoff) is due
+- **attempts_left** - Failed with no attempts left ✗ (terminal)
+- **canceled** - Canceled by `CancelTask` or by the processor (`goque.ErrTaskCancel`) ✗ (terminal)
 
 ### Valid State Transitions
 
 | Current Status | Next Status | Trigger |
 |----------------|-------------|---------|
-| `new` | `pending` | Task scheduled for processing |
-| `pending` | `processing` | Worker picks up a task |
-| `processing` | `attempts_left` | Its attempts were already used up (cures from `processing` count as attempts); not run |
-| `pending`, `processing` | `error` | Healer marks a stuck task (cure); a cure from `processing` consumes one attempt, a cure from `pending` does not |
+| `new`, `error` | `pending` | A fetcher takes a due task (`next_attempt_at` has passed) |
+| `pending` | `processing` | A worker starts the task |
 | `processing` | `done` | Successful processing |
-| `processing` | `error` | Failed processing with retries left |
-| `processing` | `canceled` | Manual cancellation |
-| `processing` | `new` | Processor returned `RescheduleTask(after)`; attempts unchanged |
-| `error` | `pending` | Retry logic schedules next attempt |
-| `error` | `attempts_left` | No more retry attempts available |
+| `processing` | `error` | Failed processing with attempts left; `next_attempt_at` set by the backoff |
+| `processing` | `attempts_left` | Failed processing with no attempts left, or its attempts were already used up (cures from `processing` count as attempts), in which case it is not run |
+| `processing` | `canceled` | The processor returned an error wrapping `goque.ErrTaskCancel` |
+| `processing` | `new` | The processor returned `RescheduleTask(after)` (attempts unchanged), or graceful shutdown returned the task to the queue |
+| `pending`, `processing` | `error` | Healer marks a stuck task (cure); a cure from `processing` consumes one attempt, a cure from `pending` does not |
+| any non-terminal | `canceled` | `CancelTask` |
+| any | `new` | `ResetAttempts` (attempts set to zero) |
 
 ### Terminal States
 
 Tasks in these states will not be processed again:
 - **done** - Successfully completed
-- **canceled** - Manually canceled by user
+- **canceled** - Canceled by `CancelTask` or the processor
 - **attempts_left** - Failed with no remaining retry attempts
 
 ## Delivery Guarantees
@@ -636,9 +655,11 @@ Goque includes built-in Prometheus metrics for comprehensive monitoring of your 
 
 | Metric Name | Type | Labels | Description |
 |-------------|------|--------|-------------|
-| `goque_processed_tasks_total` | Counter | `task_type`, `status` | Total number of processed tasks by type and final status |
-| `goque_processed_tasks_with_error_total` | Counter | `task_type`, `task_processing_operations`, `task_error_type` | Tasks processed with errors, including error type details |
-| `goque_task_processing_duration_seconds` | Histogram | `task_type` | Task processing duration distribution in seconds |
+| `goque_processed_tasks_total` | Counter | `task_type`, `status` | Tasks by type and status: counted on enqueue (`new`), when a worker starts a task and when it finishes (final status) |
+| `goque_task_processing_duration_seconds` | Histogram | `task_type`, `operation` | Duration of task processing and of the internal operations |
+| `goque_operations_total` | Counter | `task_type`, `operation` | Tasks handled by the fetcher (`fetch`), cleaner (`cleanup`) and healer (`health`) |
+| `goque_task_retry_attempts` | Histogram | `task_type` | Attempts a task had used when it finished |
+| `goque_processors_workers_count` | Gauge | `task_type` | Current number of workers per task type |
 | `goque_task_payload_size_bytes` | Histogram | `task_type` | Task payload size distribution in bytes |
 | `goque_payload_decode_errors_total` | Counter | `task_type` | Typed task payload JSON decode errors by task type |
 | `goque_task_version_conflicts_total` | Counter | `task_type`, `stage` | Task writes dropped because another writer changed the task (`stage`: `start`, `finish`, `return`). Expected ≈ 0; `finish` > 0 means a result was dropped |
@@ -660,42 +681,42 @@ http.Handle("/metrics", promhttp.Handler())
 go http.ListenAndServe(":9090", nil)
 ```
 
-##### Task Processing Operations
+##### Operations
 
-Metrics track errors across different operations:
-- `add_to_queue` - Errors during task creation and queue insertion
-- `processing` - Errors during task execution
-- `cleanup` - Errors during task cleanup operations
-- `health` - Errors during healer operations
+The `operation` label takes these values:
+- `fetch` - Taking tasks from the database
+- `processing` - Running a task (duration only)
+- `cleanup` - Removing old finished tasks
+- `health` - Curing stuck tasks
 
 ##### Example Queries
 
 ```promql
-# Task processing rate by type
-rate(goque_processed_tasks_total[5m])
+# Task processing rate by type and status
+sum by (task_type, status) (rate(goque_processed_tasks_total[5m]))
 
-# Task error rate
-rate(goque_processed_tasks_with_error_total[5m])
+# Failure rate: tasks finishing in error or attempts_left
+sum by (task_type) (rate(goque_processed_tasks_total{status=~"error|attempts_left"}[5m]))
 
 # Typed payload decode errors by task type
 sum by (task_type) (rate(goque_payload_decode_errors_total[5m]))
 
 # Average processing duration
-rate(goque_task_processing_duration_seconds_sum[5m])
-  / rate(goque_task_processing_duration_seconds_count[5m])
+rate(goque_task_processing_duration_seconds_sum{operation="processing"}[5m])
+  / rate(goque_task_processing_duration_seconds_count{operation="processing"}[5m])
 
 # 95th percentile processing time
-histogram_quantile(0.95, goque_task_processing_duration_seconds_bucket)
+histogram_quantile(0.95, sum by (le, task_type) (rate(goque_task_processing_duration_seconds_bucket{operation="processing"}[5m])))
 
-# Tasks by status
-sum by (status) (goque_processed_tasks_total)
+# Tasks fetched per second
+sum by (task_type) (rate(goque_operations_total{operation="fetch"}[5m]))
 ```
 
 For a complete example with metrics integration, see [examples/service/](examples/service/).
 
 #### Structured Logging (xlog)
 
-Goque uses [xlog](https://github.com/ruko1202/xlog) for structured logging with support for multiple backends (Zap, Slog, custom adapters). See the Quick Start example above for configuration.
+Goque uses [xlog](https://github.com/ruko1202/xlog) for structured logging with support for multiple backends (Zap, Slog, custom adapters). See [Run Goque](#3-run-goque) for configuration.
 
 **What gets logged:**
 - Task lifecycle events (creation, processing, completion)
@@ -705,17 +726,14 @@ Goque uses [xlog](https://github.com/ruko1202/xlog) for structured logging with 
 
 #### Distributed Tracing (OpenTelemetry)
 
-Goque supports OpenTelemetry for distributed tracing. By default, uses a noop tracer (zero overhead). See the Quick Start example above for enabling tracing.
+Goque supports OpenTelemetry for distributed tracing. By default it uses a no-op
+tracer. To enable tracing, call `goque.SetTracerProvider(tracerProvider)` as in
+[Run Goque](#3-run-goque).
 
 **Traced operations:**
 - Task processing loop and fetching
 - Hook execution (before/after)
 - Task queue operations (add, get)
-
-**Performance impact:**
-- Noop (default): 0% overhead
-- With 1% sampling: <0.1% memory overhead
-- Without sampling: ~6% memory overhead
 
 ⚠️ **Important:** Call `goque.SetTracerProvider()` **before** creating Goque instances.
 
@@ -724,10 +742,7 @@ Goque supports OpenTelemetry for distributed tracing. By default, uses a noop tr
 ### Prerequisites
 
 - Go 1.25 or higher
-- One of the supported databases:
-  - PostgreSQL 12+
-  - MySQL 8+
-  - SQLite 3+
+- Docker (for the local PostgreSQL and MySQL), or SQLite 3+
 - Make
 
 ### Setup
@@ -743,6 +758,34 @@ make bin-deps
 make deps
 ```
 
+### Local databases
+
+```bash
+# Start PostgreSQL and MySQL with Docker Compose
+make docker-up
+
+# Configure your database connection in .env.local (one "KEY: value" per line)
+# For PostgreSQL (recommended):
+echo 'DB_DRIVER: postgres' > .env.local
+echo 'DB_DSN: postgres://postgres:postgres@localhost:5432/goque?sslmode=disable' >> .env.local
+
+# For MySQL:
+# echo 'DB_DRIVER: mysql' > .env.local
+# echo 'DB_DSN: root:root@tcp(localhost:3306)/goque?parseTime=true&loc=UTC' >> .env.local
+
+# For SQLite (dev/test only):
+# echo 'DB_DRIVER: sqlite3' > .env.local
+# echo 'DB_DSN: ./goque.db' >> .env.local
+
+# Install database tools (goose)
+make bin-deps-db
+
+# Apply migrations
+make db-up
+```
+
+For detailed database setup instructions, see [DATABASE.md](DATABASE.md).
+
 ### Running Tests
 
 ```bash
@@ -752,6 +795,18 @@ make tloc
 # Run tests with coverage
 make test-cov
 ```
+
+### Benchmarks
+
+```bash
+# All benchmarks against all databases
+make bench
+
+# One benchmark, one database, five runs
+DB_DRIVER=pgx make bench BENCH=Processing BENCH_COUNT=5
+```
+
+Results and how to read them: [PERFORMANCE_ANALYSIS.md](PERFORMANCE_ANALYSIS.md).
 
 ### Code Quality
 
@@ -784,8 +839,11 @@ make db-up
 # Rollback last migration
 make db-down
 
-# Regenerate database models (PostgreSQL only)
+# Regenerate database models for the current DB_DRIVER
 make db-models
+
+# Regenerate database models for all databases
+make all-db-models
 
 # Docker Compose commands for local development
 make docker-up           # Start PostgreSQL and MySQL with Docker Compose
