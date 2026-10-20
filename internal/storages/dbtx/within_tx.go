@@ -28,11 +28,17 @@ import (
 // Panics inside fn are recovered, joined into err as a regular error,
 // and NOT re-raised. Callers that rely on panic propagation must do
 // the recover themselves before invoking WithinTx.
-func WithinTx(ctx context.Context, db *sqlx.DB, fn func(ctx context.Context) error) (err error) {
+func WithinTx(ctx context.Context, db *sqlx.DB, fn func(ctx context.Context) error) error {
+	return WithinTxIsolation(ctx, db, sql.LevelDefault, fn)
+}
+
+// WithinTxIsolation is WithinTx with the tx opened at the given isolation
+// level; sql.LevelDefault keeps the server's (or session's) default.
+func WithinTxIsolation(ctx context.Context, db *sqlx.DB, isolation sql.IsolationLevel, fn func(ctx context.Context) error) (err error) {
 	ctx, span := xlog.WithOperationSpan(ctx, "txManager.WithinTx")
 	defer span.End()
 
-	tx, beginTxErr := db.BeginTxx(ctx, &sql.TxOptions{Isolation: sql.LevelDefault})
+	tx, beginTxErr := db.BeginTxx(ctx, &sql.TxOptions{Isolation: isolation})
 	if beginTxErr != nil {
 		return beginTxErr
 	}

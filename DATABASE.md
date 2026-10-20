@@ -75,6 +75,10 @@ make docker-mysql-up    # Start MySQL with Docker Compose
 make docker-down        # Stop and remove all containers
 ```
 
+goque's own transactions run at READ COMMITTED to avoid InnoDB gap-lock
+deadlocks, so the server needs `binlog_format` `ROW` (default) or `MIXED`;
+see the [MySQL caveats](README.md#mysql-caveats).
+
 ### SQLite
 
 ```bash

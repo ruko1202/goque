@@ -7,8 +7,6 @@ import (
 	"github.com/ruko1202/xlog"
 	"github.com/ruko1202/xlog/xfield"
 
-	"github.com/ruko1202/goque/internal/storages/dbtx"
-
 	"github.com/ruko1202/goque/internal/entity"
 	"github.com/ruko1202/goque/internal/pkg/generated/mysql/goque/model"
 	"github.com/ruko1202/goque/internal/pkg/generated/mysql/goque/table"
@@ -24,7 +22,7 @@ func (s *Storage) GetTasksForProcessing(ctx context.Context, taskType entity.Tas
 	defer span.End()
 
 	var tasks []*model.GoqueTask
-	err := dbtx.WithinTx(ctx, s.db.GetDB(), func(ctx context.Context) error {
+	err := s.withinTx(ctx, func(ctx context.Context) error {
 		var err error
 		tasks, err = s.getTasksForProcessing(ctx, taskType, limit)
 		if err != nil {
