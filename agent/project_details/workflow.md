@@ -587,32 +587,47 @@ make lint
 # 3. Update version
 # Edit relevant files if needed
 
-# 4. Create tag
-git tag -a v1.1.0 -m "Release v1.1.0
+# 4. Write the release notes (Markdown, `##` headings are fine)
+cat > notes.md <<'NOTES'
+## Features
 
-Features:
 - Add task priority support
-- Add webhook processor example
 
-Bug Fixes:
+## Fixes
+
 - Fix race condition in worker pool
-- Prevent duplicate task processing
 
-Breaking Changes:
+## Upgrade notes
+
 - None
-"
+NOTES
 
-# 5. Push tag
+# 5. Create an annotated tag carrying the notes
+#    --cleanup=verbatim keeps the `#` headings; the default cleanup strips them as comments
+git tag -a v1.1.0 --cleanup=verbatim -F notes.md
+
+# 6. Push the tag: .github/workflows/release.yml runs GoReleaser and creates the GitHub release
 git push origin v1.1.0
+```
 
-# 6. Create GitHub Release
-gh release create v1.1.0 \
-  --title "v1.1.0" \
-  --notes "See tag message"
+### Release Notes
 
-# 7. Announce release
-# Update CHANGELOG.md
-# Notify users
+Pushing a `v*` tag runs `.github/workflows/release.yml`, which builds the GitHub release notes:
+
+- **Annotated tag** (`git tag -a`): the tag message goes on top, the commit changelog below it.
+  This is the convention: put the curated, user-facing notes in the tag message.
+- **Lightweight tag** (`git tag v1.1.0`): still released, with only the commit changelog.
+  Its "message" would be the tagged commit's message (for a squash merge, every squashed
+  commit), so the workflow does not use it.
+
+The commit changelog lists every commit since the previous tag, grouped into Features
+(`feat:`), Fixes (`fix:`) and Other (everything else). Nothing is filtered out by type,
+because a squash-merged PR titled `test:` or `docs:` can still carry fixes.
+
+Check the notes before pushing the tag:
+
+```bash
+git tag -l --format='%(contents)' v1.1.0
 ```
 
 ## Continuous Integration
