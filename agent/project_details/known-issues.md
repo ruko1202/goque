@@ -2,35 +2,9 @@
 
 ## Current Known Issues
 
-### MySQL: deadlocks between concurrent status updates
+### None Reported
 
-**Scenario**: MySQL with 10+ workers on one task type
-
-**Symptoms**:
-- `Error 1213 (40001): Deadlock found when trying to get lock` in worker logs,
-  about one task in a few thousand under load (`BenchmarkProcessing/mysql`)
-- The task stays in `processing` until the healer cures it, consuming an attempt
-
-**Cause**: a status change moves the row inside
-`goque_task_type_status_next_attempt_at_idx`; under REPEATABLE READ concurrent
-`UPDATE`s take conflicting gap and insert-intention locks there. goque does not
-retry 1213.
-
-**Workaround**: none in goque yet; the healer recovers the task. Fix options:
-retry on 1213/40001, or run goque's MySQL writes under READ COMMITTED.
-
-### MySQL: timestamps rounded to the second
-
-**Scenario**: any MySQL deployment
-
-**Symptoms**: a freshly enqueued task is not fetched for up to half a second;
-ordering within one second is lost.
-
-**Cause**: `next_attempt_at`, `created_at`, `updated_at` are `TIMESTAMP` without
-fractional seconds, and MySQL rounds the fraction (12:00:00.6 becomes 12:00:01).
-
-**Workaround**: none needed for normal fetch ticks; a `TIMESTAMP(6)` migration
-would fix it.
+No known critical issues at this time.
 
 ---
 

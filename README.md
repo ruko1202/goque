@@ -39,7 +39,7 @@ Goque supports three database backends:
 | Database | Enqueue | Processing, 1 → 50 workers | Best For | Production Ready |
 |----------|---------|----------------------------|----------|------------------|
 | **PostgreSQL** | 0.44 ms | 1,040 → 4,810 tasks/s | High-throughput production systems | ✅ **Recommended** |
-| **MySQL** | 1.21 ms | 350 → 2,110 tasks/s | Teams already running MySQL | ✅ Yes, see [known issues](agent/project_details/known-issues.md) |
+| **MySQL** | 1.26 ms | 380 → 1,920 tasks/s | Teams already running MySQL | ✅ Yes, see [MySQL caveats](#mysql-caveats) |
 | **SQLite** | 0.06 ms | 9,840 → 8,170 tasks/s | Local development, testing, CI/CD | ⚠️ **Dev/Test only** |
 
 Measured with `make bench` against Docker databases on one laptop; see

@@ -1,7 +1,7 @@
 # Goque Performance Report
 
 **Date:** 2026-10-20
-**Code:** branch `test/fix-benchmarks` (on top of `0b5b8a9`)
+**Code:** branch `test/fix-benchmarks`, including the MySQL fixes from findings 1 and 3
 **Benchmarks:** [`test/benchmark_test.go`](test/benchmark_test.go), run with `make bench BENCH_COUNT=5`
 
 This report replaces the one from 2026-03-19. That report measured something
@@ -15,10 +15,10 @@ other than what it claimed; see [Corrections](#corrections-to-the-2026-03-19-rep
   CPU.** Processing 3.6k tasks/s on PostgreSQL keeps the client at ~0.4 of one core.
 - **One processed task costs two single-row writes** (`processing`, then `done`)
   plus a share of one fetch transaction. With one worker that is ~1.0k tasks/s on
-  PostgreSQL and ~350 on MySQL here; with 50 workers ~4.8k and ~2.1k.
-- **MySQL deadlocks under concurrent workers.** Every full run with 10+ workers hit
-  `Error 1213` on roughly one task in a few thousand. goque does not retry it, so
-  the task stays in `processing` until the healer cures it, which costs an attempt.
+  PostgreSQL and ~380 on MySQL here; with 50 workers ~4.8k and ~1.9k.
+- **MySQL deadlocked under concurrent workers; fixed.** With 10+ workers about one
+  task in a few thousand failed with `Error 1213` and waited for the healer. goque's
+  own MySQL transactions now run at READ COMMITTED, and no run since has failed.
 - **`MaxIdleConns` below the number of workers reopens connections all the time.**
   On PostgreSQL with 50 workers it cut throughput from 4.8k to 1.7k tasks/s.
 - **go-jet accounts for 45% of the bytes allocated per task, but only 4% of CPU.**
@@ -72,7 +72,10 @@ cleaner out of the way. Every run uses its own task type and deletes its rows.
 ## Results
 
 Median of 5 runs, `-benchtime=1s`. The full spread is in the raw output of
-`make bench`.
+`make bench`. MySQL rows were measured after the fixes in findings 1 and 3.
+Against the run before them, some MySQL medians moved by 25–95% in both
+directions, including `EnqueueParallel`, whose code did not change: on this
+setup that is noise, so do not read the difference as a speed-up or slowdown.
 
 ### Enqueue
 
@@ -80,7 +83,7 @@ Median of 5 runs, `-benchtime=1s`. The full spread is in the raw output of
 |---|---:|---:|---:|---:|
 | SQLite | 62 µs | 16,100 | 10.1 KB | 201 |
 | PostgreSQL | 441 µs | 2,270 | 9.8 KB | 221 |
-| MySQL | 1,208 µs | 830 | 9.9 KB | 195 |
+| MySQL | 1,256 µs | 800 | 9.9 KB | 195 |
 
 ### EnqueueParallel (14 goroutines)
 
@@ -88,7 +91,7 @@ Median of 5 runs, `-benchtime=1s`. The full spread is in the raw output of
 |---|---:|---:|---:|
 | SQLite | 13,900 | 10.3 KB | 204 |
 | PostgreSQL | 11,500 | 9.9 KB | 221 |
-| MySQL | 2,290 | 9.9 KB | 195 |
+| MySQL | 4,450 | 10.0 KB | 195 |
 
 ### Fetch
 
@@ -96,7 +99,7 @@ Median of 5 runs, `-benchtime=1s`. The full spread is in the raw output of
 |---|---:|---:|---:|---:|
 | SQLite | 102 µs | 9,800 | 1.5 ms | 68,700 |
 | PostgreSQL | 1.56 ms | 640 | 11.3 ms | 8,800 |
-| MySQL | 2.86 ms | 350 | 20.9 ms | 4,800 |
+| MySQL | 3.58 ms | 280 | 21.0 ms | 4,760 |
 
 Allocations: ~21 KB / 420 allocs for one task, ~400 KB / 7,500 allocs for 100.
 
@@ -106,7 +109,7 @@ Allocations: ~21 KB / 420 allocs for one task, ~400 KB / 7,500 allocs for 100.
 |---|---:|---:|---:|
 | SQLite | 9,840 | 9,120 | 8,170 |
 | PostgreSQL | 1,040 | 4,110 | 4,810 |
-| MySQL | 350 | 1,430 | 2,110 |
+| MySQL | 380 | 1,070 | 1,920 |
 
 Per processed task: 23–26 KB and 400–440 allocations on all three databases.
 
@@ -139,28 +142,30 @@ of wall time on one core of 14; go-jet took 4% of that and GC 10%.
 
 ## Findings
 
-### 1. MySQL: deadlock between status updates (bug)
+### 1. MySQL: deadlock between status updates (fixed)
 
-With 10 or 50 workers, about one task in a few thousand finishes with:
+With 10 or 50 workers, about one task in a few thousand finished with:
 
 ```
 Error 1213 (40001): Deadlock found when trying to get lock; try restarting transaction
 ```
 
-`SHOW ENGINE INNODB STATUS` shows two `UPDATE goque_task` statements waiting on
-each other in `goque_task_type_status_next_attempt_at_idx`: one holds a next-key
-lock and waits for a record, the other holds that record and waits for an insert
-intention lock. A status change moves the row inside that secondary index, and
-under REPEATABLE READ the gap locks taken there conflict between concurrent
-writers.
+`SHOW ENGINE INNODB STATUS` showed two `UPDATE goque_task` statements waiting on
+each other in `goque_task_type_status_next_attempt_at_idx`. Under REPEATABLE READ
+the fetch's `SELECT … FOR UPDATE SKIP LOCKED` range scan also next-key-locks the
+first index record past the range, which belongs to a task a worker is moving to
+`processing` or `done` at that moment. The worker's `UPDATE` waited for that
+record while the fetch's batch `UPDATE` waited for an insert intention lock in the
+worker's gap. Nothing retried the error, so the task stayed in `processing` until
+the healer cured it, consuming an attempt.
 
-goque neither retries 1213 nor avoids the gap locks, so the failed write leaves
-the task in `processing` until the healer cures it (one attempt consumed). Delivery
-stays at-least-once, but a task can be delayed by the healer threshold and run twice.
-
-Possible fixes: retry the statement on 1213/40001, or run goque's MySQL writes
-under READ COMMITTED, which takes no gap locks. PostgreSQL and SQLite were not
-affected in any run.
+**Fix:** goque's own MySQL transactions (fetch, healer, cleaner, `ResetAttempts`)
+now run at READ COMMITTED, which locks only the rows a scan returns. Version
+fencing is unchanged. Before the fix, `-benchtime=4s -count=8` failed 5 tasks in
+~135k; after it, `-count=12` failed none in ~200k, and the MySQL numbers above
+had no failures either. The server needs `binlog_format` `ROW` (the default) or
+`MIXED`: with `STATEMENT`, MySQL rejects writes in a READ COMMITTED transaction
+(`Error 1665`). PostgreSQL and SQLite were not affected.
 
 ### 2. Connection pool: `MaxIdleConns` must cover the workers
 
@@ -177,13 +182,14 @@ Set `MaxIdleConns` to at least the total number of workers plus a few
 connections for the fetcher, healer and cleaner. The test helpers had
 `MaxOpenConns` and `MaxIdleConns` swapped; that is fixed as well.
 
-### 3. MySQL: timestamps are rounded to the second
+### 3. MySQL: timestamps were rounded to the second (fixed)
 
-`goque_task.next_attempt_at`, `created_at` and `updated_at` are `TIMESTAMP`
+`goque_task.next_attempt_at`, `created_at` and `updated_at` were `TIMESTAMP`
 without fractional seconds, and MySQL rounds (not truncates) the fraction. A task
-enqueued at 12:00:00.6 is stored as 12:00:01 and cannot be fetched until then. The
-benchmarks seed tasks with a past `next_attempt_at` to avoid it. A `TIMESTAMP(6)`
-migration would fix it.
+enqueued at 12:00:00.6 was stored as 12:00:01 and could not be fetched until then.
+Migration `20261020120000_task_timestamp_precision` changes them to
+`TIMESTAMP(6)`; a storage test now fetches a task enqueued with
+`next_attempt_at = now` at once.
 
 ### 4. Allocations
 
