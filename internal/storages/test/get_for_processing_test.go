@@ -65,6 +65,26 @@ func testGetTaskForProcessing(t *testing.T, storage storages.AdvancedTaskStorage
 		}
 	})
 
+	t.Run("due now", func(t *testing.T) {
+		t.Parallel()
+		ctx := xlog.ContextWithLogger(ctx, xlog.NewZapAdapter(zaptest.NewLogger(t)))
+
+		// Enqueue past the middle of a second: a column that rounds to whole
+		// seconds would push next_attempt_at into the next second.
+		if frac := time.Duration(xtime.Now().Nanosecond()); frac < 600*time.Millisecond {
+			time.Sleep(600*time.Millisecond - frac)
+		}
+
+		taskType := "test GetTaskForProcessing due now " + uuid.NewString()
+		task := entity.NewTask(taskType, testutils.ToJSON(t, &testutils.TestPayload{Data: "test"}))
+		require.NoError(t, storage.AddTask(ctx, task))
+
+		tasks, err := storage.GetTasksForProcessing(ctx, taskType, 10)
+		require.NoError(t, err)
+		require.Len(t, tasks, 1, "a task due now must be fetchable immediately")
+		require.Equal(t, task.ID, tasks[0].ID)
+	})
+
 	t.Run("not found", func(t *testing.T) {
 		t.Parallel()
 		ctx := xlog.ContextWithLogger(ctx, xlog.NewZapAdapter(zaptest.NewLogger(t)))
