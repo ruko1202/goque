@@ -179,6 +179,8 @@ and are re-read on every cycle; invalid (`<= 0`) values fall back to the last va
 - **MySQL** (`internal/storages/mysql/task/`) - Alternative implementation
   - Uses go-jet for type-safe queries
   - Row-level locking with FOR UPDATE SKIP LOCKED
+  - goque's own txs (fetch, cure, delete, reset) run at READ COMMITTED: no gap locks, so
+    they can't deadlock with workers' status updates (needs binlog_format ROW or MIXED)
 - **SQLite** (`internal/storages/sqlite/task/`) - Embedded database implementation
   - Uses go-jet for type-safe queries
   - Transaction-based locking

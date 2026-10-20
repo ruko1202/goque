@@ -258,6 +258,7 @@ database:
   concurrency:
     locking_postgres: FOR UPDATE SKIP LOCKED
     locking_mysql: FOR UPDATE SKIP LOCKED
+    isolation_mysql: goque's own txs (fetch cure delete reset) run at READ COMMITTED - REPEATABLE READ gap locks deadlocked them with workers' status updates (Error 1213); needs binlog_format ROW or MIXED
     reason: Prevent duplicate task processing across multiple workers
 
   migrations:

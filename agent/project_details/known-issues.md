@@ -21,9 +21,10 @@ No known critical issues at this time.
 
 **Workaround**:
 ```go
-// Configure connection pool
+// Configure connection pool. Keep idle connections at least at the total
+// workers count: below it database/sql reopens connections on every burst.
 db.SetMaxOpenConns(100)
-db.SetMaxIdleConns(10)
+db.SetMaxIdleConns(100)
 db.SetConnMaxLifetime(time.Hour)
 
 // Or reduce worker count per processor

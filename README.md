@@ -34,18 +34,27 @@ go get github.com/ruko1202/goque
 
 ## Database Support
 
-Goque supports three database backends with different performance characteristics:
+Goque supports three database backends:
 
-| Database | Latency | Memory/op | Best For | Production Ready |
-|----------|---------|-----------|----------|------------------|
-| **PostgreSQL** | **0.97 ms** | 35.4 KB | High-throughput production systems | ✅ **Recommended** |
-| **MySQL** | 1.59 ms | **33.4 KB** | Memory-constrained environments | ✅ Yes |
-| **SQLite** | 3.24 ms | 38.9 KB | Local development, testing, CI/CD | ⚠️ **Dev/Test only** |
+| Database | Enqueue | Processing, 1 → 50 workers | Best For | Production Ready |
+|----------|---------|----------------------------|----------|------------------|
+| **PostgreSQL** | 0.44 ms | 1,040 → 4,810 tasks/s | High-throughput production systems | ✅ **Recommended** |
+| **MySQL** | 1.09 ms | 400 → 2,050 tasks/s | Teams already running MySQL | ✅ Yes, see [MySQL caveats](#mysql-caveats) |
+| **SQLite** | 0.06 ms | 9,840 → 8,170 tasks/s | Local development, testing, CI/CD | ⚠️ **Dev/Test only** |
 
-**Key findings:**
-- PostgreSQL is **3.4x faster** than SQLite and **39% faster** than MySQL
-- MySQL uses **6% less memory** than PostgreSQL
-- SQLite has file-level locking and is **not recommended for production**
+Measured with `make bench` against Docker databases on one laptop; see
+[PERFORMANCE_ANALYSIS.md](PERFORMANCE_ANALYSIS.md) for the setup and what each
+number means. Throughput is bound by database round trips: each processed task
+costs two single-row writes plus a share of one fetch transaction. SQLite looks
+fastest only because it has no network hop; it serializes all writes on one
+connection and one process.
+
+**Size the connection pool for your workers.** Keep `MaxIdleConns` at least at
+the total number of workers plus a few for the fetcher, healer and cleaner.
+Below that, `database/sql` closes and reopens connections on every burst; with
+50 workers on PostgreSQL that cut throughput by almost 3×. Across processes,
+keep `instances × MaxOpenConns` below the server's `max_connections` (151 on
+stock MySQL).
 
 #### SQLite caveats
 
@@ -69,6 +78,20 @@ for goque on SQLite:
 
 If you need real horizontal scaling, run PostgreSQL or MySQL — they
 have row-level locks and don't have this class of problem.
+
+#### MySQL caveats
+
+goque runs its own MySQL transactions (task fetch, healer, cleaner,
+`ResetAttempts`) at **READ COMMITTED**, whatever the server default is.
+Under InnoDB's default REPEATABLE READ the fetch's locking range scan
+also locks the index gaps around it, and those gaps belong to tasks that
+workers are moving to another status at the same moment; the two
+`UPDATE`s deadlock (`Error 1213`). READ COMMITTED locks only the rows
+the scan returns.
+
+This needs `binlog_format` `ROW` (the default) or `MIXED`. With
+`STATEMENT`, MySQL rejects writes in a READ COMMITTED transaction with
+`Error 1665`.
 
 ### Schema
 

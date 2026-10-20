@@ -139,6 +139,17 @@ mocks:
 # Benchmarks and profiling
 # -------------------------------------
 
+# bench - Run benchmarks (tests are skipped) against all DBs, or only DB_DRIVER
+# Usage: make bench
+#        make bench BENCH=Processing BENCH_TIME=3s BENCH_COUNT=5
+#        DB_DRIVER=pgx make bench
+# Compare runs with benchstat (golang.org/x/perf/cmd/benchstat).
+BENCH ?= .
+BENCH_TIME ?= 1s
+BENCH_COUNT ?= 1
+.PHONY: bench
+bench:
+	go test -run '^$$' -bench '$(BENCH)' -benchtime $(BENCH_TIME) -count $(BENCH_COUNT) -benchmem ./test
 
 # profile-clean - Remove all profile files
 .PHONY: profile-clean

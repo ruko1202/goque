@@ -29,6 +29,12 @@ services:
   mysql:
     image: mysql:8
     container_name: goque-mysql
+    # Closer to a production server than the image's stock sizing (128M buffer
+    # pool, 100M redo log, 151 connections); durability settings stay default.
+    command:
+      - --innodb-buffer-pool-size=1G
+      - --innodb-redo-log-capacity=2G
+      - --max-connections=500
     environment:
       MYSQL_ROOT_PASSWORD: root
       MYSQL_DATABASE: goque
