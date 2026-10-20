@@ -40,30 +40,31 @@ project:
     Transactional outbox,goque.WithTx(ctx tx) enrolls AddTaskToQueue and most CRUD methods in a caller-provided sqlx.Tx for atomic domain+enqueue writes (worker fetch and ResetAttempts use their own internal tx)
 
   task_statuses[7]{status,description,terminal}:
-    new,Task created and ready to be picked up,false
-    pending,Task scheduled for future processing (via NextAttemptAt),false
-    processing,Task currently being processed by a worker,false
-    done,Task completed successfully,true
-    error,Task failed but has retry attempts remaining,false
-    attempts_left,Task failed and exhausted all retry attempts,true
-    canceled,Task was manually canceled,true
+    new,Created and waiting until next_attempt_at is due,false
+    pending,Taken by a fetcher and waiting for a free worker,false
+    processing,Being processed by a worker,false
+    done,Completed successfully,true
+    error,Failed with attempts left; fetched again when next_attempt_at (set by the backoff) is due,false
+    attempts_left,Failed with no attempts left,true
+    canceled,Canceled by CancelTask or by the processor (ErrTaskCancel),true
 
-  state_transitions[11]{from_status,to_status,trigger}:
-    new,pending,Task scheduled for processing (version bumped)
-    pending,processing,Worker picks up task (fenced write; on failure task is skipped)
-    processing,attempts_left,Task whose attempts are used up (processing cures count) - not run
+  state_transitions[12]{from_status,to_status,trigger}:
+    new,pending,Fetcher takes a due task (next_attempt_at passed; version bumped)
+    error,pending,Fetcher takes a due retry (next_attempt_at passed; version bumped)
+    pending,processing,Worker starts the task (fenced write; on failure task is skipped)
+    processing,done,Successful processing
+    processing,error,Failed processing with attempts left (next_attempt_at set by the backoff)
+    processing,attempts_left,Failed processing with no attempts left; or attempts already used up (processing cures count) - then not run
+    processing,canceled,Processor returned an error wrapping ErrTaskCancel
+    processing,new,Processor returned RescheduleTask(after) (attempts unchanged); or graceful shutdown returned the task
     pending,error,Healer cures stuck task (threshold >= 2*processing timeout+10s; attempts and errors unchanged - never started; version bumped)
     processing,error,Healer cures stuck task (threshold >= 2*processing timeout+10s; attempts+1; version bumped)
-    processing,done,Successful processing
-    processing,error,Failed processing with retries left
-    processing,canceled,Manual cancellation
-    processing,new,Processor returned RescheduleTask(after) - attempts unchanged
-    error,pending,Retry logic schedules next attempt
-    error,attempts_left,No more retry attempts available
+    any non-terminal,canceled,CancelTask (an in-flight run is not stopped; its result is dropped)
+    any,new,ResetAttempts (attempts set to 0)
 
   lifecycle_notes:
     terminal_states: done canceled attempts_left
-    flow_diagram: new → pending → processing → done; pending ↔ error; processing → canceled/error; error → attempts_left
+    flow_diagram: new → pending → processing → done | canceled | attempts_left; processing → error → pending (when due); processing → new (RescheduleTask or shutdown); healer: stuck pending|processing → error; CancelTask → canceled; ResetAttempts → new
     healer_role: Cures tasks stuck in pending/processing by marking them as error; a cure from processing consumes an attempt (from pending it does not)
     version_fencing: goque_task.version / Task.Version bumped by fetch, cure, reset and every worker write; UpdateTask applies only if stored version == Task.Version else ErrTaskVersionConflict (WARN + goque_task_version_conflicts_total{stage=start|finish|return}); delivery is at-least-once
 
@@ -81,7 +82,7 @@ architecture:
     TaskQueueManager,goque_manager.go,Public API for task queue operations with metrics
     Metrics,goque_metrics.go internal/metrics,Prometheus metrics instrumentation
     GoqueProcessor,internal/processors/queueprocessor,Fetches and distributes tasks to workers
-    Healer,internal/processors/internalprocessors/healer.go,Fixes stuck tasks in pending status
+    Healer,internal/processors/internalprocessors/healer.go,Cures tasks stuck in pending or processing
     Cleaner,internal/processors/internalprocessors/cleaner.go,Removes old completed/failed tasks
     TaskStorage,internal/storages,Database abstraction for task persistence
 
