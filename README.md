@@ -153,11 +153,11 @@ processor := goque.NewTypedTaskProcessor(
     goque.TypedTaskProcessorFunc[EmailPayload](func(ctx context.Context, task *goque.TypedTask[EmailPayload]) error {
         return sendEmail(task.Payload.To, task.Payload.Subject)
     }),
-    goque.WithPayloadDecodeErrorCancel(),
+    goque.WithCancelTaskWhenPayloadDecodeError[EmailPayload](),
 )
 ```
 
-If payload decoding fails, the typed processor is not called. The decode error is returned through the normal task processing flow, recorded in `goque_payload_decode_errors_total`, written to `task.Errors`, and passed to `WithHooksAfterProcessing`. Add `WithPayloadDecodeErrorCancel` to the typed processor to cancel decode failures instead of retrying them:
+If payload decoding fails, the typed processor is not called. The decode error is returned through the normal task processing flow, recorded in `goque_payload_decode_errors_total`, written to `task.Errors`, and passed to `WithHooksAfterProcessing`. Add `WithCancelTaskWhenPayloadDecodeError` to the typed processor to cancel decode failures instead of retrying them:
 
 ```go
 goq.RegisterProcessor(
@@ -169,7 +169,6 @@ goq.RegisterProcessor(
         }
     }),
 )
-```
 ```
 
 Return `goque.RescheduleTask(after)` (optionally wrapped) when the task is not finished yet,
@@ -186,8 +185,6 @@ import (
     "context"
     "time"
 
-    "github.com/jmoiron/sqlx"
-    _ "github.com/lib/pq"
     "github.com/ruko1202/goque"
     "github.com/ruko1202/goque/pkg/goquestorage"
     "github.com/ruko1202/xlog"
@@ -208,7 +205,7 @@ func main() {
     // Initialize database connection
     db, err := goquestorage.NewDBConn(ctx, &goquestorage.Config{
         DSN: "postgres://user:pass@localhost:5432/goque?sslmode=disable",
-        Driver: goquestorage.PgDriver,
+        Driver: goquestorage.PgxDriver,
     })
     if err != nil {
         xlog.Panic(ctx, err.Error())
@@ -703,7 +700,7 @@ Goque supports OpenTelemetry for distributed tracing. By default, uses a noop tr
 
 ### Prerequisites
 
-- Go 1.23 or higher
+- Go 1.25 or higher
 - One of the supported databases:
   - PostgreSQL 12+
   - MySQL 8+
@@ -789,19 +786,18 @@ make mocks
 
 ```
 .
+├── goque.go                    # Goque: processor registration, Run/Stop
 ├── goque_manager.go            # Public API - TaskQueueManager interface
+├── goque_*.go                  # Public API - tasks, processors, options, values, periodic jobs, tx, metrics, tracer
+├── pkg/
+│   └── goquestorage/           # Database connection helper (NewDBConn, driver constants)
 ├── internal/
-│   ├── goque.go                # Main Goque implementation
 │   ├── entity/                 # Domain entities and errors
-│   │   ├── task.go             # Task entity
-│   │   ├── errors.go           # Domain errors
-│   │   └── operations.go       # Task operation constants
-│   ├── queue_manager/          # Task queue manager implementation
+│   ├── queuemanager/           # Task queue manager implementation
 │   ├── metrics/                # Prometheus metrics
-│   │   ├── metrics.go          # Metrics collectors and functions
-│   │   └── vars.go             # Metrics configuration
 │   ├── processors/             # Task processing components
-│   │   ├── queueprocessor/     # Main queue processor
+│   │   ├── queueprocessor/     # Main queue processor (plain and typed)
+│   │   ├── periodicprocessor/  # Periodic job scheduler
 │   │   └── internalprocessors/ # Built-in processors (healer, cleaner)
 │   ├── storages/               # Data access layer (multi-database support)
 │   │   ├── pg/task/            # PostgreSQL storage (go-jet)
@@ -810,12 +806,14 @@ make mocks
 │   │   ├── dbtx/               # ctx-aware tx executor (WithTx, WithinTx, Executor)
 │   │   ├── dbentity/           # Cross-backend filter/query builders
 │   │   └── dbutils/            # JSON validation + WHERE builders
+│   ├── utils/                  # Internal helpers (dynamic values, tracing, time, pools)
 │   └── pkg/
 │       └── generated/          # Generated code (models, mocks)
 ├── migrations/                 # Database migrations
 │   ├── pg/                     # PostgreSQL migrations
 │   ├── mysql/                  # MySQL migrations
 │   └── sqlite/                 # SQLite migrations
+├── grafana/                    # Ready-to-import Grafana dashboard
 ├── examples/service/           # Production-ready example service
 ├── DATABASE.md                 # Complete database setup guide
 └── test/                       # Test utilities and fixtures

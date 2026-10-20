@@ -23,7 +23,8 @@ Once running, open your browser to:
 - **Health**: http://localhost:8080/health
 - **Metrics**: http://localhost:8080/metrics
 - **Grafana**: http://localhost:3000 (admin/admin)
-- **VictoriaMetrics**: http://localhost:8428
+- **Prometheus**: http://localhost:9090
+- **Jaeger**: http://localhost:16686
 - **Loki**: http://localhost:3100
 
 ## Task Types
@@ -156,7 +157,7 @@ The relevant wiring lives in `cmd/service/main.go`: `initPeriodicJobs` creates t
 
 ## Monitoring and Metrics
 
-The example service includes comprehensive monitoring with Prometheus metrics, VictoriaMetrics for storage, and Grafana for visualization.
+The example service includes comprehensive monitoring with Prometheus for metrics, Jaeger for traces, Loki for logs, and Grafana for visualization.
 
 ### Available Metrics
 
@@ -188,18 +189,18 @@ The pre-configured dashboard includes:
 
 3. **Auto-refresh** every 10 seconds
 
-### VictoriaMetrics
+### Prometheus
 
-VictoriaMetrics is used as the time-series database for metrics storage:
+Prometheus is used as the time-series database for metrics storage:
 
-- Web UI: http://localhost:8428
-- Data retention: 30 days
-- Scraped by vmagent every 10 seconds
+- Web UI: http://localhost:9090
+- Scrapes the application `/metrics` endpoint every 10 seconds and the OTel collector every 15 seconds
+- Exemplar storage is enabled, so metrics link to Jaeger traces
 
 ### Architecture
 
 ```
-Application (/metrics) → vmagent → VictoriaMetrics ─┐
+Application (/metrics) → Prometheus                 ─┐
 Application (logs)     → promtail → Loki             ├─→ Grafana
                                                       │
                                                       └─→ Dashboards
