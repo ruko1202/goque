@@ -32,14 +32,13 @@ func toDBModel(ctx context.Context, task *entity.Task) *model.GoqueTask {
 		ExternalID:    task.ExternalID,
 		Payload:       task.Payload,
 		Status:        task.Status,
-		Attempts:      task.Attempts,
+		Attempts:      int64(task.Attempts),
 		Errors:        task.Errors,
 		Metadata:      lo.ToPtr(metadata.ToJSON(ctx)),
 		CreatedAt:     timeToString(task.CreatedAt),
 		UpdatedAt:     updatedAt,
 		NextAttemptAt: timeToString(task.NextAttemptAt),
-		// The generated model maps INTEGER to int32; a task never sees 2^31 writes.
-		Version: int32(task.Version), //nolint:gosec
+		Version:       task.Version,
 	}
 }
 
@@ -59,13 +58,13 @@ func fromDBModel(ctx context.Context, task *model.GoqueTask) (*entity.Task, erro
 		ExternalID:    task.ExternalID,
 		Payload:       task.Payload,
 		Status:        task.Status,
-		Attempts:      task.Attempts,
+		Attempts:      int32(task.Attempts), //nolint:gosec // never above maxAttempts, an int32 option
 		Errors:        task.Errors,
 		Metadata:      entity.NewMetadataFromJSON(ctx, task.Metadata),
 		CreatedAt:     timeFromString(task.CreatedAt),
 		UpdatedAt:     updatedAt,
 		NextAttemptAt: timeFromString(task.NextAttemptAt),
-		Version:       int64(task.Version),
+		Version:       task.Version,
 	}, nil
 }
 

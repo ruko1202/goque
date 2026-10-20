@@ -13,11 +13,11 @@ type GoqueTask struct {
 	ExternalID    string  `db:"goque_task.external_id"`
 	Payload       string  `db:"goque_task.payload"`
 	Status        string  `db:"goque_task.status"`
-	Attempts      int32   `db:"goque_task.attempts"`
+	Attempts      int64   `db:"goque_task.attempts"`
 	Errors        *string `db:"goque_task.errors"`
 	Metadata      *string `db:"goque_task.metadata"`
 	CreatedAt     string  `db:"goque_task.created_at"`
 	UpdatedAt     *string `db:"goque_task.updated_at"`
 	NextAttemptAt string  `db:"goque_task.next_attempt_at"`
-	Version       int32   `db:"goque_task.version"`
+	Version       int64   `db:"goque_task.version"`
 }

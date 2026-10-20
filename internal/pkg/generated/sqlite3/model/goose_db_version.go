@@ -12,8 +12,8 @@ import (
 )
 
 type GooseDbVersion struct {
-	ID        *int32     `sql:"primary_key" db:"goose_db_version.id"`
-	VersionID int32      `db:"goose_db_version.version_id"`
-	IsApplied int32      `db:"goose_db_version.is_applied"`
+	ID        *int64     `sql:"primary_key" db:"goose_db_version.id"`
+	VersionID int64      `db:"goose_db_version.version_id"`
+	IsApplied int64      `db:"goose_db_version.is_applied"`
 	Tstamp    *time.Time `db:"goose_db_version.tstamp"`
 }
