@@ -242,21 +242,14 @@ func benchTaskType(b *testing.B, storage storages.AdvancedTaskStorage) entity.Ta
 }
 
 // seedTasks inserts n due tasks of taskType, benchSeedChunk per transaction.
-//
-// next_attempt_at is set a minute back: MySQL stores it as TIMESTAMP rounded
-// to the nearest second, so a task stamped "now" can land up to half a second
-// in the future and not be fetchable yet.
 func seedTasks(ctx context.Context, b *testing.B, storage storages.AdvancedTaskStorage, taskType entity.TaskType, n int) {
 	b.Helper()
 
-	dueAt := time.Now().Add(-time.Minute)
 	for seeded := 0; seeded < n; seeded += benchSeedChunk {
 		chunk := min(benchSeedChunk, n-seeded)
 		err := dbtx.WithinTx(ctx, storage.GetDB(), func(ctx context.Context) error {
 			for range chunk {
-				task := entity.NewTask(taskType, benchPayload)
-				task.NextAttemptAt = dueAt
-				if err := storage.AddTask(ctx, task); err != nil {
+				if err := storage.AddTask(ctx, entity.NewTask(taskType, benchPayload)); err != nil {
 					return err
 				}
 			}
