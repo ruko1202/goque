@@ -1,604 +1,243 @@
-# Goque Performance Analysis Report
+# Goque Performance Report
 
-**Date:** 2026-03-19
-**Branch:** feature/improve_performance (commit: 7666df4)
-**Profile Duration:** 147.67s
-**Total CPU Samples:** 38.52s (26.09% utilization)
-**Platform:** Apple M4 Pro (arm64), Darwin 25.3.0
+**Date:** 2026-10-20
+**Code:** branch `test/fix-benchmarks` (on top of `0b5b8a9`)
+**Benchmarks:** [`test/benchmark_test.go`](test/benchmark_test.go), run with `make bench BENCH_COUNT=5`
 
----
-
-## Executive Summary
-
-Performance analysis across three database backends (PostgreSQL, MySQL, SQLite) reveals **excellent overall performance** with **no critical bottlenecks**.
-
-### Key Findings
-
-1. ✅ **No critical bottlenecks** - system performs efficiently
-2. ✅ **Mutex contention negligible** (282ms total over 147s = 0.19%)
-3. ✅ **Blocking profile shows correct coordination** (99% expected channel operations)
-4. ✅ **Architecture validates successfully** - worker pools, connection pooling, concurrency all efficient
-5. 📊 **SQLite CGO overhead** dominates CPU (25% syscalls) - expected for CGO-based driver
-6. 📊 **Memory allocations** concentrated in expected areas:
-   - go-jet SQL generation: 21.17% (705 MB) - justified for type safety (Critical Rule #2)
-   - Logger operations: 12.89% (430 MB) - recent optimizations applied
-   - Database operations: 39% CPU time (15.20s) - standard database/sql overhead
-
-### Recent Performance Improvements
-
-Recent commits show systematic performance improvements:
-
-- ✅ **3f6646c** - Hook name caching: **~3% improvement**
-- ✅ **245b64d** - Disable verbose logging: **~10% improvement**
-- ✅ **b46a9c8** - Buffer pooling for JSON (toJson uses buf pool): **~5% improvement**
-
-**Cumulative improvement:** ~18% reduction in allocations from recent work
-
-### Performance by Database (Average per operation)
-
-| Database   | Time (µs/op) | Throughput (ops/s) | Memory (B/op) | Allocs/op | Relative Speed |
-|------------|-------------:|-------------------:|--------------:|----------:|---------------:|
-| PostgreSQL |          950 |              1,053 |        33,500 |       610 |           1.0x |
-| MySQL      |        1,550 |                645 |        31,600 |       532 |           1.6x |
-| SQLite     |        3,250 |                308 |        36,600 |       647 |           3.4x |
-
-**PostgreSQL recommended for production** (fastest throughput, best concurrency with `FOR UPDATE SKIP LOCKED`).
+This report replaces the one from 2026-03-19. That report measured something
+other than what it claimed; see [Corrections](#corrections-to-the-2026-03-19-report).
 
 ---
 
-## 1. CPU Profile Analysis
+## Summary
 
-**Total samples:** 38.52s (26.09% of 147.67s wall time)
+- **Throughput is bound by database round trips and commit fsyncs, not by goque's
+  CPU.** Processing 3.6k tasks/s on PostgreSQL keeps the client at ~0.4 of one core.
+- **One processed task costs two single-row writes** (`processing`, then `done`)
+  plus a share of one fetch transaction. With one worker that is ~1.0k tasks/s on
+  PostgreSQL and ~350 on MySQL here; with 50 workers ~4.8k and ~2.1k.
+- **MySQL deadlocks under concurrent workers.** Every full run with 10+ workers hit
+  `Error 1213` on roughly one task in a few thousand. goque does not retry it, so
+  the task stays in `processing` until the healer cures it, which costs an attempt.
+- **`MaxIdleConns` below the number of workers reopens connections all the time.**
+  On PostgreSQL with 50 workers it cut throughput from 4.8k to 1.7k tasks/s.
+- **go-jet accounts for 45% of the bytes allocated per task, but only 4% of CPU.**
+  It is not a throughput lever today.
 
-### 1.1 Top CPU Consumers (by cumulative time)
-
-| Function Path | Cumulative | % of Total | Category |
-|---------------|------------|------------|----------|
-| `database/sql.(*DB).retry` | 15.20s | 39.46% | Database |
-| `database/sql.(*DB).ExecContext` | 14.97s | 38.86% | Database |
-| `runtime.schedule` / `runtime.findRunnable` | 13.09s | 33.98% | Runtime Scheduler |
-| `syscall.syscall` | 10.09s | 26.19% | System Calls (SQLite CGO) |
-| `runtime.cgocall` | 9.90s | 25.70% | CGO (SQLite) |
-| `github.com/mattn/go-sqlite3.(*SQLiteStmt).execSync` | 9.76s | 25.34% | SQLite Driver |
-| `github.com/panjf2000/ants/v2.(*goWorker).run.func1` | 9.11s | 23.65% | Worker Pool |
-| `github.com/ruko1202/goque/.../fetchAndProcess.func1` | 9.10s | 23.62% | Task Processing |
-| `runtime.kevent` | 7.01s | 18.20% | I/O Polling |
-| `runtime.netpoll` | 6.80s | 17.65% | Network I/O |
-
-### 1.2 Analysis
-
-**SQLite CGO Overhead (25.7% CPU):**
-- SQLite driver uses CGO, incurring context switching overhead between Go and C runtimes
-- This is the dominant cost factor for SQLite performance (3.4x slower than PostgreSQL)
-- Expected behavior for mattn/go-sqlite3 driver
-
-**Database Connection Management (39.5% CPU):**
-- Standard database/sql overhead for ACID guarantees and connection pooling
-- Unavoidable and expected behavior
-- Connection pooling working as designed
-
-**Runtime Scheduler (33.98% CPU):**
-- Scheduler overhead from goroutine coordination in worker pool architecture
-- Expected behavior indicating efficient use of Go's concurrency primitives
-- Worker pool design (ants) is efficient
-
-**Task Processing Core Logic (23.62% CPU):**
-- Core task processing loop including task fetching, hook execution, and worker coordination
-- Location: `internal/processors/queueprocessor/processor.go`
-- Recent optimizations (hook name caching, logging) already applied
+SQLite has the best numbers below only because it skips the network: on this
+machine every round trip to Docker costs ~0.25 ms. It is still single-writer and
+single-process (see the README's SQLite caveats), not a production choice.
 
 ---
 
-## 2. Memory Profile Analysis
+## Environment
 
-**Total allocations:** 3,333.62 MB
-**Analyzed:** 2,999.57 MB (89.98%)
+| | |
+|---|---|
+| Host | Apple M4 Pro (14 cores), macOS, Go 1.25.0 |
+| Docker | colima VM, **2 vCPUs**, 8 GiB |
+| PostgreSQL | 17.10, `synchronous_commit=on`, driver `pgx/v5` |
+| MySQL | 8.4.9, `innodb_flush_log_at_trx_commit=1`, `sync_binlog=1`, binlog on |
+| SQLite | `mattn/go-sqlite3` v1.14.32, file DB, `_journal_mode=WAL&_txlock=immediate&_busy_timeout=5000`, 1 connection |
+| Pools (PG, MySQL) | `MaxOpenConns=50`, `MaxIdleConns=50` |
 
-### 2.1 Top Memory Allocators
+Baselines measured with plain `database/sql`, without goque, to separate goque
+from the environment:
 
-| Function | Alloc (MB) | % of Total | Category |
-|----------|------------|------------|----------|
-| go-jet SQL generation (total) | 705.61 | 21.17% | Type-Safe SQL |
-| `go.uber.org/zap.(*Logger).clone` | 224.03 | 6.72% | Logging |
-| `strconv.syntaxError` | 203.51 | 6.10% | String Parsing |
-| `strings.(*Builder).grow` | 145.52 | 4.37% | String Building |
-| `driverArgsConnLocked` | 125.55 | 3.77% | Database Args |
-| `github.com/go-jet/jet/v2/internal/jet.literal` | 123.01 | 3.69% | go-jet |
-| `bytes.growSlice` | 121.04 | 3.63% | Buffer Growth |
-| `context.WithValue` | 118.01 | 3.54% | Context |
-| `go-jet SQL param insertion` | 109.01 | 3.27% | go-jet |
-| `goque metrics.IncProcessingTasks` | 108.03 | 3.24% | Metrics |
-| `github.com/samber/lo.AssociateI` | 101.53 | 3.05% | Map Operations |
-| `github.com/samber/lo.Assign` | 98.02 | 2.94% | Map Operations |
-| `xlog.fieldsToZapFields` | 97.52 | 2.93% | Logging |
+| Probe | PostgreSQL | MySQL |
+|---|---:|---:|
+| `SELECT 1` round trip | 0.24 ms | 0.24 ms |
+| Single-row `INSERT` (autocommit) | 0.34 ms | 1.4 ms |
 
-### 2.2 Breakdown by Component
-
-| Component | Memory (MB) | % of Total | Assessment |
-|-----------|-------------|------------|------------|
-| **Go-Jet SQL Generation** | 705.61 | 21.17% | ✅ Justified - type safety & SQL injection prevention (Critical Rule #2) |
-| **Logger Operations (zap + xlog)** | 429.58 | 12.89% | ✅ Recent optimizations applied |
-| **String Building & Formatting** | 206.56 | 6.20% | ✅ Buffer pooling implemented (commit b46a9c8) |
-| **Context & Map Operations** | 233.03 | 6.99% | ✅ Expected overhead for context propagation |
-| **Database Driver Args** | 133.55 | 4.01% | ✅ Standard database/sql cost |
-| **Metrics Tracking** | 108.03 | 3.24% | ✅ Prometheus metrics overhead |
-
-### 2.3 Go-Jet SQL Generation (21.17%)
-
-**Memory breakdown:**
-```
-705.61 MB (21.17%) total for type-safe SQL generation:
-├─ (*statementInterfaceImpl).Sql: 38 MB
-├─ literal (inline): 123.01 MB
-├─ insertParametrizedArgument: 109.01 MB
-├─ finalize (inline): 60.52 MB
-├─ UnwidColumnList (inline): 75.01 MB
-└─ Other jet internals: ~300 MB
-```
-
-**Trade-off Analysis:**
-
-| Aspect | Raw SQL | go-jet (Current) |
-|--------|---------|------------------|
-| Memory overhead | 0% | +21% |
-| SQL injection risk | ⚠️ High | ✅ None |
-| Type safety | ❌ None | ✅ Compile-time |
-| Refactoring support | ❌ Manual | ✅ Automatic |
-| IDE support | ⚠️ Strings | ✅ Full |
-| Maintainability | ⚠️ Error-prone | ✅ Excellent |
-
-**Assessment:** The 21% memory overhead is **justified** for:
-1. **Critical Rule #2 compliance** ("Always use go-jet for SQL queries - never raw strings")
-2. SQL injection prevention
-3. Type safety and compile-time error checking
-4. Refactoring safety (IDE can track schema changes)
-5. Team productivity and code quality
-
-### 2.4 Logger Operations (12.89%)
-
-**Memory breakdown:**
-```
-429.58 MB (12.89%) total for logging:
-├─ zap.(*Logger).clone: 224.03 MB (6.72%)
-├─ xlog.fieldsToZapFields: 97.52 MB (2.93%)
-├─ LoggingBeforeProcessing: 45.02 MB (1.35%)
-└─ Other logging operations: 63.01 MB
-```
-
-**Optimizations Applied:**
-- ✅ Hook name caching (commit 3f6646c) - reduced reflection overhead
-- ✅ Disable verbose logging in benchmarks (commit 245b64d) - reduced log volume
-
-### 2.5 String Operations & Buffer Management (6.20%)
-
-**Memory breakdown:**
-```
-206.56 MB (6.20%) for string operations:
-├─ strings.(*Builder).grow: 145.52 MB
-├─ bytes.growSlice: 121.04 MB
-└─ bytes.(*Buffer).String: 60.52 MB
-```
-
-**Optimization Applied:**
-- ✅ Buffer pooling for JSON serialization (commit b46a9c8, `toJson uses buf pool`)
+MySQL's insert is slow because each commit waits for two fsyncs (redo log and binlog).
 
 ---
 
-## 3. Blocking Profile Analysis
+## What each benchmark measures
 
-**Total blocking time:** 3,690.12s (cumulative across all goroutines)
+| Benchmark | One op is | Timed | Not timed |
+|---|---|---|---|
+| `Enqueue` | one `AddTaskToQueue` from one goroutine | the call | — |
+| `EnqueueParallel` | one `AddTaskToQueue` from GOMAXPROCS goroutines | the calls | — |
+| `Fetch/batch_N` | one `GetTasksForProcessing` claiming N tasks | the call | seeding the queue |
+| `Processing/workers_N` | one task processed end to end, noop processor | `Goque.Run` until the last task is persisted as `done` | seeding, `Stop` |
 
-### 3.1 Channel Operations (99.24% of blocking time)
-
-| Operation | Time (s) | % of Total | Assessment |
-|-----------|----------|------------|------------|
-| `runtime.selectgo` | 2,347.42 | 63.61% | ✅ Expected |
-| `runtime.chanrecv2` | 978.22 | 26.51% | ✅ Expected |
-| `runtime.chanrecv1` | 336.36 | 9.12% | ✅ Expected |
-
-**Analysis:**
-Goroutines spend most time waiting on channels - **this is expected and correct behavior** for task queue systems.
-
-**What this means:**
-- ✅ Workers block waiting for tasks (efficient idle behavior)
-- ✅ Low CPU usage when no tasks available
-- ✅ Workers sleep instead of busy-waiting
-- ✅ Efficient coordination via Go channels
-
-**Verdict:** This is **NOT a performance problem** - it indicates efficient coordination.
-
-### 3.2 Worker Pool Coordination (29.96%)
-
-```
-1,105.39s (29.96%) - github.com/panjf2000/ants/v2.(*goWorker).run.func1
-```
-
-**Analysis:** Ants worker pool goroutines blocked waiting for work. This is correct behavior - workers idle when no tasks available.
-
-### 3.3 Database Connection Operations (5.70%)
-
-```
-210.39s (5.70%) - database/sql.(*DB).connectionCleaner
-154.85s (4.20%) - database/sql.(*DB).conn
-```
-
-**Analysis:** Connection pool maintenance and acquisition. Normal database/sql behavior for managing connection lifecycle.
-
-### 3.4 Database Driver Watchers (25.86%)
-
-```
-803.32s (21.77%) - github.com/go-sql-driver/mysql.(*mysqlConn).startWatcher.func1
-115.09s (3.12%) - github.com/lib/pq.(*conn).watchCancel.func1
-```
-
-**Analysis:** Background goroutines for connection monitoring and query cancellation support. These goroutines spend most time blocked waiting for cancellation signals.
-
-**Overall Verdict:** ✅ **No issues detected** - All blocking is expected coordination and idle waiting.
+Nothing runs in the background of `Enqueue` and `Fetch`, so their B/op and
+allocs/op belong to the measured call alone. `Processing` uses a 1 ms fetch tick
+(so the tick does not cap throughput), `maxTasks=100`, and moves the healer and
+cleaner out of the way. Every run uses its own task type and deletes its rows.
 
 ---
 
-## 4. Mutex Contention Profile
+## Results
 
-**Total contention:** 281.94ms (0.19% of 147.67s = negligible)
+Median of 5 runs, `-benchtime=1s`. The full spread is in the raw output of
+`make bench`.
 
-### 4.1 Lock Contention Breakdown
+### Enqueue
 
-| Function | Time (ms) | % of Total | Location |
-|----------|-----------|------------|----------|
-| `runtime.unlock` | 253.02 | 89.74% | Runtime |
-| `sync.(*Mutex).Unlock` | 13.73 | 4.87% | Standard Library |
-| `runtime._LostContendedRuntimeLock` | 8.57 | 3.04% | Runtime |
-| `sync.(*RWMutex).RUnlock` | 6.19 | 2.20% | Standard Library |
-| `sync.(*RWMutex).Unlock` | 0.43 | 0.15% | Standard Library |
+| | latency | tasks/s | B/op | allocs/op |
+|---|---:|---:|---:|---:|
+| SQLite | 62 µs | 16,100 | 10.1 KB | 201 |
+| PostgreSQL | 441 µs | 2,270 | 9.8 KB | 221 |
+| MySQL | 1,208 µs | 830 | 9.9 KB | 195 |
 
-### 4.2 Database Operations Contention
+### EnqueueParallel (14 goroutines)
 
-```
-14.52ms (5.15% of contention) - database/sql.(*DB).ExecContext
-11.46ms (4.07% of contention) - database/sql.(*DB).execDC
-4.87ms (1.73% of contention) - database/sql.(*DB).execDC.func2
-```
+| | tasks/s | B/op | allocs/op |
+|---|---:|---:|---:|
+| SQLite | 13,900 | 10.3 KB | 204 |
+| PostgreSQL | 11,500 | 9.9 KB | 221 |
+| MySQL | 2,290 | 9.9 KB | 195 |
 
-**Analysis:** Minimal contention in database/sql package for connection pool coordination.
+### Fetch
 
-### 4.3 Analysis
+| | batch_1 latency | batch_1 tasks/s | batch_100 latency | batch_100 tasks/s |
+|---|---:|---:|---:|---:|
+| SQLite | 102 µs | 9,800 | 1.5 ms | 68,700 |
+| PostgreSQL | 1.56 ms | 640 | 11.3 ms | 8,800 |
+| MySQL | 2.86 ms | 350 | 20.9 ms | 4,800 |
 
-**Total mutex contention:** 282ms over 147+ seconds = **0.19%** of total time.
+Allocations: ~21 KB / 420 allocs for one task, ~400 KB / 7,500 allocs for 100.
 
-**Interpretation:**
-- ✅ Extremely low contention
-- ✅ No mutex bottlenecks
-- ✅ Excellent concurrent design
-- ✅ Locks are held for minimal duration
-- ✅ No hot lock contention points
+### Processing (end to end)
 
-**Verdict:** ✅ **Excellent mutex usage** - This is exactly what you want to see in a concurrent system.
+| tasks/s | 1 worker | 10 workers | 50 workers |
+|---|---:|---:|---:|
+| SQLite | 9,840 | 9,120 | 8,170 |
+| PostgreSQL | 1,040 | 4,110 | 4,810 |
+| MySQL | 350 | 1,430 | 2,110 |
 
----
-
-## 5. Database-Specific Performance Analysis
-
-### 5.1 PostgreSQL (Recommended for Production)
-
-**Performance:**
-- **Fastest throughput:** ~1,053 ops/s
-- **Lowest latency:** 950 µs/op
-- **Memory:** 33.5 KB/op, 610 allocs/op
-
-**Strengths:**
-- ✅ Excellent `FOR UPDATE SKIP LOCKED` support (prevents lock contention)
-- ✅ Best for multi-instance deployments (multiple Goque workers)
-- ✅ Mature, stable, production-grade
-- ✅ Strong ACID guarantees
-- ✅ Excellent concurrency handling
-
-**Trade-offs:**
-- Slightly higher memory per task vs MySQL (+1.9 KB)
-- Requires dedicated database server (can't embed)
-
-**Assessment:** ✅ **Best choice for production** - Superior performance and concurrency support.
-
-### 5.2 MySQL (Production Alternative)
-
-**Performance:**
-- **Good throughput:** ~645 ops/s (1.6x slower than PostgreSQL)
-- **Moderate latency:** 1,550 µs/op
-- **Memory:** 31.6 KB/op, 532 allocs/op (**most memory efficient**)
-
-**Strengths:**
-- ✅ Most memory efficient (31.6 KB/op)
-- ✅ Fewest allocations (532 allocs/op)
-- ✅ Wide hosting availability
-- ✅ Familiar to many teams
-- ✅ Good performance for moderate loads
-
-**Trade-offs:**
-- No `SKIP LOCKED` support (uses regular `FOR UPDATE`)
-- Potential lock contention under high concurrent load
-- 1.6x slower than PostgreSQL
-
-**Assessment:** ✅ **Acceptable for production** with moderate load (<500 tasks/sec). For high-throughput production, prefer PostgreSQL.
-
-### 5.3 SQLite (Development/Testing)
-
-**Performance:**
-- **Low throughput:** ~308 ops/s (3.4x slower than PostgreSQL)
-- **High latency:** 3,250 µs/op
-- **Memory:** 36.6 KB/op, 647 allocs/op
-
-**Strengths:**
-- ✅ Zero configuration (no server setup)
-- ✅ Perfect for development & testing
-- ✅ Single file portability
-- ✅ No network overhead
-- ✅ Embedded database (no external dependencies)
-
-**Trade-offs:**
-- ⚠️ 3.4x slower than PostgreSQL
-- ⚠️ CGO overhead (25% CPU time in syscalls)
-- ⚠️ Limited concurrency (file-level locking)
-- ⚠️ Not suitable for high-throughput production
-
-**Assessment:** ✅ **Perfect for dev/test environments**. ❌ **Avoid for high-throughput production** - Use PostgreSQL or MySQL instead.
-
-### 5.4 Database Selection Guidelines
-
-| Use Case | Recommended Database | Rationale |
-|----------|---------------------|-----------|
-| **Production (high throughput)** | PostgreSQL | Best performance, `SKIP LOCKED` support |
-| **Production (moderate load)** | MySQL or PostgreSQL | Both acceptable, MySQL more memory efficient |
-| **Multi-instance deployment** | PostgreSQL | Superior concurrency with `SKIP LOCKED` |
-| **Development/Testing** | SQLite | Zero config, embedded, portable |
-| **CI/CD pipelines** | SQLite | Fast setup, no external dependencies |
-| **Embedded applications** | SQLite | No server required |
+Per processed task: 23–26 KB and 400–440 allocations on all three databases.
 
 ---
 
-## 6. Architecture Validation
+## Reading the numbers
 
-### 6.1 Component Assessment
+**Enqueue.** On PostgreSQL 441 µs is the raw insert (0.34 ms) plus ~0.1 ms for
+goque: building the SQL, spans, metrics and the driver's parameter handling. The
+SQLite figure of 62 µs is the whole goque and driver path with no network, which
+bounds goque's own enqueue cost from above.
 
-| Component | Status | Assessment |
-|-----------|--------|------------|
-| **Worker Pool (ants)** | ✅ Excellent | Efficient goroutine coordination, minimal overhead |
-| **Database Connection Pooling** | ✅ Working Correctly | Standard database/sql overhead, properly configured |
-| **Type-Safe SQL (go-jet)** | ✅ Justified | 21% overhead acceptable for SQL injection prevention |
-| **Goroutine Coordination** | ✅ Efficient | 99% blocking is expected channel operations |
-| **Error Handling** | ✅ Correct | No panic-driven paths detected |
-| **Context Propagation** | ✅ Proper | Context-first parameter pattern followed |
-| **Hook System** | ✅ Extensible | Recent optimizations (caching) applied |
-| **Metrics Collection** | ✅ Functional | Prometheus integration working |
+**Fetch.** A claim is one transaction of four round trips: `BEGIN`, `SELECT … FOR
+UPDATE SKIP LOCKED`, `UPDATE` of the claimed rows, `COMMIT`. That is why a single
+task costs ~1.5 ms on PostgreSQL while a batch of 100 costs only 11 ms.
 
-### 6.2 Performance Metrics Summary
+**Processing, one worker.** Each task needs two fenced single-row writes, so one
+worker runs at about half the enqueue rate: PostgreSQL 958 µs/task ≈ 2 × 441 µs.
 
-| Aspect | Status | Assessment |
-|--------|--------|------------|
-| **Overall Performance** | ✅ Excellent | No critical bottlenecks |
-| **CPU Utilization** | ✅ Efficient | 26% utilization during benchmarks |
-| **Memory Allocations** | ✅ Acceptable | Concentrated in expected areas |
-| **Mutex Contention** | ✅ Excellent | 0.19% - negligible |
-| **Blocking Behavior** | ✅ Correct | 99% expected channel operations |
-| **Database Performance** | ✅ Good | PostgreSQL performs excellently |
-| **Concurrency Design** | ✅ Excellent | Worker pool efficient |
-| **Type Safety** | ✅ Maintained | go-jet overhead justified |
+**Processing, scaling.** PostgreSQL gains 4× from 1 to 10 workers and only +17%
+from 10 to 50: the database VM has 2 vCPUs. MySQL keeps scaling to 50 workers
+because concurrent commits share fsyncs (group commit). SQLite does not scale and
+loses a little: one connection serializes every statement, and more workers only
+add contention for it.
 
-### 6.3 Performance Over Time
-
-Based on recent commits:
-
-```
-7666df4 (HEAD) - chore: perf analysis
-b46a9c8        - feat: toJson uses buf pool     (~5% improvement)
-245b64d        - feat: disable verbose logging  (~10% improvement)
-3f6646c        - feat: hook name cache          (~3% improvement)
-24d0fb0        - Update coverage badge [skip ci]
-```
-
-**Trajectory:** ✅ Continuous systematic improvement with ~18% cumulative reduction in allocations.
+**CPU.** In a CPU profile of `Processing/pgx/workers_10` the client was busy 37%
+of wall time on one core of 14; go-jet took 4% of that and GC 10%.
 
 ---
 
-## 7. Conclusions
+## Findings
 
-### 7.1 Performance Status: ✅ **EXCELLENT**
+### 1. MySQL: deadlock between status updates (bug)
 
-The Goque task queue system demonstrates:
-- ✅ **Excellent concurrent design** (0.19% mutex contention)
-- ✅ **Efficient resource usage** (26% CPU utilization in benchmarks)
-- ✅ **Sound architectural decisions** (worker pools, connection pooling)
-- ✅ **Type safety maintained** (go-jet for SQL injection prevention - Critical Rule #2)
-- ✅ **Recent optimizations effective** (18% improvement from last 3 commits)
-- ✅ **No critical bottlenecks** detected
+With 10 or 50 workers, about one task in a few thousand finishes with:
 
-### 7.2 Key Takeaways
+```
+Error 1213 (40001): Deadlock found when trying to get lock; try restarting transaction
+```
 
-1. **No critical bottlenecks** - System performs excellently across all measured dimensions
-2. **Recent optimizations effective** - 18% improvement from systematic work (3 commits)
-3. **Architecture is sound** - Worker pools, connection pooling, concurrency all efficient
-4. **Type safety maintained** - go-jet overhead justified (21% for SQL injection prevention)
-5. **PostgreSQL recommended** - Best for production (1,053 ops/s, excellent concurrency)
-6. **SQLite perfect for dev/test** - Zero config, but 3.4x slower (acceptable for non-production)
+`SHOW ENGINE INNODB STATUS` shows two `UPDATE goque_task` statements waiting on
+each other in `goque_task_type_status_next_attempt_at_idx`: one holds a next-key
+lock and waits for a record, the other holds that record and waits for an insert
+intention lock. A status change moves the row inside that secondary index, and
+under REPEATABLE READ the gap locks taken there conflict between concurrent
+writers.
 
-### 7.3 Database Recommendations
+goque neither retries 1213 nor avoids the gap locks, so the failed write leaves
+the task in `processing` until the healer cures it (one attempt consumed). Delivery
+stays at-least-once, but a task can be delayed by the healer threshold and run twice.
 
-| Environment | Database | Rationale |
-|-------------|----------|-----------|
-| **Production (high load)** | PostgreSQL | Best throughput + `SKIP LOCKED` support |
-| **Production (moderate load)** | MySQL or PostgreSQL | Both acceptable, MySQL slightly more memory efficient |
-| **Development** | SQLite | Zero config, embedded, portable |
-| **Testing/CI** | SQLite | Fast setup, no external dependencies |
+Possible fixes: retry the statement on 1213/40001, or run goque's MySQL writes
+under READ COMMITTED, which takes no gap locks. PostgreSQL and SQLite were not
+affected in any run.
 
-### 7.4 System Readiness
+### 2. Connection pool: `MaxIdleConns` must cover the workers
 
-**Status:** ✅ **PRODUCTION-READY**
+When `MaxIdleConns` is lower than the number of connections in use at once,
+`database/sql` closes every connection returned above the idle limit and opens a
+new one on the next request. PostgreSQL, 50 workers, `MaxOpenConns=50`:
 
-The system is ready for production deployment with excellent performance characteristics:
-- No critical issues require immediate attention
-- Performance is consistent and predictable (low variance)
-- Concurrent design is excellent (minimal contention)
-- Architecture validates successfully across all components
+| `MaxIdleConns` | tasks/s | B/op | allocs/op |
+|---:|---:|---:|---:|
+| 25 | 1,690 | 46.0 KB | 522 |
+| 50 | 4,810 | 24.6 KB | 440 |
+
+Set `MaxIdleConns` to at least the total number of workers plus a few
+connections for the fetcher, healer and cleaner. The test helpers had
+`MaxOpenConns` and `MaxIdleConns` swapped; that is fixed as well.
+
+### 3. MySQL: timestamps are rounded to the second
+
+`goque_task.next_attempt_at`, `created_at` and `updated_at` are `TIMESTAMP`
+without fractional seconds, and MySQL rounds (not truncates) the fraction. A task
+enqueued at 12:00:00.6 is stored as 12:00:01 and cannot be fetched until then. The
+benchmarks seed tasks with a past `next_attempt_at` to avoid it. A `TIMESTAMP(6)`
+migration would fix it.
+
+### 4. Allocations
+
+Bytes allocated per processed task (`Processing/pgx/workers_10`, alloc_space):
+
+| Component | Share |
+|---|---:|
+| go-jet SQL building | 45% |
+| ↳ `strconv.syntaxError` from `jet.shouldQuoteIdentifier` | 7% |
+| logging (zap + xlog), with a no-op logger | 14% |
+| pgx driver | 12% |
+| sqlx | 4% |
+
+`shouldQuoteIdentifier` calls `strconv.ParseInt` on every identifier and discards
+the error, allocating it each time. This is in go-jet and unchanged in its latest
+release (v2.16.1). The logging share comes from `zap.Logger.clone`, which `With`
+runs per operation even when the logger discards everything.
+
+All of this costs GC time, not throughput: the client CPU is not the bottleneck
+(see [CPU](#reading-the-numbers)).
 
 ---
 
-## Appendix A: Benchmark Results (Detailed)
+## Corrections to the 2026-03-19 report
 
-### A.1 CPU Profile Benchmark Results
-
-```
-goos: darwin
-goarch: arm64
-pkg: github.com/ruko1202/goque/test
-cpu: Apple M4 Pro
-```
-
-#### SQLite3 Results (3 runs)
-
-| Run | Iterations | ns/op | B/op | allocs/op |
-|-----|------------|-------|------|-----------|
-| 1 | 4,939 | 3,167,392 | 36,321 | 645 |
-| 2 | 3,518 | 3,263,464 | 36,354 | 646 |
-| 3 | 3,662 | 3,204,693 | 36,340 | 646 |
-| **Avg** | **4,040** | **3,211,850** | **36,338** | **646** |
-
-#### PostgreSQL Results (3 runs)
-
-| Run | Iterations | ns/op | B/op | allocs/op |
-|-----|------------|-------|------|-----------|
-| 1 | 12,286 | 994,441 | 33,066 | 610 |
-| 2 | 13,437 | 920,661 | 32,892 | 606 |
-| 3 | 12,928 | 942,518 | 32,928 | 607 |
-| **Avg** | **12,884** | **952,540** | **32,962** | **608** |
-
-#### MySQL Results (3 runs)
-
-| Run | Iterations | ns/op | B/op | allocs/op |
-|-----|------------|-------|------|-----------|
-| 1 | 7,634 | 1,553,780 | 31,345 | 530 |
-| 2 | 7,984 | 1,534,300 | 31,754 | 536 |
-| 3 | 6,014 | 1,783,031 | 32,077 | 542 |
-| **Avg** | **7,211** | **1,623,704** | **31,725** | **536** |
-
-**Total benchmark duration:** 151.271s
-
-### A.2 Performance Consistency
-
-| Database | Std Dev (ns/op) | Coefficient of Variation | Stability |
-|----------|-----------------|--------------------------|-----------|
-| PostgreSQL | 38,249 | 4.0% | ✅ Excellent |
-| MySQL | 134,933 | 8.3% | ✅ Good |
-| SQLite | 48,415 | 1.5% | ✅ Excellent |
-
-**Interpretation:** Low variation indicates consistent, predictable performance across runs.
+- **It reported enqueue latency as end-to-end processing.** `BenchmarkTaskProcessingSimple`
+  timed only the `AddTaskToQueue` loop. Processing ran in the background and was
+  never waited for.
+- **Its B/op and allocs/op included that background processing**, because
+  `ReportAllocs` counts every allocation in the process.
+- **Its "throughput" was 1 / latency of a single goroutine**, not what goque can
+  process.
+- **SQLite's 3.2 ms was not CGO overhead.** It came from the default rollback
+  journal (several fsyncs per commit) and from the single connection being shared
+  with the background processor. With WAL, SQLite enqueues in 62 µs.
+- **"MySQL has no `SKIP LOCKED`" is false.** MySQL 8 supports it and goque uses it.
+- **The "~18% improvement" had no before/after measurement**, and its numbers did
+  not match the profile files they were said to come from.
+- **"No critical bottlenecks, production-ready":** the processing path was never
+  run under concurrency. Running it exposed findings 1 and 2.
 
 ---
 
-## Appendix B: Profiling Methodology
-
-### B.1 Benchmark Configuration
+## Reproducing
 
 ```bash
-# Environment variables
-BENCHMARK_PATTERN="BenchmarkTaskProcessingSimple"
-BENCHMARK_TIME="5s"  # Duration per benchmark
-BENCHMARK_COUNT="3"  # Iterations for averaging
-```
-
-### B.2 Profiles Generated
-
-1. **CPU Profile** (`profiles/cpu.prof`)
-   - Captures where CPU time is spent
-   - Sample-based (every 10ms)
-   - Used to identify hotspots
-
-2. **Memory Profile** (`profiles/mem.prof`)
-   - Captures allocation patterns (alloc_space)
-   - Shows where memory is allocated
-   - Used to identify memory hotspots
-
-3. **Block Profile** (`profiles/block.prof`)
-   - Captures blocking operations
-   - Shows where goroutines block
-   - Used to identify coordination issues
-
-4. **Mutex Profile** (`profiles/mutex.prof`)
-   - Captures mutex contention
-   - Shows lock contention points
-   - Used to identify locking bottlenecks
-
-### B.3 Analysis Commands
-
-```bash
-# CPU hotspots (cumulative time)
-go tool pprof -top -cum profiles/cpu.prof
-
-# CPU hotspots (flat time)
-go tool pprof -top profiles/cpu.prof
-
-# Memory allocations
-go tool pprof -top profiles/mem.prof
-
-# Blocking operations
-go tool pprof -top profiles/block.prof
-
-# Mutex contention
-go tool pprof -top profiles/mutex.prof
-
-# Interactive web UI
-go tool pprof -http=:8080 profiles/cpu.prof
-```
-
-### B.4 Reproduction Steps
-
-```bash
-# 1. Start databases
 make docker-up
-
-# 2. Run profiling
-BENCHMARK_PATTERN="BenchmarkTaskProcessingSimple" \
-BENCHMARK_TIME="5s" \
-BENCHMARK_COUNT="3" \
-./scripts/profile.sh
-
-# 3. Analyze profiles (see B.3 above)
-
-# 4. Generate report
-# Analysis performed using go tool pprof
+make bench BENCH_COUNT=5 | tee new.txt          # all benchmarks, all databases
+DB_DRIVER=pgx make bench BENCH=Processing       # one database, one benchmark
+benchstat old.txt new.txt                       # compare two runs
+./scripts/profile.sh cpu                        # CPU profile of BenchmarkProcessing
 ```
 
----
-
-## Appendix C: Code Locations Reference
-
-### C.1 Core Components
-
-| Component | File Path | Description |
-|-----------|-----------|-------------|
-| **Queue Processor** | `internal/processors/queueprocessor/processor.go` | Task fetching and distribution |
-| **Hooks** | `internal/processors/queueprocessor/hooks.go` | Hook execution and function name caching |
-| **Metrics** | `internal/metrics/metrics.go` | Prometheus metrics instrumentation |
-| **Task Entity** | `internal/entity/task.go` | Task data structure |
-| **Metadata** | `internal/entity/metadata.go` | Metadata operations (ToJSON, Merge) |
-
-### C.2 Storage Layer
-
-| Database | File Path | Description |
-|----------|-----------|-------------|
-| **PostgreSQL** | `internal/storages/pg/task/` | PostgreSQL-specific queries (go-jet) |
-| **MySQL** | `internal/storages/mysql/task/` | MySQL-specific queries (go-jet) |
-| **SQLite** | `internal/storages/sqlite/task/` | SQLite-specific queries (raw SQL) |
-
-### C.3 Profiling Infrastructure
-
-| File | Description |
-|------|-------------|
-| `scripts/profile.sh` | Profiling automation script |
-| `test/benchmark_test.go` | Benchmark test suite |
-| `profiles/*.prof` | Generated profile data |
-| `profiles/*_bench.txt` | Benchmark output logs |
-
----
-
-**Report Generated:** 2026-03-19
-**Analysis Tool:** go tool pprof 1.23+
-**Benchmark Framework:** Go testing.B (stdlib)
-**Status:** Production-ready with excellent performance characteristics
+Absolute numbers depend on the machine and on how Docker is run; compare runs
+only on the same setup. On macOS the Docker VM can answer slowly right after it
+was idle: one warm-up run was 10× slower than the runs after it. Use `-count` and
+benchstat, not a single run.
