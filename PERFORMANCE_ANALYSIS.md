@@ -213,6 +213,25 @@ All of this costs GC time, not throughput: the client CPU is not the bottleneck
 
 ---
 
+## Recommendations
+
+1. **Size the pool first.** `MaxIdleConns` at least the total workers plus a few
+   for the fetcher, healer and cleaner (finding 2). It mattered more than any
+   other setting measured here.
+2. **Add workers until the database saturates, not beyond.** Here PostgreSQL
+   gained 4× up to 10 workers and 17% more at 50; past that point more workers
+   only add load on the database. Where that point lies depends on the database
+   server, so measure it on yours.
+3. **Leave allocations alone for now.** go-jet and logging dominate bytes per task
+   but not CPU (finding 4); reducing them would ease GC, not raise throughput.
+4. **If throughput must grow, cut round trips per task.** Each task now costs two
+   single-row writes plus a share of a fetch. Merging the `processing` and `done`
+   writes, or acknowledging finished tasks in batches, are the levers that would
+   move these numbers. This is a hypothesis, not measured, and both change how
+   version fencing and the healer see a running task.
+
+---
+
 ## Corrections to the 2026-03-19 report
 
 - **It reported enqueue latency as end-to-end processing.** `BenchmarkTaskProcessingSimple`
