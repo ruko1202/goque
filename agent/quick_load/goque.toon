@@ -235,6 +235,12 @@ workflow:
     check_contradictions: Review for contradictions - keep broader interpretation - remove duplicates
     known_issues: Review EVERY commit - remove ALL resolved issues - no Past Issues section - only current issues
 
+  release:
+    trigger: Push a v* tag - .github/workflows/release.yml runs GoReleaser and creates the GitHub release
+    notes: Annotated tag carries curated notes - git tag -a vX.Y.Z --cleanup=verbatim -F notes.md (verbatim keeps # headings)
+    layout: Annotated tag message on top then commit changelog grouped Features/Fixes/Other; lightweight tag releases with the commit changelog only
+    changelog: No commit type is filtered out - squash-merged test:/docs: PRs can carry fixes
+
   commit_squashing:
     rule: Squash commits with same purpose or affecting same module
     when_to_squash: Multiple commits modifying same file/component, sequential doc updates, related refactoring

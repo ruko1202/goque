@@ -21,11 +21,31 @@ jobs:
           go-version-file: 'go.mod'
           cache: true
 
+      # actions/checkout can turn the pushed tag into a lightweight ref;
+      # refetch so an annotated tag keeps its message.
+      - name: Fetch tag objects
+        run: git fetch --force --tags
+
+      # An annotated tag's message goes above the changelog. A lightweight
+      # tag has no message (git would fall back to the commit message, which
+      # for a squash merge is every squashed commit), so it gets no header.
+      - name: Prepare release header
+        id: header
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          if [ "$(git cat-file -t "refs/tags/$TAG")" = tag ]; then
+            msg=$(git tag -l --format='%(contents)' "$TAG")
+            sig=$(git tag -l --format='%(contents:signature)' "$TAG")
+            printf '%s\n' "${msg%"$sig"}" > "$RUNNER_TEMP/release-header.md"
+            echo "args=--release-header=$RUNNER_TEMP/release-header.md" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Run GoReleaser
         uses: goreleaser/goreleaser-action@v5
         with:
           distribution: goreleaser
           version: v2.12.7
-          args: release --clean
+          args: release --clean ${{ steps.header.outputs.args }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

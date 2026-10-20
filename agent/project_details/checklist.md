@@ -302,9 +302,9 @@ When preparing a release:
 - [ ] Release notes drafted
 
 ### Release
-- [ ] Tag created
-- [ ] GitHub release created
-- [ ] Release notes published
+- [ ] Annotated tag created with the notes as its message (`git tag -a vX.Y.Z --cleanup=verbatim -F notes.md`)
+- [ ] Tag pushed and the Release workflow succeeded (it creates the GitHub release)
+- [ ] Release notes checked on the GitHub release page
 - [ ] Announcement made
 
 ### Post-Release

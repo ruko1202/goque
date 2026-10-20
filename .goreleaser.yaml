@@ -33,12 +33,20 @@ archives:
       - goos: windows
         formats: [zip]
 
+# PRs are squash-merged, so one commit can carry fixes under any type
+# (e.g. a `test:` PR that also fixes bugs). Group commits instead of
+# filtering them out, so nothing disappears from the release notes.
 changelog:
   sort: asc
-  filters:
-    exclude:
-      - "^docs:"
-      - "^test:"
+  groups:
+    - title: Features
+      regexp: '^feat(\(.+\))?!?:'
+      order: 0
+    - title: Fixes
+      regexp: '^fix(\(.+\))?!?:'
+      order: 1
+    - title: Other
+      order: 999
 
 release:
   footer: >-
