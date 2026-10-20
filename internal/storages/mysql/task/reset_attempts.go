@@ -10,8 +10,6 @@ import (
 	"github.com/ruko1202/xlog/xfield"
 	"github.com/samber/lo"
 
-	"github.com/ruko1202/goque/internal/storages/dbtx"
-
 	"github.com/ruko1202/goque/internal/entity"
 	"github.com/ruko1202/goque/internal/utils/xtime"
 )
@@ -24,7 +22,7 @@ func (s *Storage) ResetAttempts(ctx context.Context, id uuid.UUID) error {
 	)
 	defer span.End()
 
-	err := dbtx.WithinTx(ctx, s.db.GetDB(), func(ctx context.Context) error {
+	err := s.withinTx(ctx, func(ctx context.Context) error {
 		task, err := s.getTask(ctx, id)
 		if err != nil {
 			return err

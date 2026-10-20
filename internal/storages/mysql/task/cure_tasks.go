@@ -10,8 +10,6 @@ import (
 	"github.com/ruko1202/xlog/xfield"
 	"github.com/samber/lo"
 
-	"github.com/ruko1202/goque/internal/storages/dbtx"
-
 	"github.com/ruko1202/goque/internal/entity"
 	"github.com/ruko1202/goque/internal/pkg/generated/mysql/goque/model"
 	"github.com/ruko1202/goque/internal/pkg/generated/mysql/goque/table"
@@ -52,7 +50,7 @@ func (s *Storage) CureTasks(
 	defer span.End()
 
 	tasks := make([]*model.GoqueTask, 0)
-	err := dbtx.WithinTx(ctx, s.db.GetDB(), func(ctx context.Context) error {
+	err := s.withinTx(ctx, func(ctx context.Context) error {
 		var err error
 		// FOR UPDATE SKIP LOCKED: a concurrent CureTasks tick on the
 		// same task_type will see a different (non-overlapping) slice
