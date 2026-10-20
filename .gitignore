@@ -18,6 +18,8 @@ agent/tasks/
 profiles/
 
 goque.sqlite.db-journal
+goque.sqlite.db-wal
+goque.sqlite.db-shm
 
 test.test
 

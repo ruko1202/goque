@@ -11,7 +11,7 @@ NC='\033[0m' # No Color
 
 # Configuration
 PROFILE_DIR="./profiles"
-BENCHMARK_PATTERN="${BENCHMARK_PATTERN:-BenchmarkTaskProcessing}"
+BENCHMARK_PATTERN="${BENCHMARK_PATTERN:-BenchmarkProcessing}"
 BENCHMARK_TIME="${BENCHMARK_TIME:-10s}"
 BENCHMARK_COUNT="${BENCHMARK_COUNT:-3}"
 
@@ -35,7 +35,7 @@ run_profile() {
 
     echo -e "${YELLOW}Running ${profile_type} profiling...${NC}"
 
-    go test -bench="${BENCHMARK_PATTERN}" \
+    go test -run='^$' -bench="${BENCHMARK_PATTERN}" \
         -benchtime="${BENCHMARK_TIME}" \
         -count="${BENCHMARK_COUNT}" \
         -"${profile_flag}"="${output_file}" \
@@ -134,14 +134,14 @@ main() {
             echo "  help    - Show this help message"
             echo ""
             echo "Environment variables:"
-            echo "  BENCHMARK_PATTERN - Benchmark pattern to run (default: BenchmarkTaskProcessing)"
+            echo "  BENCHMARK_PATTERN - Benchmark pattern to run (default: BenchmarkProcessing)"
             echo "  BENCHMARK_TIME    - Duration per benchmark (default: 10s)"
             echo "  BENCHMARK_COUNT   - Number of runs (default: 3)"
             echo ""
             echo "Examples:"
             echo "  $0 all"
             echo "  $0 cpu"
-            echo "  BENCHMARK_PATTERN=BenchmarkWorkerPool $0 all"
+            echo "  BENCHMARK_PATTERN=BenchmarkEnqueue $0 all"
             echo "  BENCHMARK_TIME=30s BENCHMARK_COUNT=5 $0 mem"
             exit 0
             ;;

@@ -1,10 +1,24 @@
 package test
 
+// Benchmarks for the three stages a task goes through: enqueue, claim (fetch)
+// and end-to-end processing.
+//
+// Each benchmark times only its own stage. Nothing runs in the background of
+// the enqueue and fetch benchmarks, so their ns/op, B/op and allocs/op belong
+// to the measured call alone. The processing benchmark times from Run until the
+// last task's final status is persisted, so its numbers are per processed task
+// and include fetch, both status writes and the worker pool.
+//
+// Every run uses its own task type and deletes its rows afterwards, so runs
+// never fetch each other's tasks and the table does not grow between them.
+//
+//	make bench                                  # all benchmarks, all DBs
+//	DB_DRIVER=pgx make bench BENCH=Processing   # one DB, one benchmark
+
 import (
 	"context"
-	"encoding/json"
 	"fmt"
-	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -16,229 +30,246 @@ import (
 	"github.com/ruko1202/goque"
 	"github.com/ruko1202/goque/internal/entity"
 	"github.com/ruko1202/goque/internal/storages"
-	"github.com/ruko1202/goque/internal/utils/goquectx"
+	"github.com/ruko1202/goque/internal/storages/dbtx"
 	"github.com/ruko1202/goque/test/testutils"
 )
 
-// toJSONBench converts object to JSON for benchmarks.
-func toJSONBench(tb testing.TB, obj any) string {
-	tb.Helper()
-	b, err := json.Marshal(obj)
-	require.NoError(tb, err)
-	return string(b)
-}
+const (
+	benchPayload = `{"user_id":42,"action":"send_email"}`
 
-// pushToQueueBench adds task to queue for benchmarks.
-func pushToQueueBench(ctx context.Context, tb testing.TB, queueManager goque.TaskQueueManager, task *goque.Task) {
-	tb.Helper()
-	err := queueManager.AddTaskToQueue(ctx, task)
-	require.NoError(tb, err)
-}
+	// benchSeedChunk is how many tasks are inserted per transaction when a
+	// benchmark pre-fills the queue: one commit per chunk instead of per task.
+	benchSeedChunk = 1000
 
-// BenchmarkTaskPush benchmarks only task creation and insertion into the queue.
-// Measures database write performance and memory allocations.
-func BenchmarkTaskPush(b *testing.B) {
-	testutils.RunMultiDBBenchmarks(b, taskStorages, benchmarkTaskPush)
-}
+	// Processing benchmark settings. The tick is short so the fetch interval
+	// does not cap throughput; maxTasks is the library default.
+	benchFetchTick         = time.Millisecond
+	benchFetchMaxTasks     = int64(100)
+	benchProcessingTimeout = 5 * time.Minute
+)
 
-func benchmarkTaskPush(b *testing.B, storage storages.AdvancedTaskStorage) {
-	b.Helper()
-	ctx := context.Background()
-	ctx = xlog.ContextWithLogger(ctx, xlog.NewZapAdapter(zap.NewNop()))
+var (
+	benchFetchBatches = []int{1, 100}
+	benchWorkerCounts = []int{1, 10, 50}
 
-	queueManager := goque.NewTaskQueueManager(storage)
-	taskType := "push_benchmark_" + uuid.NewString()
-
-	b.ResetTimer()
-	b.ReportAllocs()
-
-	for i := 0; i < b.N; i++ {
-		task := goque.NewTask(
-			taskType,
-			toJSONBench(b, fmt.Sprintf("payload_%d", i)),
-		)
-		pushToQueueBench(ctx, b, queueManager, task)
+	benchAllStatuses = []entity.TaskStatus{
+		entity.TaskStatusNew,
+		entity.TaskStatusPending,
+		entity.TaskStatusProcessing,
+		entity.TaskStatusDone,
+		entity.TaskStatusCanceled,
+		entity.TaskStatusError,
+		entity.TaskStatusAttemptsLeft,
 	}
+)
+
+// BenchmarkEnqueue measures one AddTaskToQueue call from a single goroutine:
+// the latency of a single INSERT round trip plus goque's own overhead.
+func BenchmarkEnqueue(b *testing.B) {
+	testutils.RunMultiDBBenchmarks(b, taskStorages, benchmarkEnqueue)
 }
 
-// BenchmarkConcurrentTaskPush benchmarks concurrent task insertion.
-// Tests lock contention and concurrent database writes.
-func BenchmarkConcurrentTaskPush(b *testing.B) {
-	testutils.RunMultiDBBenchmarks(b, taskStorages, benchmarkConcurrentTaskPush)
-}
-
-func benchmarkConcurrentTaskPush(b *testing.B, storage storages.AdvancedTaskStorage) {
+func benchmarkEnqueue(b *testing.B, storage storages.AdvancedTaskStorage) {
 	b.Helper()
-	ctx := context.Background()
-	ctx = xlog.ContextWithLogger(ctx, xlog.NewZapAdapter(zap.NewNop()))
 
+	ctx := benchContext()
 	queueManager := goque.NewTaskQueueManager(storage)
-	taskType := "concurrent_push_" + uuid.NewString()
+	taskType := benchTaskType(b, storage)
 
-	workerCount := 10
-	tasksPerWorker := b.N / workerCount
-
-	b.ResetTimer()
 	b.ReportAllocs()
-
-	var wg sync.WaitGroup
-	wg.Add(workerCount)
-
-	for w := 0; w < workerCount; w++ {
-		go func(workerID int) {
-			defer wg.Done()
-			for i := 0; i < tasksPerWorker; i++ {
-				task := goque.NewTask(
-					taskType,
-					toJSONBench(b, fmt.Sprintf("worker_%d_task_%d", workerID, i)),
-				)
-				pushToQueueBench(ctx, b, queueManager, task)
-			}
-		}(w)
-	}
-
-	wg.Wait()
-}
-
-// BenchmarkTaskFetch benchmarks task fetching from the queue.
-// Measures database read performance with locking (FOR UPDATE SKIP LOCKED).
-func BenchmarkTaskFetch(b *testing.B) {
-	testutils.RunMultiDBBenchmarks(b, taskStorages, benchmarkTaskFetch)
-}
-
-func benchmarkTaskFetch(b *testing.B, storage storages.AdvancedTaskStorage) {
-	b.Helper()
-	ctx := context.Background()
-	ctx = xlog.ContextWithLogger(ctx, xlog.NewZapAdapter(zap.NewNop()))
-
-	queueManager := goque.NewTaskQueueManager(storage)
-	taskType := "fetch_benchmark_" + uuid.NewString()
-
-	// Pre-populate queue with tasks
-	for i := 0; i < b.N; i++ {
-		task := goque.NewTask(
-			taskType,
-			toJSONBench(b, fmt.Sprintf("payload_%d", i)),
-		)
-		pushToQueueBench(ctx, b, queueManager, task)
-	}
-
-	b.ResetTimer()
-	b.ReportAllocs()
-
-	for i := 0; i < b.N; i++ {
-		tasks, err := storage.GetTasksForProcessing(ctx, taskType, 1)
-		require.NoError(b, err)
-		if len(tasks) > 0 {
-			task := tasks[0]
-			task.Status = entity.TaskStatusDone
-			err = storage.UpdateTask(ctx, task.ID, task)
-			require.NoError(b, err)
+	for b.Loop() {
+		if err := queueManager.AddTaskToQueue(ctx, goque.NewTask(taskType, benchPayload)); err != nil {
+			b.Fatal(err)
 		}
 	}
+	reportTasksPerSecond(b, b.N)
 }
 
-// BenchmarkWorkerPool benchmarks worker pool performance with different worker counts.
-func BenchmarkWorkerPool(b *testing.B) {
-	workerCounts := []int{1, 5, 10, 20, 50}
-
-	for _, workerCount := range workerCounts {
-		b.Run(fmt.Sprintf("workers_%d", workerCount), func(b *testing.B) {
-			// nolint:thelper // Anonymous function passed to RunMultiDBBenchmarks
-			testutils.RunMultiDBBenchmarks(b, taskStorages, func(b *testing.B, storage storages.AdvancedTaskStorage) {
-				benchmarkWorkerPool(b, storage, workerCount)
-			})
-		})
-	}
+// BenchmarkEnqueueParallel measures AddTaskToQueue from GOMAXPROCS goroutines,
+// which is how a service with concurrent request handlers enqueues.
+// tasks/s is the total insert throughput the database sustains.
+func BenchmarkEnqueueParallel(b *testing.B) {
+	testutils.RunMultiDBBenchmarks(b, taskStorages, benchmarkEnqueueParallel)
 }
 
-func benchmarkWorkerPool(b *testing.B, storage storages.AdvancedTaskStorage, workerCount int) {
+func benchmarkEnqueueParallel(b *testing.B, storage storages.AdvancedTaskStorage) {
 	b.Helper()
-	ctx := context.Background()
-	ctx = xlog.ContextWithLogger(ctx, xlog.NewZapAdapter(zap.NewNop()))
-	ctx = goquectx.WithValue(ctx, "benchmark", b.Name())
 
+	ctx := benchContext()
 	queueManager := goque.NewTaskQueueManager(storage)
-	taskType := "worker_pool_" + uuid.NewString()
+	taskType := benchTaskType(b, storage)
 
-	// Processor that simulates work
-	processor := goque.TaskProcessorFunc(func(_ context.Context, _ *goque.Task) error {
-		time.Sleep(1 * time.Millisecond) // Simulate work
-		return nil
+	b.ReportAllocs()
+	b.ResetTimer()
+	b.RunParallel(func(pb *testing.PB) {
+		for pb.Next() {
+			if err := queueManager.AddTaskToQueue(ctx, goque.NewTask(taskType, benchPayload)); err != nil {
+				b.Error(err)
+				return
+			}
+		}
 	})
+	reportTasksPerSecond(b, b.N)
+}
 
-	goq := goque.NewGoque(storage)
-	goq.RegisterProcessor(
-		taskType,
-		processor,
-		goque.WithWorkersCount(goque.NewStaticValue(workerCount)),
-		goque.WithTaskFetcherTick(goque.NewStaticValue(10*time.Millisecond)),
-		goque.WithTaskFetcherMaxTasks(goque.NewStaticValue[int64](100)),
+// BenchmarkFetch measures one GetTasksForProcessing call claiming a batch of
+// tasks from a pre-filled queue. One op is one call; tasks/s is the claim rate.
+func BenchmarkFetch(b *testing.B) {
+	testutils.RunMultiDBBenchmarks(b, taskStorages, func(b *testing.B, storage storages.AdvancedTaskStorage) {
+		b.Helper()
+
+		for _, batch := range benchFetchBatches {
+			b.Run(fmt.Sprintf("batch_%d", batch), func(b *testing.B) {
+				benchmarkFetch(b, storage, batch)
+			})
+		}
+	})
+}
+
+func benchmarkFetch(b *testing.B, storage storages.AdvancedTaskStorage, batch int) {
+	b.Helper()
+
+	ctx := benchContext()
+	taskType := benchTaskType(b, storage)
+	seedTasks(ctx, b, storage, taskType, b.N*batch)
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	for range b.N {
+		tasks, err := storage.GetTasksForProcessing(ctx, taskType, int64(batch))
+		if err != nil {
+			b.Fatal(err)
+		}
+		if len(tasks) != batch {
+			b.Fatalf("fetched %d tasks, want %d", len(tasks), batch)
+		}
+	}
+	b.StopTimer()
+	reportTasksPerSecond(b, b.N*batch)
+}
+
+// BenchmarkProcessing measures end-to-end throughput: b.N tasks are already in
+// the queue, the timer runs from Goque.Run until every task is persisted as
+// done. The processor does no work, so this is goque's own ceiling per worker
+// count: fetch, the processing and done writes, hooks and the worker pool.
+func BenchmarkProcessing(b *testing.B) {
+	testutils.RunMultiDBBenchmarks(b, taskStorages, func(b *testing.B, storage storages.AdvancedTaskStorage) {
+		b.Helper()
+
+		for _, workers := range benchWorkerCounts {
+			b.Run(fmt.Sprintf("workers_%d", workers), func(b *testing.B) {
+				benchmarkProcessing(b, storage, workers)
+			})
+		}
+	})
+}
+
+func benchmarkProcessing(b *testing.B, storage storages.AdvancedTaskStorage, workers int) {
+	b.Helper()
+
+	ctx := benchContext()
+	taskType := benchTaskType(b, storage)
+	seedTasks(ctx, b, storage, taskType, b.N)
+
+	var (
+		finished atomic.Int64
+		failed   atomic.Int64
+		firstErr atomic.Pointer[error]
+		allDone  = make(chan struct{})
 	)
 
-	err := goq.Run(ctx)
-	require.NoError(b, err)
-	defer goq.Stop()
-
-	// Pre-populate tasks
-	for i := 0; i < b.N; i++ {
-		task := goque.NewTask(
-			taskType,
-			toJSONBench(b, fmt.Sprintf("payload_%d", i)),
-		)
-		pushToQueueBench(ctx, b, queueManager, task)
-	}
-
-	b.ResetTimer()
-	b.ReportAllocs()
-
-	// Wait for all tasks to be processed
-	require.Eventually(b, func() bool {
-		tasks, err := storage.GetTasksForProcessing(ctx, taskType, 1)
-		require.NoError(b, err)
-		return len(tasks) == 0
-	}, 30*time.Second, 100*time.Millisecond)
-}
-
-// BenchmarkTaskProcessingSimple benchmarks simple task processing end-to-end.
-func BenchmarkTaskProcessingSimple(b *testing.B) {
-	testutils.RunMultiDBBenchmarks(b, taskStorages, benchmarkTaskProcessingSimple)
-}
-
-func benchmarkTaskProcessingSimple(b *testing.B, storage storages.AdvancedTaskStorage) {
-	b.Helper()
-	ctx := context.Background()
-	ctx = xlog.ContextWithLogger(ctx, xlog.NewZapAdapter(zap.NewNop()))
-	ctx = goquectx.WithValue(ctx, "benchmark", b.Name())
-
-	queueManager := goque.NewTaskQueueManager(storage)
-	taskType := "simple_benchmark_" + uuid.NewString()
-
-	// Create Goque instance with noop processor
 	goq := goque.NewGoque(storage)
 	goq.RegisterProcessor(
 		taskType,
 		goque.NoopTaskProcessor(),
-		goque.WithWorkersCount(goque.NewStaticValue(10)),
-		goque.WithTaskFetcherTick(goque.NewStaticValue(10*time.Millisecond)),
-		goque.WithTaskFetcherMaxTasks(goque.NewStaticValue[int64](100)),
+		goque.WithWorkersCount(goque.NewStaticValue(workers)),
+		goque.WithTaskFetcherTick(goque.NewStaticValue(benchFetchTick)),
+		goque.WithTaskFetcherMaxTasks(goque.NewStaticValue(benchFetchMaxTasks)),
+		// Keep the healer and cleaner out of the measurement.
+		goque.WithHealerPeriod(goque.NewStaticValue(time.Hour)),
+		goque.WithCleanerPeriod(goque.NewStaticValue(time.Hour)),
+		// The after-hook runs once the task's final status is persisted, so
+		// the b.N-th call is the moment the whole queue is processed.
+		goque.WithHooksAfterProcessing(func(_ context.Context, _ *goque.Task, err error) {
+			if err != nil {
+				failed.Add(1)
+				firstErr.CompareAndSwap(nil, &err)
+			}
+			if finished.Add(1) == int64(b.N) {
+				close(allDone)
+			}
+		}),
 	)
 
-	err := goq.Run(ctx)
-	require.NoError(b, err)
-	defer goq.Stop()
-
-	b.ResetTimer()
 	b.ReportAllocs()
+	b.ResetTimer()
+	require.NoError(b, goq.Run(ctx))
+	// Registered after benchTaskType, so it runs before the rows are deleted.
+	b.Cleanup(goq.Stop)
 
-	for i := 0; i < b.N; i++ {
-		task := goque.NewTask(
-			taskType,
-			toJSONBench(b, fmt.Sprintf("payload_%d", i)),
-		)
-		pushToQueueBench(ctx, b, queueManager, task)
+	select {
+	case <-allDone:
+	case <-time.After(benchProcessingTimeout):
+		b.Fatalf("processed %d of %d tasks in %s", finished.Load(), b.N, benchProcessingTimeout)
 	}
+	b.StopTimer()
 
-	// Give some time for processing
-	time.Sleep(100 * time.Millisecond)
+	// A failed task is reported, not fatal: the run still measures throughput,
+	// and the failures (e.g. MySQL deadlocks under many workers) stay visible.
+	if n := failed.Load(); n > 0 {
+		b.Logf("%d of %d tasks finished with an error, first: %v", n, b.N, *firstErr.Load())
+	}
+	b.ReportMetric(float64(failed.Load()), "failed")
+	reportTasksPerSecond(b, b.N)
+}
+
+func benchContext() context.Context {
+	return xlog.ContextWithLogger(context.Background(), xlog.NewZapAdapter(zap.NewNop()))
+}
+
+// benchTaskType returns a task type unique to this run and deletes its tasks
+// once the run finishes.
+func benchTaskType(b *testing.B, storage storages.AdvancedTaskStorage) entity.TaskType {
+	b.Helper()
+
+	taskType := "bench_" + uuid.NewString()
+	b.Cleanup(func() {
+		_, err := storage.DeleteTasks(benchContext(), taskType, benchAllStatuses, 0)
+		require.NoError(b, err)
+	})
+
+	return taskType
+}
+
+// seedTasks inserts n due tasks of taskType, benchSeedChunk per transaction.
+//
+// next_attempt_at is set a minute back: MySQL stores it as TIMESTAMP rounded
+// to the nearest second, so a task stamped "now" can land up to half a second
+// in the future and not be fetchable yet.
+func seedTasks(ctx context.Context, b *testing.B, storage storages.AdvancedTaskStorage, taskType entity.TaskType, n int) {
+	b.Helper()
+
+	dueAt := time.Now().Add(-time.Minute)
+	for seeded := 0; seeded < n; seeded += benchSeedChunk {
+		chunk := min(benchSeedChunk, n-seeded)
+		err := dbtx.WithinTx(ctx, storage.GetDB(), func(ctx context.Context) error {
+			for range chunk {
+				task := entity.NewTask(taskType, benchPayload)
+				task.NextAttemptAt = dueAt
+				if err := storage.AddTask(ctx, task); err != nil {
+					return err
+				}
+			}
+			return nil
+		})
+		require.NoError(b, err)
+	}
+}
+
+func reportTasksPerSecond(b *testing.B, tasks int) {
+	b.Helper()
+
+	if elapsed := b.Elapsed(); elapsed > 0 {
+		b.ReportMetric(float64(tasks)/elapsed.Seconds(), "tasks/s")
+	}
 }
